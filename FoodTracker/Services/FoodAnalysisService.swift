@@ -415,8 +415,15 @@ actor USDAService {
             throw FoodAnalysisError.networkError(error)
         }
 
-        guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
-            throw FoodAnalysisError.apiError("USDA API error")
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw FoodAnalysisError.apiError("USDA: invalid response")
+        }
+
+        guard httpResponse.statusCode == 200 else {
+            if httpResponse.statusCode == 429 {
+                throw FoodAnalysisError.apiError("USDA rate limit exceeded. DEMO_KEY allows 30 requests/hour — try again later.")
+            }
+            throw FoodAnalysisError.apiError("USDA API error (HTTP \(httpResponse.statusCode))")
         }
 
         guard let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],

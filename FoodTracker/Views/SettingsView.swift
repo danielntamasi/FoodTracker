@@ -27,6 +27,7 @@ enum DailyTarget {
 }
 
 struct SettingsView: View {
+    @FocusState private var isTargetFieldFocused: Bool
     @State private var selectedProvider = VisionProvider.selected
     @State private var apiKey = ""
     @State private var showingKey = false
@@ -109,6 +110,13 @@ struct SettingsView: View {
                     }
                 }
             }
+            .scrollDismissesKeyboard(.interactively)
+            .toolbar {
+                ToolbarItemGroup(placement: .keyboard) {
+                    Spacer()
+                    Button("Done") { isTargetFieldFocused = false }
+                }
+            }
             .navigationTitle("Settings")
             .onAppear {
                 loadKeyForCurrentProvider()
@@ -135,6 +143,7 @@ struct SettingsView: View {
                 .keyboardType(.numberPad)
                 .multilineTextAlignment(.trailing)
                 .frame(maxWidth: 80)
+                .focused($isTargetFieldFocused)
                 .onChange(of: value.wrappedValue) { _, newValue in
                     UserDefaults.standard.set(newValue, forKey: key)
                 }
