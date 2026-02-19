@@ -22,7 +22,9 @@ struct PhotoCaptureView: View {
                         showingAnalysis = true
                     }
                 }
-                .fullScreenCover(isPresented: $showingAnalysis) {
+                .fullScreenCover(isPresented: $showingAnalysis, onDismiss: {
+                    dismiss()
+                }) {
                     if let image = capturedImage {
                         PhotoAnalysisView(image: image)
                     }
