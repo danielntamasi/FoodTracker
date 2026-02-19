@@ -22,7 +22,37 @@
 		A1000101000000000000000D /* OpenFoodFactsService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1000201000000000000000E /* OpenFoodFactsService.swift */; };
 		A1000101000000000000000E /* BarcodeScannerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1000201000000000000000F /* BarcodeScannerView.swift */; };
 		A1000101000000000000000F /* EditEntryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10002010000000000000010 /* EditEntryView.swift */; };
+		A10001010000000000000010 /* SharedConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10002010000000000000011 /* SharedConfig.swift */; };
+		A10001010000000000000020 /* FoodTrackerWidget.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10002010000000000000020 /* FoodTrackerWidget.swift */; };
+		A10001010000000000000021 /* FoodEntry.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10002010000000000000002 /* FoodEntry.swift */; };
+		A10001010000000000000022 /* SharedConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10002010000000000000011 /* SharedConfig.swift */; };
+		A10001010000000000000023 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = A10002010000000000000021 /* Assets.xcassets */; };
+		A10001010000000000000024 /* FoodTrackerWidgetExtension.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = A10003010000000000000002 /* FoodTrackerWidgetExtension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 /* End PBXBuildFile section */
+
+/* Begin PBXContainerItemProxy section */
+		A1000B010000000000000001 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = A10009010000000000000001 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = A10006010000000000000002;
+			remoteInfo = FoodTrackerWidgetExtension;
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXCopyFilesBuildPhase section */
+		A10007010000000000000005 /* Embed Foundation Extensions */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 13;
+			files = (
+				A10001010000000000000024 /* FoodTrackerWidgetExtension.appex in Embed Foundation Extensions */,
+			);
+			name = "Embed Foundation Extensions";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
 		A10002010000000000000001 /* FoodTrackerApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FoodTrackerApp.swift; sourceTree = "<group>"; };
@@ -41,11 +71,25 @@
 		A1000201000000000000000E /* OpenFoodFactsService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OpenFoodFactsService.swift; sourceTree = "<group>"; };
 		A1000201000000000000000F /* BarcodeScannerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BarcodeScannerView.swift; sourceTree = "<group>"; };
 		A10002010000000000000010 /* EditEntryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EditEntryView.swift; sourceTree = "<group>"; };
+		A10002010000000000000011 /* SharedConfig.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SharedConfig.swift; sourceTree = "<group>"; };
+		A10002010000000000000015 /* FoodTracker.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = FoodTracker.entitlements; sourceTree = "<group>"; };
+		A10002010000000000000020 /* FoodTrackerWidget.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FoodTrackerWidget.swift; sourceTree = "<group>"; };
+		A10002010000000000000021 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		A10002010000000000000022 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		A10002010000000000000023 /* FoodTrackerWidgetExtension.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = FoodTrackerWidgetExtension.entitlements; sourceTree = "<group>"; };
 		A10003010000000000000001 /* FoodTracker.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = FoodTracker.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		A10003010000000000000002 /* FoodTrackerWidgetExtension.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = FoodTrackerWidgetExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
 		A10004010000000000000001 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		A10004010000000000000002 /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -59,6 +103,7 @@
 			isa = PBXGroup;
 			children = (
 				A10005010000000000000002 /* FoodTracker */,
+				A10005010000000000000007 /* FoodTrackerWidget */,
 				A10005010000000000000006 /* Products */,
 			);
 			sourceTree = "<group>";
@@ -66,10 +111,12 @@
 		A10005010000000000000002 /* FoodTracker */ = {
 			isa = PBXGroup;
 			children = (
+				A10002010000000000000015 /* FoodTracker.entitlements */,
 				A10002010000000000000001 /* FoodTrackerApp.swift */,
 				A10005010000000000000003 /* Models */,
 				A10005010000000000000004 /* Services */,
 				A10005010000000000000005 /* Views */,
+				A10005010000000000000008 /* Shared */,
 				A1000201000000000000000C /* Assets.xcassets */,
 				A1000201000000000000000D /* Info.plist */,
 			);
@@ -114,8 +161,28 @@
 			isa = PBXGroup;
 			children = (
 				A10003010000000000000001 /* FoodTracker.app */,
+				A10003010000000000000002 /* FoodTrackerWidgetExtension.appex */,
 			);
 			name = Products;
+			sourceTree = "<group>";
+		};
+		A10005010000000000000007 /* FoodTrackerWidget */ = {
+			isa = PBXGroup;
+			children = (
+				A10002010000000000000023 /* FoodTrackerWidgetExtension.entitlements */,
+				A10002010000000000000020 /* FoodTrackerWidget.swift */,
+				A10002010000000000000021 /* Assets.xcassets */,
+				A10002010000000000000022 /* Info.plist */,
+			);
+			path = FoodTrackerWidget;
+			sourceTree = "<group>";
+		};
+		A10005010000000000000008 /* Shared */ = {
+			isa = PBXGroup;
+			children = (
+				A10002010000000000000011 /* SharedConfig.swift */,
+			);
+			path = Shared;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -128,15 +195,34 @@
 				A10007010000000000000001 /* Sources */,
 				A10004010000000000000001 /* Frameworks */,
 				A10007010000000000000002 /* Resources */,
+				A10007010000000000000005 /* Embed Foundation Extensions */,
 			);
 			buildRules = (
 			);
 			dependencies = (
+				A1000C010000000000000001 /* PBXTargetDependency */,
 			);
 			name = FoodTracker;
 			productName = FoodTracker;
 			productReference = A10003010000000000000001 /* FoodTracker.app */;
 			productType = "com.apple.product-type.application";
+		};
+		A10006010000000000000002 /* FoodTrackerWidgetExtension */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = A10008010000000000000005 /* Build configuration list for PBXNativeTarget "FoodTrackerWidgetExtension" */;
+			buildPhases = (
+				A10007010000000000000003 /* Sources */,
+				A10004010000000000000002 /* Frameworks */,
+				A10007010000000000000004 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = FoodTrackerWidgetExtension;
+			productName = FoodTrackerWidgetExtension;
+			productReference = A10003010000000000000002 /* FoodTrackerWidgetExtension.appex */;
+			productType = "com.apple.product-type.app-extension";
 		};
 /* End PBXNativeTarget section */
 
@@ -149,6 +235,9 @@
 				LastUpgradeCheck = 1540;
 				TargetAttributes = {
 					A10006010000000000000001 = {
+						CreatedOnToolsVersion = 15.4;
+					};
+					A10006010000000000000002 = {
 						CreatedOnToolsVersion = 15.4;
 					};
 				};
@@ -167,6 +256,7 @@
 			projectRoot = "";
 			targets = (
 				A10006010000000000000001 /* FoodTracker */,
+				A10006010000000000000002 /* FoodTrackerWidgetExtension */,
 			);
 		};
 /* End PBXProject section */
@@ -177,6 +267,14 @@
 			buildActionMask = 2147483647;
 			files = (
 				A1000101000000000000000C /* Assets.xcassets in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		A10007010000000000000004 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				A10001010000000000000023 /* Assets.xcassets in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -201,10 +299,29 @@
 				A1000101000000000000000D /* OpenFoodFactsService.swift in Sources */,
 				A1000101000000000000000E /* BarcodeScannerView.swift in Sources */,
 				A1000101000000000000000F /* EditEntryView.swift in Sources */,
+				A10001010000000000000010 /* SharedConfig.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		A10007010000000000000003 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				A10001010000000000000020 /* FoodTrackerWidget.swift in Sources */,
+				A10001010000000000000021 /* FoodEntry.swift in Sources */,
+				A10001010000000000000022 /* SharedConfig.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		A1000C010000000000000001 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = A10006010000000000000002 /* FoodTrackerWidgetExtension */;
+			targetProxy = A1000B010000000000000001 /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
 
 /* Begin XCBuildConfiguration section */
 		A1000A010000000000000001 /* Debug */ = {
@@ -331,6 +448,7 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = FoodTracker/FoodTracker.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = R57439X4QT;
@@ -342,8 +460,9 @@
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
-				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
-				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				INFOPLIST_KEY_UIRequiresFullScreen = YES;
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait";
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
@@ -364,6 +483,7 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = FoodTracker/FoodTracker.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = R57439X4QT;
@@ -375,8 +495,9 @@
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
-				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
-				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				INFOPLIST_KEY_UIRequiresFullScreen = YES;
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait";
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
@@ -384,6 +505,66 @@
 				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.DNT.foodtracker.app;
 				PRODUCT_NAME = "$(TARGET_NAME)";
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SUPPORTS_MACCATALYST = NO;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
+		A1000A010000000000000005 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				ASSETCATALOG_COMPILER_WIDGET_BACKGROUND_COLOR_NAME = WidgetBackground;
+				CODE_SIGN_ENTITLEMENTS = FoodTrackerWidget/FoodTrackerWidgetExtension.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = R57439X4QT;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = FoodTrackerWidget/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = FoodTracker;
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.DNT.foodtracker.app.widget;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SUPPORTS_MACCATALYST = NO;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		A1000A010000000000000006 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				ASSETCATALOG_COMPILER_WIDGET_BACKGROUND_COLOR_NAME = WidgetBackground;
+				CODE_SIGN_ENTITLEMENTS = FoodTrackerWidget/FoodTrackerWidgetExtension.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = R57439X4QT;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = FoodTrackerWidget/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = FoodTracker;
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.DNT.foodtracker.app.widget;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
 				SUPPORTS_MACCATALYST = NO;
 				SWIFT_EMIT_LOC_STRINGS = YES;
@@ -409,6 +590,15 @@
 			buildConfigurations = (
 				A1000A010000000000000003 /* Debug */,
 				A1000A010000000000000004 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		A10008010000000000000005 /* Build configuration list for PBXNativeTarget "FoodTrackerWidgetExtension" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				A1000A010000000000000005 /* Debug */,
+				A1000A010000000000000006 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;

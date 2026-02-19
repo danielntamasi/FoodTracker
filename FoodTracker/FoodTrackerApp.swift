@@ -7,6 +7,6 @@ struct FoodTrackerApp: App {
         WindowGroup {
             ContentView()
         }
-        .modelContainer(for: FoodEntry.self)
+        .modelContainer(sharedModelContainer)
     }
 }

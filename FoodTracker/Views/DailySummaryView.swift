@@ -9,6 +9,11 @@ struct DailySummaryView: View {
     @State private var showingPhotoCapture = false
     @State private var showingBarcodeScanner = false
     @State private var editingEntry: FoodEntry?
+    @State private var reverseChronological = UserDefaults.standard.bool(forKey: "reverseChronological")
+
+    private var orderedPeriods: [TimeOfDay] {
+        reverseChronological ? TimeOfDay.allCases.reversed() : TimeOfDay.allCases
+    }
 
     private var todayEntries: [FoodEntry] {
         let calendar = Calendar.current
@@ -107,8 +112,9 @@ struct DailySummaryView: View {
                         )
                     }
                 } else {
-                    ForEach(TimeOfDay.allCases, id: \.self) { period in
-                        let periodEntries = todayEntries.filter { TimeOfDay.from($0.date) == period }
+                    ForEach(orderedPeriods, id: \.self) { period in
+                        let filtered = todayEntries.filter { TimeOfDay.from($0.date) == period }
+                        let periodEntries = reverseChronological ? Array(filtered.reversed()) : filtered
                         if !periodEntries.isEmpty {
                             let displayItems = groupedDisplayItems(from: periodEntries)
                             Section {
@@ -158,6 +164,15 @@ struct DailySummaryView: View {
             }
             .navigationTitle("Today")
             .toolbar {
+                ToolbarItem(placement: .topBarLeading) {
+                    Button {
+                        reverseChronological.toggle()
+                        UserDefaults.standard.set(reverseChronological, forKey: "reverseChronological")
+                    } label: {
+                        Image(systemName: reverseChronological ? "arrow.down" : "arrow.up")
+                    }
+                    .accessibilityLabel(reverseChronological ? "Show oldest first" : "Show newest first")
+                }
                 ToolbarItem(placement: .primaryAction) {
                     Menu {
                         Button {
@@ -374,6 +389,11 @@ struct MacroDonutCard: View {
                         Text("/ \(calorieTarget) cal")
                             .font(.caption)
                             .foregroundStyle(.secondary)
+                        let remaining = calorieTarget - calories
+                        Text("\(abs(remaining)) \(remaining >= 0 ? "left" : "over")")
+                            .font(.caption2)
+                            .fontWeight(.medium)
+                            .foregroundStyle(remaining >= 0 ? Color.secondary : Color.red)
                     } else {
                         Text("calories")
                             .font(.caption)

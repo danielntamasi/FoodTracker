@@ -31,6 +31,8 @@ struct SettingsView: View {
     @State private var selectedProvider = VisionProvider.selected
     @State private var apiKey = ""
     @State private var showingKey = false
+    @State private var usdaKey = ""
+    @State private var showingUSDAKey = false
     @State private var savedSuccessfully = false
     @State private var calorieTarget = DailyTarget.calories
     @State private var proteinTarget = DailyTarget.protein
@@ -85,6 +87,38 @@ struct SettingsView: View {
                 }
 
                 Section {
+                    HStack {
+                        if showingUSDAKey {
+                            TextField("API Key", text: $usdaKey)
+                                .textInputAutocapitalization(.never)
+                                .autocorrectionDisabled()
+                        } else {
+                            SecureField("API Key", text: $usdaKey)
+                                .textInputAutocapitalization(.never)
+                                .autocorrectionDisabled()
+                        }
+                        Button {
+                            showingUSDAKey.toggle()
+                        } label: {
+                            Image(systemName: showingUSDAKey ? "eye.slash" : "eye")
+                                .foregroundStyle(.secondary)
+                        }
+                        .buttonStyle(.plain)
+                    }
+
+                    Button("Save USDA Key") {
+                        if KeychainService.save(apiKey: usdaKey, account: USDAService.keychainAccount) {
+                            savedSuccessfully = true
+                        }
+                    }
+                    .disabled(usdaKey.isEmpty)
+                } header: {
+                    Text("USDA API Key (Optional)")
+                } footer: {
+                    Text("Free key with 1,000 requests/hour. Sign up at fdc.nal.usda.gov/api-key-signup. Without a key, the app uses DEMO_KEY (30/hour).")
+                }
+
+                Section {
                     targetRow("Calories", value: $calorieTarget, key: DailyTarget.calorieKey)
                     targetRow("Protein (g)", value: $proteinTarget, key: DailyTarget.proteinKey)
                     targetRow("Carbs (g)", value: $carbsTarget, key: DailyTarget.carbsKey)
@@ -120,6 +154,7 @@ struct SettingsView: View {
             .navigationTitle("Settings")
             .onAppear {
                 loadKeyForCurrentProvider()
+                usdaKey = KeychainService.load(account: USDAService.keychainAccount) ?? ""
             }
             .alert("API Key Saved", isPresented: $savedSuccessfully) {
                 Button("OK", role: .cancel) {}

@@ -386,7 +386,11 @@ actor USDAService {
     static let shared = USDAService()
 
     private let baseURL = "https://api.nal.usda.gov/fdc/v1/foods/search"
-    private let apiKey = "DEMO_KEY"
+    static let keychainAccount = "usda-api-key"
+
+    private var apiKey: String {
+        KeychainService.load(account: Self.keychainAccount) ?? "DEMO_KEY"
+    }
 
     struct NutrientsPer100g {
         var calories: Double = 0
@@ -421,7 +425,11 @@ actor USDAService {
 
         guard httpResponse.statusCode == 200 else {
             if httpResponse.statusCode == 429 {
-                throw FoodAnalysisError.apiError("USDA rate limit exceeded. DEMO_KEY allows 30 requests/hour — try again later.")
+                let isDemo = KeychainService.load(account: Self.keychainAccount) == nil
+                let hint = isDemo
+                    ? "DEMO_KEY allows 30 requests/hour. Get a free key at fdc.nal.usda.gov/api-key-signup and add it in Settings."
+                    : "Rate limit exceeded (1,000 requests/hour). Try again later."
+                throw FoodAnalysisError.apiError("USDA rate limit exceeded. \(hint)")
             }
             throw FoodAnalysisError.apiError("USDA API error (HTTP \(httpResponse.statusCode))")
         }
