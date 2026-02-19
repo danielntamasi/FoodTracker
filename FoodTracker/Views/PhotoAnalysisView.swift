@@ -5,23 +5,38 @@ struct PhotoAnalysisView: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(\.dismiss) private var dismiss
 
-    let image: UIImage
+    let image: UIImage?
 
     @State private var identifiedFoods: [IdentifiedFood] = []
-    @State private var isLoading = true
+    @State private var isLoading: Bool
     @State private var loadingStatus = "Identifying food..."
     @State private var errorMessage: String?
+
+    // Standard init for photo analysis
+    init(image: UIImage) {
+        self.image = image
+        self._isLoading = State(initialValue: true)
+    }
+
+    // Init for barcode/pre-resolved results (no photo)
+    init(foods: [IdentifiedFood]) {
+        self.image = nil
+        self._identifiedFoods = State(initialValue: foods)
+        self._isLoading = State(initialValue: false)
+    }
 
     var body: some View {
         NavigationStack {
             Group {
                 if isLoading {
                     VStack(spacing: 16) {
-                        Image(uiImage: image)
-                            .resizable()
-                            .scaledToFit()
-                            .frame(maxHeight: 200)
-                            .clipShape(RoundedRectangle(cornerRadius: 12))
+                        if let image {
+                            Image(uiImage: image)
+                                .resizable()
+                                .scaledToFit()
+                                .frame(maxHeight: 200)
+                                .clipShape(RoundedRectangle(cornerRadius: 12))
+                        }
 
                         ProgressView(loadingStatus)
                             .font(.headline)
@@ -33,24 +48,35 @@ struct PhotoAnalysisView: View {
                     } description: {
                         Text(error)
                     } actions: {
-                        Button("Try Again") { analyzePhoto() }
+                        if image != nil {
+                            Button("Try Again") { analyzePhoto() }
+                        }
                         Button("Cancel") { dismiss() }
                     }
                 } else {
                     List {
-                        Section {
-                            Image(uiImage: image)
-                                .resizable()
-                                .scaledToFit()
-                                .frame(maxHeight: 150)
-                                .frame(maxWidth: .infinity)
-                                .clipShape(RoundedRectangle(cornerRadius: 12))
-                                .listRowInsets(EdgeInsets())
-                                .padding()
+                        if let image {
+                            Section {
+                                Image(uiImage: image)
+                                    .resizable()
+                                    .scaledToFit()
+                                    .frame(maxHeight: 150)
+                                    .frame(maxWidth: .infinity)
+                                    .clipShape(RoundedRectangle(cornerRadius: 12))
+                                    .listRowInsets(EdgeInsets())
+                                    .padding()
+                            }
                         }
 
                         ForEach($identifiedFoods) { $food in
-                            Section(food.name) {
+                            Section {
+                                HStack {
+                                    Text(food.name)
+                                        .font(.headline)
+                                    Spacer()
+                                    SourceBadge(source: food.source)
+                                }
+
                                 HStack {
                                     Text("Name")
                                     Spacer()
@@ -69,9 +95,6 @@ struct PhotoAnalysisView: View {
                                     TextField("Grams", value: $food.portionGrams, format: .number)
                                         .keyboardType(.decimalPad)
                                         .multilineTextAlignment(.trailing)
-                                        .onChange(of: food.portionGrams) { _, _ in
-                                            recalculateMacros(for: &food)
-                                        }
                                 }
                                 HStack {
                                     Text("Calories")
@@ -120,15 +143,18 @@ struct PhotoAnalysisView: View {
                 }
             }
             .task {
-                analyzePhoto()
+                if image != nil && identifiedFoods.isEmpty {
+                    analyzePhoto()
+                }
             }
         }
     }
 
     private func analyzePhoto() {
+        guard let image else { return }
         isLoading = true
         errorMessage = nil
-        loadingStatus = "Identifying food with Gemini..."
+        loadingStatus = "Identifying food..."
 
         Task {
             do {
@@ -143,13 +169,8 @@ struct PhotoAnalysisView: View {
         }
     }
 
-    private func recalculateMacros(for food: inout IdentifiedFood) {
-        // Re-lookup would be async; for now user adjusts manually after changing grams
-        // The initial values are proportional, so the user can edit directly
-    }
-
     private func saveAll() {
-        let thumbnailData = image.jpegData(compressionQuality: 0.5)
+        let thumbnailData = image?.jpegData(compressionQuality: 0.5)
 
         for food in identifiedFoods {
             let entry = FoodEntry(
@@ -163,5 +184,30 @@ struct PhotoAnalysisView: View {
             modelContext.insert(entry)
         }
         dismiss()
+    }
+}
+
+// MARK: - Source Badge
+
+struct SourceBadge: View {
+    let source: NutritionSource
+
+    private var color: Color {
+        switch source {
+        case .label: return .green
+        case .estimate: return .orange
+        case .barcode: return .blue
+        }
+    }
+
+    var body: some View {
+        Text(source.displayLabel)
+            .font(.caption2)
+            .fontWeight(.semibold)
+            .padding(.horizontal, 8)
+            .padding(.vertical, 3)
+            .background(color.opacity(0.15))
+            .foregroundStyle(color)
+            .clipShape(Capsule())
     }
 }

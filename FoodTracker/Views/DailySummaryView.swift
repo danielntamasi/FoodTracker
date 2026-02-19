@@ -6,6 +6,7 @@ struct DailySummaryView: View {
     @Query private var allEntries: [FoodEntry]
     @State private var showingAddEntry = false
     @State private var showingPhotoCapture = false
+    @State private var showingBarcodeScanner = false
 
     private var todayEntries: [FoodEntry] {
         let calendar = Calendar.current
@@ -80,6 +81,12 @@ struct DailySummaryView: View {
                         } label: {
                             Label("Add with Photo", systemImage: "camera")
                         }
+
+                        Button {
+                            showingBarcodeScanner = true
+                        } label: {
+                            Label("Scan Barcode", systemImage: "barcode.viewfinder")
+                        }
                     } label: {
                         Image(systemName: "plus")
                     }
@@ -90,6 +97,9 @@ struct DailySummaryView: View {
             }
             .sheet(isPresented: $showingPhotoCapture) {
                 PhotoCaptureView()
+            }
+            .sheet(isPresented: $showingBarcodeScanner) {
+                BarcodeScannerView()
             }
         }
     }

@@ -1,6 +1,30 @@
 import Foundation
 import UIKit
 
+// MARK: - Nutrition Source
+
+enum NutritionSource: String, Codable {
+    case label
+    case estimate
+    case barcode
+
+    var displayLabel: String {
+        switch self {
+        case .label: return "From Label"
+        case .estimate: return "AI Estimate"
+        case .barcode: return "Barcode"
+        }
+    }
+
+    var badgeColor: String {
+        switch self {
+        case .label: return "green"
+        case .estimate: return "orange"
+        case .barcode: return "blue"
+        }
+    }
+}
+
 struct IdentifiedFood: Identifiable {
     var id = UUID()
     var name: String
@@ -10,6 +34,7 @@ struct IdentifiedFood: Identifiable {
     var fatGrams: Double
     var portionGrams: Double
     var portionDescription: String
+    var source: NutritionSource = .estimate
 }
 
 // MARK: - Vision Provider Selection
@@ -53,6 +78,22 @@ struct VisionIdentifiedItem: Codable {
     let name: String
     let portion: String
     let portion_grams: Double
+    let source: String?
+    let calories: Double?
+    let protein_grams: Double?
+    let carbs_grams: Double?
+    let fat_grams: Double?
+
+    var nutritionSource: NutritionSource {
+        switch source {
+        case "label": return .label
+        default: return .estimate
+        }
+    }
+
+    var hasLabelNutrition: Bool {
+        source == "label" && calories != nil
+    }
 }
 
 struct VisionFoodResponse: Codable {
@@ -85,11 +126,19 @@ enum FoodAnalysisError: LocalizedError {
 // MARK: - Shared prompt
 
 private let visionPrompt = """
-Identify every food item in this photo. For each item, estimate the portion size in grams.
+Analyze every food item in this photo. For each item, determine which mode applies:
+
+MODE 1 – NUTRITION LABEL VISIBLE: If you can see a nutrition facts label or printed nutritional information for an item, READ the exact values from the label. Use the brand/product name as-is (e.g. "David Protein Bar", not "protein bar"). Set "source": "label" and include the numeric values you read.
+
+MODE 2 – NO LABEL: If there is no nutrition label visible for an item, identify it using common USDA-compatible names (e.g. "white rice" not "steamed jasmine rice"). Estimate portion size. Set "source": "estimate". Do NOT include calories/protein/carbs/fat fields.
+
 Return ONLY valid JSON with no additional text, in this exact format:
-{"foods": [{"name": "grilled chicken breast", "portion": "1 breast (6 oz)", "portion_grams": 170}]}
-Use common, simple food names that would match USDA database searches (e.g. "white rice" not "steamed jasmine rice").
-Be specific but concise. List each distinct food item separately.
+{"foods": [
+  {"name": "David Protein Bar", "portion": "1 bar (50g)", "portion_grams": 50, "source": "label", "calories": 200, "protein_grams": 20, "carbs_grams": 22, "fat_grams": 7},
+  {"name": "white rice", "portion": "1 cup", "portion_grams": 185, "source": "estimate"}
+]}
+
+A photo may contain a mix of both modes. List each distinct food item separately.
 """
 
 // MARK: - Claude Vision Service
@@ -371,26 +420,42 @@ enum FoodAnalysisPipeline {
             items = try await GeminiAPIService.shared.identifyFoods(in: image)
         }
 
-        // Step 2: Look up each food in USDA for accurate macros
+        // Step 2: For label items, use values directly. For estimates, look up USDA.
         var results: [IdentifiedFood] = []
 
         await withTaskGroup(of: IdentifiedFood?.self) { group in
             for item in items {
                 group.addTask {
-                    let nutrients = (try? await USDAService.shared.lookupNutrients(for: item.name))
-                        ?? USDAService.NutrientsPer100g()
+                    if item.hasLabelNutrition {
+                        // Label-sourced: use exact values from the nutrition label
+                        return IdentifiedFood(
+                            name: item.name,
+                            calories: Int(item.calories ?? 0),
+                            proteinGrams: item.protein_grams ?? 0,
+                            carbsGrams: item.carbs_grams ?? 0,
+                            fatGrams: item.fat_grams ?? 0,
+                            portionGrams: item.portion_grams,
+                            portionDescription: item.portion,
+                            source: .label
+                        )
+                    } else {
+                        // Estimate-sourced: look up in USDA
+                        let nutrients = (try? await USDAService.shared.lookupNutrients(for: item.name))
+                            ?? USDAService.NutrientsPer100g()
 
-                    let scale = item.portion_grams / 100.0
+                        let scale = item.portion_grams / 100.0
 
-                    return IdentifiedFood(
-                        name: item.name,
-                        calories: Int(nutrients.calories * scale),
-                        proteinGrams: (nutrients.protein * scale * 10).rounded() / 10,
-                        carbsGrams: (nutrients.carbs * scale * 10).rounded() / 10,
-                        fatGrams: (nutrients.fat * scale * 10).rounded() / 10,
-                        portionGrams: item.portion_grams,
-                        portionDescription: item.portion
-                    )
+                        return IdentifiedFood(
+                            name: item.name,
+                            calories: Int(nutrients.calories * scale),
+                            proteinGrams: (nutrients.protein * scale * 10).rounded() / 10,
+                            carbsGrams: (nutrients.carbs * scale * 10).rounded() / 10,
+                            fatGrams: (nutrients.fat * scale * 10).rounded() / 10,
+                            portionGrams: item.portion_grams,
+                            portionDescription: item.portion,
+                            source: .estimate
+                        )
+                    }
                 }
             }
 
