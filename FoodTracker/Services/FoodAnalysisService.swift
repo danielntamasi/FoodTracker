@@ -35,6 +35,8 @@ struct IdentifiedFood: Identifiable {
     var portionGrams: Double
     var portionDescription: String
     var source: NutritionSource = .estimate
+    var mealGroupID: UUID?
+    var mealName: String?
 }
 
 // MARK: - Vision Provider Selection
@@ -96,8 +98,40 @@ struct VisionIdentifiedItem: Codable {
     }
 }
 
+// Polymorphic element: either a grouped meal or a standalone item
+enum VisionFoodElement: Codable {
+    case meal(name: String, ingredients: [VisionIdentifiedItem])
+    case standalone(VisionIdentifiedItem)
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        if let mealName = try container.decodeIfPresent(String.self, forKey: .meal_name),
+           let ingredients = try container.decodeIfPresent([VisionIdentifiedItem].self, forKey: .ingredients) {
+            self = .meal(name: mealName, ingredients: ingredients)
+        } else {
+            let item = try VisionIdentifiedItem(from: decoder)
+            self = .standalone(item)
+        }
+    }
+
+    func encode(to encoder: Encoder) throws {
+        switch self {
+        case .meal(let name, let ingredients):
+            var container = encoder.container(keyedBy: CodingKeys.self)
+            try container.encode(name, forKey: .meal_name)
+            try container.encode(ingredients, forKey: .ingredients)
+        case .standalone(let item):
+            try item.encode(to: encoder)
+        }
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case meal_name, ingredients
+    }
+}
+
 struct VisionFoodResponse: Codable {
-    let foods: [VisionIdentifiedItem]
+    let foods: [VisionFoodElement]
 }
 
 enum FoodAnalysisError: LocalizedError {
@@ -132,13 +166,19 @@ MODE 1 – NUTRITION LABEL VISIBLE: If you can see a nutrition facts label or pr
 
 MODE 2 – NO LABEL: If there is no nutrition label visible for an item, identify it using common USDA-compatible names (e.g. "white rice" not "steamed jasmine rice"). Estimate portion size. Set "source": "estimate". Do NOT include calories/protein/carbs/fat fields.
 
+GROUPING: If multiple items are clearly part of one composite dish (e.g., bibimbap, burrito bowl, stir fry, pasta dish), group them under a "meal_name" with an "ingredients" array. Standalone items (a banana, a protein bar) should NOT be grouped.
+
 Return ONLY valid JSON with no additional text, in this exact format:
 {"foods": [
+  {"meal_name": "Bibimbap", "ingredients": [
+    {"name": "white rice", "portion": "1 cup", "portion_grams": 185, "source": "estimate"},
+    {"name": "fried egg", "portion": "1 large", "portion_grams": 46, "source": "estimate"}
+  ]},
   {"name": "David Protein Bar", "portion": "1 bar (50g)", "portion_grams": 50, "source": "label", "calories": 200, "protein_grams": 20, "carbs_grams": 22, "fat_grams": 7},
-  {"name": "white rice", "portion": "1 cup", "portion_grams": 185, "source": "estimate"}
+  {"name": "banana", "portion": "1 medium", "portion_grams": 118, "source": "estimate"}
 ]}
 
-A photo may contain a mix of both modes. List each distinct food item separately.
+A photo may contain a mix of grouped meals and standalone items.
 """
 
 // MARK: - Claude Vision Service
@@ -149,7 +189,7 @@ actor ClaudeAPIService {
     private let endpoint = URL(string: "https://api.anthropic.com/v1/messages")!
     private let model = "claude-sonnet-4-6"
 
-    func identifyFoods(in image: UIImage) async throws -> [VisionIdentifiedItem] {
+    func identifyFoods(in image: UIImage) async throws -> VisionFoodResponse {
         guard let apiKey = KeychainService.load(account: VisionProvider.claude.keychainAccount),
               !apiKey.isEmpty else {
             throw FoodAnalysisError.noAPIKey
@@ -234,7 +274,7 @@ actor GeminiAPIService {
 
     private let model = "gemini-2.0-flash"
 
-    func identifyFoods(in image: UIImage) async throws -> [VisionIdentifiedItem] {
+    func identifyFoods(in image: UIImage) async throws -> VisionFoodResponse {
         guard let apiKey = KeychainService.load(account: VisionProvider.gemini.keychainAccount),
               !apiKey.isEmpty else {
             throw FoodAnalysisError.noAPIKey
@@ -306,7 +346,7 @@ actor GeminiAPIService {
 
 // MARK: - Shared JSON Parsing
 
-private func decodeVisionResponse(from text: String) throws -> [VisionIdentifiedItem] {
+private func decodeVisionResponse(from text: String) throws -> VisionFoodResponse {
     let jsonString = extractJSON(from: text)
 
     guard let jsonData = jsonString.data(using: .utf8) else {
@@ -314,8 +354,7 @@ private func decodeVisionResponse(from text: String) throws -> [VisionIdentified
     }
 
     do {
-        let response = try JSONDecoder().decode(VisionFoodResponse.self, from: jsonData)
-        return response.foods
+        return try JSONDecoder().decode(VisionFoodResponse.self, from: jsonData)
     } catch {
         throw FoodAnalysisError.invalidResponse
     }
@@ -412,22 +451,40 @@ enum FoodAnalysisPipeline {
     /// Vision provider identifies foods → USDA looks up macros → returns combined results
     static func analyzeImage(_ image: UIImage) async throws -> [IdentifiedFood] {
         // Step 1: Identify foods using selected vision provider
-        let items: [VisionIdentifiedItem]
+        let response: VisionFoodResponse
         switch VisionProvider.selected {
         case .claude:
-            items = try await ClaudeAPIService.shared.identifyFoods(in: image)
+            response = try await ClaudeAPIService.shared.identifyFoods(in: image)
         case .gemini:
-            items = try await GeminiAPIService.shared.identifyFoods(in: image)
+            response = try await GeminiAPIService.shared.identifyFoods(in: image)
         }
 
-        // Step 2: For label items, use values directly. For estimates, look up USDA.
+        // Step 2: Flatten elements, assigning mealGroupID for grouped meals
+        var itemsWithGrouping: [(item: VisionIdentifiedItem, mealGroupID: UUID?, mealName: String?)] = []
+
+        for element in response.foods {
+            switch element {
+            case .meal(let name, let ingredients):
+                let groupID = UUID()
+                for ingredient in ingredients {
+                    itemsWithGrouping.append((item: ingredient, mealGroupID: groupID, mealName: name))
+                }
+            case .standalone(let item):
+                itemsWithGrouping.append((item: item, mealGroupID: nil, mealName: nil))
+            }
+        }
+
+        // Step 3: For label items, use values directly. For estimates, look up USDA.
         var results: [IdentifiedFood] = []
 
         await withTaskGroup(of: IdentifiedFood?.self) { group in
-            for item in items {
+            for entry in itemsWithGrouping {
+                let item = entry.item
+                let groupID = entry.mealGroupID
+                let mealName = entry.mealName
+
                 group.addTask {
                     if item.hasLabelNutrition {
-                        // Label-sourced: use exact values from the nutrition label
                         return IdentifiedFood(
                             name: item.name,
                             calories: Int(item.calories ?? 0),
@@ -436,10 +493,11 @@ enum FoodAnalysisPipeline {
                             fatGrams: item.fat_grams ?? 0,
                             portionGrams: item.portion_grams,
                             portionDescription: item.portion,
-                            source: .label
+                            source: .label,
+                            mealGroupID: groupID,
+                            mealName: mealName
                         )
                     } else {
-                        // Estimate-sourced: look up in USDA
                         let nutrients = (try? await USDAService.shared.lookupNutrients(for: item.name))
                             ?? USDAService.NutrientsPer100g()
 
@@ -453,7 +511,9 @@ enum FoodAnalysisPipeline {
                             fatGrams: (nutrients.fat * scale * 10).rounded() / 10,
                             portionGrams: item.portion_grams,
                             portionDescription: item.portion,
-                            source: .estimate
+                            source: .estimate,
+                            mealGroupID: groupID,
+                            mealName: mealName
                         )
                     }
                 }

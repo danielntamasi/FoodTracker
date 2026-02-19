@@ -33,12 +33,34 @@ struct HistoryView: View {
                 } else {
                     ForEach(groupedEntries, id: \.0) { dateString, dayEntries in
                         Section {
-                            ForEach(dayEntries) { entry in
-                                FoodEntryRow(entry: entry)
-                            }
-                            .onDelete { offsets in
-                                for index in offsets {
-                                    modelContext.delete(dayEntries[index])
+                            ForEach(groupedDisplayItems(from: dayEntries), id: \.id) { item in
+                                switch item {
+                                case .standalone(let entry):
+                                    FoodEntryRow(entry: entry)
+                                        .swipeActions {
+                                            Button(role: .destructive) {
+                                                modelContext.delete(entry)
+                                            } label: {
+                                                Label("Delete", systemImage: "trash")
+                                            }
+                                        }
+                                case .mealGroup(_, let mealName, let entries):
+                                    DisclosureGroup {
+                                        ForEach(entries) { entry in
+                                            FoodEntryRow(entry: entry)
+                                        }
+                                    } label: {
+                                        MealEntryRow(mealName: mealName, entries: entries)
+                                    }
+                                    .swipeActions {
+                                        Button(role: .destructive) {
+                                            for entry in entries {
+                                                modelContext.delete(entry)
+                                            }
+                                        } label: {
+                                            Label("Delete", systemImage: "trash")
+                                        }
+                                    }
                                 }
                             }
                         } header: {

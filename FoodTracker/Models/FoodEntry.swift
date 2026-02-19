@@ -12,6 +12,8 @@ final class FoodEntry {
     var date: Date
     @Attribute(.externalStorage) var photoData: Data?
     var notes: String
+    var mealGroupID: UUID?
+    var mealName: String?
 
     init(
         id: UUID = UUID(),
@@ -22,7 +24,9 @@ final class FoodEntry {
         fatGrams: Double,
         date: Date = Date(),
         photoData: Data? = nil,
-        notes: String = ""
+        notes: String = "",
+        mealGroupID: UUID? = nil,
+        mealName: String? = nil
     ) {
         self.id = id
         self.name = name
@@ -33,5 +37,7 @@ final class FoodEntry {
         self.date = date
         self.photoData = photoData
         self.notes = notes
+        self.mealGroupID = mealGroupID
+        self.mealName = mealName
     }
 }
