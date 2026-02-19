@@ -1,6 +1,7 @@
 import SwiftUI
 
 struct SettingsView: View {
+    @State private var selectedProvider = VisionProvider.selected
     @State private var apiKey = ""
     @State private var showingKey = false
     @State private var savedSuccessfully = false
@@ -8,6 +9,18 @@ struct SettingsView: View {
     var body: some View {
         NavigationStack {
             Form {
+                Section("Vision Provider") {
+                    Picker("Provider", selection: $selectedProvider) {
+                        ForEach(VisionProvider.allCases) { provider in
+                            Text(provider.rawValue).tag(provider)
+                        }
+                    }
+                    .onChange(of: selectedProvider) { _, newValue in
+                        VisionProvider.selected = newValue
+                        loadKeyForCurrentProvider()
+                    }
+                }
+
                 Section {
                     HStack {
                         if showingKey {
@@ -29,15 +42,15 @@ struct SettingsView: View {
                     }
 
                     Button("Save API Key") {
-                        if KeychainService.save(apiKey: apiKey) {
+                        if KeychainService.save(apiKey: apiKey, account: selectedProvider.keychainAccount) {
                             savedSuccessfully = true
                         }
                     }
                     .disabled(apiKey.isEmpty)
                 } header: {
-                    Text("Gemini API Key")
+                    Text("\(selectedProvider.rawValue) API Key")
                 } footer: {
-                    Text("Your API key is stored securely in the Keychain. Get a free key from aistudio.google.com.")
+                    Text("Stored securely in the Keychain. \(selectedProvider.keyInstructions).")
                 }
 
                 Section("About") {
@@ -45,12 +58,6 @@ struct SettingsView: View {
                         Text("Version")
                         Spacer()
                         Text("1.0.0")
-                            .foregroundStyle(.secondary)
-                    }
-                    HStack {
-                        Text("Vision")
-                        Spacer()
-                        Text("Gemini 2.0 Flash")
                             .foregroundStyle(.secondary)
                     }
                     HStack {
@@ -63,15 +70,18 @@ struct SettingsView: View {
             }
             .navigationTitle("Settings")
             .onAppear {
-                if let key = KeychainService.load() {
-                    apiKey = key
-                }
+                loadKeyForCurrentProvider()
             }
             .alert("API Key Saved", isPresented: $savedSuccessfully) {
                 Button("OK", role: .cancel) {}
             } message: {
-                Text("Your Gemini API key has been securely saved to the Keychain.")
+                Text("Your API key has been securely saved.")
             }
         }
+    }
+
+    private func loadKeyForCurrentProvider() {
+        apiKey = KeychainService.load(account: selectedProvider.keychainAccount) ?? ""
+        showingKey = false
     }
 }

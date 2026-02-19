@@ -12,15 +12,51 @@ struct IdentifiedFood: Identifiable {
     var portionDescription: String
 }
 
-// Gemini response model
-struct GeminiIdentifiedItem: Codable {
+// MARK: - Vision Provider Selection
+
+enum VisionProvider: String, CaseIterable, Identifiable {
+    case claude = "Claude Sonnet 4.6"
+    case gemini = "Gemini 2.0 Flash"
+
+    var id: String { rawValue }
+
+    var keychainAccount: String {
+        switch self {
+        case .claude: return "claude-api-key"
+        case .gemini: return "gemini-api-key"
+        }
+    }
+
+    var keyInstructions: String {
+        switch self {
+        case .claude: return "Get your key from console.anthropic.com"
+        case .gemini: return "Get a free key from aistudio.google.com"
+        }
+    }
+
+    static var selected: VisionProvider {
+        get {
+            if let raw = UserDefaults.standard.string(forKey: "visionProvider"),
+               let provider = VisionProvider(rawValue: raw) {
+                return provider
+            }
+            return .gemini
+        }
+        set {
+            UserDefaults.standard.set(newValue.rawValue, forKey: "visionProvider")
+        }
+    }
+}
+
+// Vision response model (shared by both providers)
+struct VisionIdentifiedItem: Codable {
     let name: String
     let portion: String
     let portion_grams: Double
 }
 
-struct GeminiFoodResponse: Codable {
-    let foods: [GeminiIdentifiedItem]
+struct VisionFoodResponse: Codable {
+    let foods: [VisionIdentifiedItem]
 }
 
 enum FoodAnalysisError: LocalizedError {
@@ -33,7 +69,7 @@ enum FoodAnalysisError: LocalizedError {
     var errorDescription: String? {
         switch self {
         case .noAPIKey:
-            return "No API key configured. Please add your Gemini API key in Settings."
+            return "No API key configured. Please add your API key in Settings."
         case .invalidImage:
             return "Could not process the image."
         case .networkError(let error):
@@ -46,6 +82,102 @@ enum FoodAnalysisError: LocalizedError {
     }
 }
 
+// MARK: - Shared prompt
+
+private let visionPrompt = """
+Identify every food item in this photo. For each item, estimate the portion size in grams.
+Return ONLY valid JSON with no additional text, in this exact format:
+{"foods": [{"name": "grilled chicken breast", "portion": "1 breast (6 oz)", "portion_grams": 170}]}
+Use common, simple food names that would match USDA database searches (e.g. "white rice" not "steamed jasmine rice").
+Be specific but concise. List each distinct food item separately.
+"""
+
+// MARK: - Claude Vision Service
+
+actor ClaudeAPIService {
+    static let shared = ClaudeAPIService()
+
+    private let endpoint = URL(string: "https://api.anthropic.com/v1/messages")!
+    private let model = "claude-sonnet-4-6"
+
+    func identifyFoods(in image: UIImage) async throws -> [VisionIdentifiedItem] {
+        guard let apiKey = KeychainService.load(account: VisionProvider.claude.keychainAccount),
+              !apiKey.isEmpty else {
+            throw FoodAnalysisError.noAPIKey
+        }
+
+        guard let jpegData = image.jpegData(compressionQuality: 0.8) else {
+            throw FoodAnalysisError.invalidImage
+        }
+
+        let base64Image = jpegData.base64EncodedString()
+
+        let requestBody: [String: Any] = [
+            "model": model,
+            "max_tokens": 1024,
+            "system": "You are a food identification assistant. Always respond with valid JSON only.",
+            "messages": [
+                [
+                    "role": "user",
+                    "content": [
+                        [
+                            "type": "image",
+                            "source": [
+                                "type": "base64",
+                                "media_type": "image/jpeg",
+                                "data": base64Image
+                            ]
+                        ],
+                        [
+                            "type": "text",
+                            "text": visionPrompt
+                        ]
+                    ]
+                ]
+            ]
+        ]
+
+        var request = URLRequest(url: endpoint)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.setValue(apiKey, forHTTPHeaderField: "x-api-key")
+        request.setValue("2023-06-01", forHTTPHeaderField: "anthropic-version")
+        request.httpBody = try JSONSerialization.data(withJSONObject: requestBody)
+
+        let (data, response) = try await performRequest(request)
+
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw FoodAnalysisError.invalidResponse
+        }
+
+        guard httpResponse.statusCode == 200 else {
+            if let errorJSON = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+               let error = errorJSON["error"] as? [String: Any],
+               let message = error["message"] as? String {
+                throw FoodAnalysisError.apiError(message)
+            }
+            throw FoodAnalysisError.apiError("HTTP \(httpResponse.statusCode)")
+        }
+
+        guard let responseJSON = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let content = responseJSON["content"] as? [[String: Any]],
+              let firstBlock = content.first,
+              let text = firstBlock["text"] as? String else {
+            throw FoodAnalysisError.invalidResponse
+        }
+
+        return try decodeVisionResponse(from: text)
+    }
+
+    private func performRequest(_ request: URLRequest) async throws -> (Data, URLResponse) {
+        do {
+            return try await URLSession.shared.data(for: request)
+        } catch {
+            throw FoodAnalysisError.networkError(error)
+        }
+    }
+}
+
 // MARK: - Gemini Vision Service
 
 actor GeminiAPIService {
@@ -53,8 +185,9 @@ actor GeminiAPIService {
 
     private let model = "gemini-2.0-flash"
 
-    func identifyFoods(in image: UIImage) async throws -> [GeminiIdentifiedItem] {
-        guard let apiKey = KeychainService.load(), !apiKey.isEmpty else {
+    func identifyFoods(in image: UIImage) async throws -> [VisionIdentifiedItem] {
+        guard let apiKey = KeychainService.load(account: VisionProvider.gemini.keychainAccount),
+              !apiKey.isEmpty else {
             throw FoodAnalysisError.noAPIKey
         }
 
@@ -76,13 +209,7 @@ actor GeminiAPIService {
                             ]
                         ],
                         [
-                            "text": """
-                            Identify every food item in this photo. For each item, estimate the portion size in grams.
-                            Return ONLY valid JSON with no additional text, in this exact format:
-                            {"foods": [{"name": "grilled chicken breast", "portion": "1 breast (6 oz)", "portion_grams": 170}]}
-                            Use common, simple food names that would match USDA database searches (e.g. "white rice" not "steamed jasmine rice").
-                            Be specific but concise. List each distinct food item separately.
-                            """
+                            "text": visionPrompt
                         ]
                     ]
                 ]
@@ -114,7 +241,6 @@ actor GeminiAPIService {
             throw FoodAnalysisError.apiError("HTTP \(httpResponse.statusCode)")
         }
 
-        // Parse Gemini response: candidates[0].content.parts[0].text
         guard let responseJSON = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
               let candidates = responseJSON["candidates"] as? [[String: Any]],
               let firstCandidate = candidates.first,
@@ -125,39 +251,45 @@ actor GeminiAPIService {
             throw FoodAnalysisError.invalidResponse
         }
 
-        let jsonString = extractJSON(from: text)
+        return try decodeVisionResponse(from: text)
+    }
+}
 
-        guard let jsonData = jsonString.data(using: .utf8) else {
-            throw FoodAnalysisError.invalidResponse
-        }
+// MARK: - Shared JSON Parsing
 
-        do {
-            let geminiResponse = try JSONDecoder().decode(GeminiFoodResponse.self, from: jsonData)
-            return geminiResponse.foods
-        } catch {
-            throw FoodAnalysisError.invalidResponse
-        }
+private func decodeVisionResponse(from text: String) throws -> [VisionIdentifiedItem] {
+    let jsonString = extractJSON(from: text)
+
+    guard let jsonData = jsonString.data(using: .utf8) else {
+        throw FoodAnalysisError.invalidResponse
     }
 
-    private func extractJSON(from text: String) -> String {
-        if let range = text.range(of: "```json\n") {
-            let start = range.upperBound
-            if let endRange = text.range(of: "\n```", range: start..<text.endIndex) {
-                return String(text[start..<endRange.lowerBound])
-            }
-        }
-        if let range = text.range(of: "```\n") {
-            let start = range.upperBound
-            if let endRange = text.range(of: "\n```", range: start..<text.endIndex) {
-                return String(text[start..<endRange.lowerBound])
-            }
-        }
-        if let start = text.firstIndex(of: "{"),
-           let end = text.lastIndex(of: "}") {
-            return String(text[start...end])
-        }
-        return text
+    do {
+        let response = try JSONDecoder().decode(VisionFoodResponse.self, from: jsonData)
+        return response.foods
+    } catch {
+        throw FoodAnalysisError.invalidResponse
     }
+}
+
+private func extractJSON(from text: String) -> String {
+    if let range = text.range(of: "```json\n") {
+        let start = range.upperBound
+        if let endRange = text.range(of: "\n```", range: start..<text.endIndex) {
+            return String(text[start..<endRange.lowerBound])
+        }
+    }
+    if let range = text.range(of: "```\n") {
+        let start = range.upperBound
+        if let endRange = text.range(of: "\n```", range: start..<text.endIndex) {
+            return String(text[start..<endRange.lowerBound])
+        }
+    }
+    if let start = text.firstIndex(of: "{"),
+       let end = text.lastIndex(of: "}") {
+        return String(text[start...end])
+    }
+    return text
 }
 
 // MARK: - USDA FoodData Central Service
@@ -203,12 +335,11 @@ actor USDAService {
               let foods = json["foods"] as? [[String: Any]],
               let firstFood = foods.first,
               let nutrients = firstFood["foodNutrients"] as? [[String: Any]] else {
-            return NutrientsPer100g() // Return zeroes if not found
+            return NutrientsPer100g()
         }
 
         var result = NutrientsPer100g()
 
-        // USDA nutrient IDs: 1008=Energy(kcal), 1003=Protein, 1005=Carbs, 1004=Fat
         for nutrient in nutrients {
             guard let nutrientId = nutrient["nutrientId"] as? Int,
                   let value = nutrient["value"] as? Double else { continue }
@@ -229,16 +360,22 @@ actor USDAService {
 // MARK: - Combined Analysis Pipeline
 
 enum FoodAnalysisPipeline {
-    /// Gemini identifies foods → USDA looks up macros → returns combined results
+    /// Vision provider identifies foods → USDA looks up macros → returns combined results
     static func analyzeImage(_ image: UIImage) async throws -> [IdentifiedFood] {
-        // Step 1: Gemini identifies foods and portions
-        let geminiItems = try await GeminiAPIService.shared.identifyFoods(in: image)
+        // Step 1: Identify foods using selected vision provider
+        let items: [VisionIdentifiedItem]
+        switch VisionProvider.selected {
+        case .claude:
+            items = try await ClaudeAPIService.shared.identifyFoods(in: image)
+        case .gemini:
+            items = try await GeminiAPIService.shared.identifyFoods(in: image)
+        }
 
         // Step 2: Look up each food in USDA for accurate macros
         var results: [IdentifiedFood] = []
 
         await withTaskGroup(of: IdentifiedFood?.self) { group in
-            for item in geminiItems {
+            for item in items {
                 group.addTask {
                     let nutrients = (try? await USDAService.shared.lookupNutrients(for: item.name))
                         ?? USDAService.NutrientsPer100g()
