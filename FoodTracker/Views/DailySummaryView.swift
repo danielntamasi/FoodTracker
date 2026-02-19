@@ -103,6 +103,24 @@ struct DailySummaryView: View {
                     }
                 }
 
+                if !todayEntries.isEmpty {
+                    HStack {
+                        Spacer()
+                        Button {
+                            reverseChronological.toggle()
+                            UserDefaults.standard.set(reverseChronological, forKey: "reverseChronological")
+                        } label: {
+                            Image(systemName: reverseChronological ? "arrow.down" : "arrow.up")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityLabel(reverseChronological ? "Show oldest first" : "Show newest first")
+                    }
+                    .listRowBackground(Color.clear)
+                    .listRowInsets(EdgeInsets(top: 0, leading: 0, bottom: 0, trailing: 16))
+                }
+
                 if todayEntries.isEmpty {
                     Section("Today's Food") {
                         ContentUnavailableView(
@@ -164,15 +182,6 @@ struct DailySummaryView: View {
             }
             .navigationTitle("Today")
             .toolbar {
-                ToolbarItem(placement: .topBarLeading) {
-                    Button {
-                        reverseChronological.toggle()
-                        UserDefaults.standard.set(reverseChronological, forKey: "reverseChronological")
-                    } label: {
-                        Image(systemName: reverseChronological ? "arrow.down" : "arrow.up")
-                    }
-                    .accessibilityLabel(reverseChronological ? "Show oldest first" : "Show newest first")
-                }
                 ToolbarItem(placement: .primaryAction) {
                     Menu {
                         Button {
