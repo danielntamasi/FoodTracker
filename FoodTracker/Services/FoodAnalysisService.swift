@@ -164,18 +164,18 @@ Analyze every food item in this photo. For each item, determine which mode appli
 
 MODE 1 – NUTRITION LABEL VISIBLE: If you can see a nutrition facts label or printed nutritional information for an item, READ the exact values from the label. Use the brand/product name as-is (e.g. "David Protein Bar", not "protein bar"). Set "source": "label" and include the numeric values you read.
 
-MODE 2 – NO LABEL: If there is no nutrition label visible for an item, identify it using common USDA-compatible names (e.g. "white rice" not "steamed jasmine rice"). Estimate portion size. Set "source": "estimate". Do NOT include calories/protein/carbs/fat fields.
+MODE 2 – NO LABEL: If there is no nutrition label visible for an item, identify it using common USDA-compatible names (e.g. "white rice" not "steamed jasmine rice"). Estimate portion size. Set "source": "estimate". Include your best estimate for "calories", "protein_grams", "carbs_grams", and "fat_grams" based on the identified portion.
 
 GROUPING: If multiple items are clearly part of one composite dish (e.g., bibimbap, burrito bowl, stir fry, pasta dish), group them under a "meal_name" with an "ingredients" array. Standalone items (a banana, a protein bar) should NOT be grouped.
 
 Return ONLY valid JSON with no additional text, in this exact format:
 {"foods": [
   {"meal_name": "Bibimbap", "ingredients": [
-    {"name": "white rice", "portion": "1 cup", "portion_grams": 185, "source": "estimate"},
-    {"name": "fried egg", "portion": "1 large", "portion_grams": 46, "source": "estimate"}
+    {"name": "white rice", "portion": "1 cup", "portion_grams": 185, "source": "estimate", "calories": 240, "protein_grams": 4.4, "carbs_grams": 53, "fat_grams": 0.4},
+    {"name": "fried egg", "portion": "1 large", "portion_grams": 46, "source": "estimate", "calories": 90, "protein_grams": 6.3, "carbs_grams": 0.4, "fat_grams": 7}
   ]},
   {"name": "David Protein Bar", "portion": "1 bar (50g)", "portion_grams": 50, "source": "label", "calories": 200, "protein_grams": 20, "carbs_grams": 22, "fat_grams": 7},
-  {"name": "banana", "portion": "1 medium", "portion_grams": 118, "source": "estimate"}
+  {"name": "banana", "portion": "1 medium", "portion_grams": 118, "source": "estimate", "calories": 105, "protein_grams": 1.3, "carbs_grams": 27, "fat_grams": 0.4}
 ]}
 
 A photo may contain a mix of grouped meals and standalone items.
@@ -498,17 +498,37 @@ enum FoodAnalysisPipeline {
                             mealName: mealName
                         )
                     } else {
-                        let nutrients = (try? await USDAService.shared.lookupNutrients(for: item.name))
-                            ?? USDAService.NutrientsPer100g()
+                        // Try USDA first; fall back to AI-provided estimates
+                        let nutrients = try? await USDAService.shared.lookupNutrients(for: item.name)
+                        let usdaHasData = nutrients != nil
+                            && (nutrients!.calories > 0 || nutrients!.protein > 0
+                                || nutrients!.carbs > 0 || nutrients!.fat > 0)
 
-                        let scale = item.portion_grams / 100.0
+                        let calories: Int
+                        let protein: Double
+                        let carbs: Double
+                        let fat: Double
+
+                        if usdaHasData {
+                            let scale = item.portion_grams / 100.0
+                            calories = Int(nutrients!.calories * scale)
+                            protein = (nutrients!.protein * scale * 10).rounded() / 10
+                            carbs = (nutrients!.carbs * scale * 10).rounded() / 10
+                            fat = (nutrients!.fat * scale * 10).rounded() / 10
+                        } else {
+                            // Use AI-estimated values from the vision response
+                            calories = Int(item.calories ?? 0)
+                            protein = item.protein_grams ?? 0
+                            carbs = item.carbs_grams ?? 0
+                            fat = item.fat_grams ?? 0
+                        }
 
                         return IdentifiedFood(
                             name: item.name,
-                            calories: Int(nutrients.calories * scale),
-                            proteinGrams: (nutrients.protein * scale * 10).rounded() / 10,
-                            carbsGrams: (nutrients.carbs * scale * 10).rounded() / 10,
-                            fatGrams: (nutrients.fat * scale * 10).rounded() / 10,
+                            calories: calories,
+                            proteinGrams: protein,
+                            carbsGrams: carbs,
+                            fatGrams: fat,
                             portionGrams: item.portion_grams,
                             portionDescription: item.portion,
                             source: .estimate,
