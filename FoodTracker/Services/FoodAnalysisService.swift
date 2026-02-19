@@ -445,6 +445,18 @@ actor USDAService {
     }
 }
 
+// MARK: - Title Case Helper
+
+extension String {
+    /// Capitalizes the first letter of each word (e.g. "white rice" → "White Rice")
+    func titleCased() -> String {
+        self.lowercased()
+            .split(separator: " ")
+            .map { $0.prefix(1).uppercased() + $0.dropFirst() }
+            .joined(separator: " ")
+    }
+}
+
 // MARK: - Combined Analysis Pipeline
 
 enum FoodAnalysisPipeline {
@@ -466,8 +478,9 @@ enum FoodAnalysisPipeline {
             switch element {
             case .meal(let name, let ingredients):
                 let groupID = UUID()
+                let titleName = name.titleCased()
                 for ingredient in ingredients {
-                    itemsWithGrouping.append((item: ingredient, mealGroupID: groupID, mealName: name))
+                    itemsWithGrouping.append((item: ingredient, mealGroupID: groupID, mealName: titleName))
                 }
             case .standalone(let item):
                 itemsWithGrouping.append((item: item, mealGroupID: nil, mealName: nil))
@@ -485,6 +498,7 @@ enum FoodAnalysisPipeline {
 
                 group.addTask {
                     if item.hasLabelNutrition {
+                        // Label items: keep brand names as-is
                         return IdentifiedFood(
                             name: item.name,
                             calories: Int(item.calories ?? 0),
@@ -524,7 +538,7 @@ enum FoodAnalysisPipeline {
                         }
 
                         return IdentifiedFood(
-                            name: item.name,
+                            name: item.name.titleCased(),
                             calories: calories,
                             proteinGrams: protein,
                             carbsGrams: carbs,

@@ -1,5 +1,6 @@
 import SwiftUI
 import SwiftData
+import Charts
 
 struct DailySummaryView: View {
     @Environment(\.modelContext) private var modelContext
@@ -7,10 +8,19 @@ struct DailySummaryView: View {
     @State private var showingAddEntry = false
     @State private var showingPhotoCapture = false
     @State private var showingBarcodeScanner = false
+    @State private var editingEntry: FoodEntry?
 
     private var todayEntries: [FoodEntry] {
         let calendar = Calendar.current
-        return allEntries.filter { calendar.isDateInToday($0.date) }
+        return allEntries
+            .filter { calendar.isDateInToday($0.date) }
+            .sorted {
+                // Entries with sortOrder take priority; otherwise sort by date descending
+                if let a = $0.sortOrder, let b = $1.sortOrder { return a < b }
+                if $0.sortOrder != nil { return true }
+                if $1.sortOrder != nil { return false }
+                return $0.date > $1.date
+            }
     }
 
     private var totalCalories: Int {
@@ -29,64 +39,118 @@ struct DailySummaryView: View {
         todayEntries.reduce(0) { $0 + $1.fatGrams }
     }
 
+    private func reorderItems(_ items: [EntryDisplayItem], from source: IndexSet, to destination: Int) {
+        var reordered = items
+        reordered.move(fromOffsets: source, toOffset: destination)
+
+        // Assign sortOrder to all underlying entries based on new position
+        var order = 0
+        for item in reordered {
+            switch item {
+            case .standalone(let entry):
+                entry.sortOrder = order
+                order += 1
+            case .mealGroup(_, _, let entries):
+                for entry in entries {
+                    entry.sortOrder = order
+                }
+                order += 1
+            }
+        }
+    }
+
+    private var hasTargets: Bool {
+        DailyTarget.calories > 0 || DailyTarget.protein > 0 || DailyTarget.carbs > 0 || DailyTarget.fat > 0
+    }
+
     var body: some View {
         NavigationStack {
             List {
                 Section {
-                    VStack(spacing: 12) {
-                        Text("\(totalCalories)")
-                            .font(.system(size: 48, weight: .bold, design: .rounded))
-                            .foregroundStyle(.primary)
-                        Text("calories today")
-                            .font(.subheadline)
-                            .foregroundStyle(.secondary)
+                    if hasTargets {
+                        MacroDonutCard(
+                            calories: totalCalories,
+                            calorieTarget: DailyTarget.calories,
+                            protein: totalProtein,
+                            proteinTarget: Double(DailyTarget.protein),
+                            carbs: totalCarbs,
+                            carbsTarget: Double(DailyTarget.carbs),
+                            fat: totalFat,
+                            fatTarget: Double(DailyTarget.fat)
+                        )
+                    } else {
+                        VStack(spacing: 12) {
+                            Text("\(totalCalories)")
+                                .font(.system(size: 48, weight: .bold, design: .rounded))
+                                .foregroundStyle(.primary)
+                            Text("calories today")
+                                .font(.subheadline)
+                                .foregroundStyle(.secondary)
 
-                        HStack(spacing: 24) {
-                            MacroLabel(label: "Protein", value: totalProtein, color: .blue)
-                            MacroLabel(label: "Carbs", value: totalCarbs, color: .orange)
-                            MacroLabel(label: "Fat", value: totalFat, color: .purple)
+                            HStack(spacing: 24) {
+                                MacroLabel(label: "Protein", value: totalProtein, color: .blue)
+                                MacroLabel(label: "Carbs", value: totalCarbs, color: .orange)
+                                MacroLabel(label: "Fat", value: totalFat, color: .purple)
+                            }
                         }
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 8)
                     }
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 8)
                 }
 
-                Section("Today's Food") {
-                    if todayEntries.isEmpty {
+                if todayEntries.isEmpty {
+                    Section("Today's Food") {
                         ContentUnavailableView(
                             "No entries yet",
                             systemImage: "fork.knife",
                             description: Text("Add your first meal to start tracking.")
                         )
-                    } else {
-                        ForEach(groupedDisplayItems(from: todayEntries), id: \.id) { item in
-                            switch item {
-                            case .standalone(let entry):
-                                FoodEntryRow(entry: entry)
-                                    .swipeActions {
-                                        Button(role: .destructive) {
-                                            modelContext.delete(entry)
-                                        } label: {
-                                            Label("Delete", systemImage: "trash")
-                                        }
-                                    }
-                            case .mealGroup(let groupID, let mealName, let entries):
-                                DisclosureGroup {
-                                    ForEach(entries) { entry in
+                    }
+                } else {
+                    ForEach(TimeOfDay.allCases, id: \.self) { period in
+                        let periodEntries = todayEntries.filter { TimeOfDay.from($0.date) == period }
+                        if !periodEntries.isEmpty {
+                            let displayItems = groupedDisplayItems(from: periodEntries)
+                            Section {
+                                ForEach(displayItems, id: \.id) { item in
+                                    switch item {
+                                    case .standalone(let entry):
                                         FoodEntryRow(entry: entry)
-                                    }
-                                } label: {
-                                    MealEntryRow(mealName: mealName, entries: entries)
-                                }
-                                .swipeActions {
-                                    Button(role: .destructive) {
-                                        for entry in entries {
-                                            modelContext.delete(entry)
+                                            .contentShape(Rectangle())
+                                            .onTapGesture { editingEntry = entry }
+                                            .swipeActions {
+                                                Button(role: .destructive) {
+                                                    modelContext.delete(entry)
+                                                } label: {
+                                                    Label("Delete", systemImage: "trash")
+                                                }
+                                            }
+                                    case .mealGroup(_, let mealName, let entries):
+                                        DisclosureGroup {
+                                            ForEach(entries) { entry in
+                                                FoodEntryRow(entry: entry)
+                                                    .contentShape(Rectangle())
+                                                    .onTapGesture { editingEntry = entry }
+                                            }
+                                        } label: {
+                                            MealEntryRow(mealName: mealName, entries: entries)
                                         }
-                                    } label: {
-                                        Label("Delete", systemImage: "trash")
+                                        .swipeActions {
+                                            Button(role: .destructive) {
+                                                for entry in entries {
+                                                    modelContext.delete(entry)
+                                                }
+                                            } label: {
+                                                Label("Delete", systemImage: "trash")
+                                            }
+                                        }
                                     }
                                 }
+                                .onMove { source, destination in
+                                    reorderItems(displayItems, from: source, to: destination)
+                                }
+                            } header: {
+                                Label(period.rawValue, systemImage: period.systemImage)
                             }
                         }
                     }
@@ -127,7 +191,33 @@ struct DailySummaryView: View {
             .sheet(isPresented: $showingBarcodeScanner) {
                 BarcodeScannerView()
             }
+            .sheet(item: $editingEntry) { entry in
+                EditEntryView(entry: entry)
+            }
         }
+    }
+}
+
+// MARK: - Time of Day
+
+enum TimeOfDay: String, CaseIterable {
+    case morning = "Morning"
+    case afternoon = "Afternoon"
+    case evening = "Evening"
+
+    var systemImage: String {
+        switch self {
+        case .morning: return "sunrise"
+        case .afternoon: return "sun.max"
+        case .evening: return "moon.stars"
+        }
+    }
+
+    static func from(_ date: Date) -> TimeOfDay {
+        let hour = Calendar.current.component(.hour, from: date)
+        if hour < 12 { return .morning }
+        if hour < 17 { return .afternoon }
+        return .evening
     }
 }
 
@@ -193,6 +283,13 @@ struct MealEntryRow: View {
                     .scaledToFill()
                     .frame(width: 44, height: 44)
                     .clipShape(RoundedRectangle(cornerRadius: 8))
+            } else {
+                Image(systemName: entries.first?.iconName ?? "fork.knife")
+                    .font(.title2)
+                    .foregroundStyle(.secondary)
+                    .frame(width: 44, height: 44)
+                    .background(Color(.systemGray5))
+                    .clipShape(RoundedRectangle(cornerRadius: 8))
             }
 
             VStack(alignment: .leading, spacing: 2) {
@@ -219,6 +316,116 @@ struct MealEntryRow: View {
                 .foregroundStyle(.secondary)
         }
         .padding(.vertical, 2)
+    }
+}
+
+// MARK: - Macro Donut Card
+
+struct MacroDonutCard: View {
+    let calories: Int
+    let calorieTarget: Int
+    let protein: Double
+    let proteinTarget: Double
+    let carbs: Double
+    let carbsTarget: Double
+    let fat: Double
+    let fatTarget: Double
+
+    private var macroSegments: [(name: String, value: Double, target: Double, color: Color)] {
+        [
+            ("Protein", protein, proteinTarget, .blue),
+            ("Carbs", carbs, carbsTarget, .orange),
+            ("Fat", fat, fatTarget, .purple),
+        ].filter { $0.target > 0 }
+    }
+
+    var body: some View {
+        VStack(spacing: 12) {
+            ZStack {
+                if !macroSegments.isEmpty {
+                    Chart(macroSegments, id: \.name) { segment in
+                        SectorMark(
+                            angle: .value(segment.name, min(segment.value, segment.target)),
+                            innerRadius: .ratio(0.7),
+                            angularInset: 2
+                        )
+                        .foregroundStyle(segment.color)
+
+                        // Remaining portion
+                        let remaining = max(0, segment.target - segment.value)
+                        if remaining > 0 {
+                            SectorMark(
+                                angle: .value("\(segment.name) Remaining", remaining),
+                                innerRadius: .ratio(0.7),
+                                angularInset: 2
+                            )
+                            .foregroundStyle(segment.color.opacity(0.15))
+                        }
+                    }
+                    .chartLegend(.hidden)
+                    .frame(height: 160)
+                }
+
+                // Calorie overlay
+                VStack(spacing: 2) {
+                    Text("\(calories)")
+                        .font(.system(size: 32, weight: .bold, design: .rounded))
+                    if calorieTarget > 0 {
+                        Text("/ \(calorieTarget) cal")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    } else {
+                        Text("calories")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+            }
+
+            // Macro progress bars
+            HStack(spacing: 16) {
+                ForEach(macroSegments, id: \.name) { segment in
+                    MacroProgressLabel(
+                        label: segment.name,
+                        value: segment.value,
+                        target: segment.target,
+                        color: segment.color
+                    )
+                }
+            }
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 8)
+    }
+}
+
+struct MacroProgressLabel: View {
+    let label: String
+    let value: Double
+    let target: Double
+    let color: Color
+
+    var body: some View {
+        VStack(spacing: 4) {
+            Text("\(String(format: "%.0f", value))/\(String(format: "%.0f", target))g")
+                .font(.caption)
+                .fontWeight(.medium)
+                .foregroundStyle(color)
+            Text(label)
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+            GeometryReader { geometry in
+                ZStack(alignment: .leading) {
+                    Capsule()
+                        .fill(color.opacity(0.15))
+                        .frame(height: 4)
+                    Capsule()
+                        .fill(color)
+                        .frame(width: geometry.size.width * min(value / max(target, 1), 1.0), height: 4)
+                }
+            }
+            .frame(height: 4)
+        }
     }
 }
 
@@ -251,6 +458,13 @@ struct FoodEntryRow: View {
                     .resizable()
                     .scaledToFill()
                     .frame(width: 44, height: 44)
+                    .clipShape(RoundedRectangle(cornerRadius: 8))
+            } else {
+                Image(systemName: entry.iconName ?? "fork.knife")
+                    .font(.title2)
+                    .foregroundStyle(.secondary)
+                    .frame(width: 44, height: 44)
+                    .background(Color(.systemGray5))
                     .clipShape(RoundedRectangle(cornerRadius: 8))
             }
 

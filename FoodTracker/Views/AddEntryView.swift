@@ -56,7 +56,8 @@ struct AddEntryView: View {
             proteinGrams: Double(proteinText) ?? 0,
             carbsGrams: Double(carbsText) ?? 0,
             fatGrams: Double(fatText) ?? 0,
-            notes: notes
+            notes: notes,
+            iconName: foodIconName(for: name)
         )
         modelContext.insert(entry)
         dismiss()

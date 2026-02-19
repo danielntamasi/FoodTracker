@@ -58,7 +58,9 @@ struct BarcodeScannerView: View {
                         .tint(.white)
                 }
             }
-            .sheet(isPresented: $showingResults) {
+            .sheet(isPresented: $showingResults, onDismiss: {
+                dismiss()
+            }) {
                 PhotoAnalysisView(foods: scannedFoods)
             }
         }

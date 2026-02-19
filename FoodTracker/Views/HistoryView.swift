@@ -4,6 +4,7 @@ import SwiftData
 struct HistoryView: View {
     @Environment(\.modelContext) private var modelContext
     @Query(sort: \FoodEntry.date, order: .reverse) private var entries: [FoodEntry]
+    @State private var editingEntry: FoodEntry?
 
     private var groupedEntries: [(String, [FoodEntry])] {
         let formatter = DateFormatter()
@@ -37,6 +38,8 @@ struct HistoryView: View {
                                 switch item {
                                 case .standalone(let entry):
                                     FoodEntryRow(entry: entry)
+                                        .contentShape(Rectangle())
+                                        .onTapGesture { editingEntry = entry }
                                         .swipeActions {
                                             Button(role: .destructive) {
                                                 modelContext.delete(entry)
@@ -48,6 +51,8 @@ struct HistoryView: View {
                                     DisclosureGroup {
                                         ForEach(entries) { entry in
                                             FoodEntryRow(entry: entry)
+                                                .contentShape(Rectangle())
+                                                .onTapGesture { editingEntry = entry }
                                         }
                                     } label: {
                                         MealEntryRow(mealName: mealName, entries: entries)
@@ -76,6 +81,9 @@ struct HistoryView: View {
                 }
             }
             .navigationTitle("History")
+            .sheet(item: $editingEntry) { entry in
+                EditEntryView(entry: entry)
+            }
         }
     }
 }

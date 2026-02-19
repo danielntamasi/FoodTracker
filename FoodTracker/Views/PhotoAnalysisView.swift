@@ -320,7 +320,8 @@ struct PhotoAnalysisView: View {
                 fatGrams: food.fatGrams,
                 photoData: thumbnailData,
                 mealGroupID: food.mealGroupID,
-                mealName: food.mealName
+                mealName: food.mealName,
+                iconName: thumbnailData == nil ? foodIconName(for: food.name) : nil
             )
             modelContext.insert(entry)
         }

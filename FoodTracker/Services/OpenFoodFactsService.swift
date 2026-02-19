@@ -79,9 +79,9 @@ actor OpenFoodFactsService {
 
         let displayName: String
         if let brand, !brand.isEmpty {
-            displayName = "\(brand) \(name)"
+            displayName = "\(brand) \(name)".titleCased()
         } else {
-            displayName = name
+            displayName = name.titleCased()
         }
 
         return Product(
