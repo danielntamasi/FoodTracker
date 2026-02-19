@@ -10,7 +10,7 @@
 		A10001010000000000000001 /* FoodTrackerApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10002010000000000000001 /* FoodTrackerApp.swift */; };
 		A10001010000000000000002 /* FoodEntry.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10002010000000000000002 /* FoodEntry.swift */; };
 		A10001010000000000000003 /* KeychainService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10002010000000000000003 /* KeychainService.swift */; };
-		A10001010000000000000004 /* ClaudeAPIService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10002010000000000000004 /* ClaudeAPIService.swift */; };
+		A10001010000000000000004 /* FoodAnalysisService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10002010000000000000004 /* FoodAnalysisService.swift */; };
 		A10001010000000000000005 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10002010000000000000005 /* ContentView.swift */; };
 		A10001010000000000000006 /* DailySummaryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10002010000000000000006 /* DailySummaryView.swift */; };
 		A10001010000000000000007 /* AddEntryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10002010000000000000007 /* AddEntryView.swift */; };
@@ -25,7 +25,7 @@
 		A10002010000000000000001 /* FoodTrackerApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FoodTrackerApp.swift; sourceTree = "<group>"; };
 		A10002010000000000000002 /* FoodEntry.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FoodEntry.swift; sourceTree = "<group>"; };
 		A10002010000000000000003 /* KeychainService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeychainService.swift; sourceTree = "<group>"; };
-		A10002010000000000000004 /* ClaudeAPIService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClaudeAPIService.swift; sourceTree = "<group>"; };
+		A10002010000000000000004 /* FoodAnalysisService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FoodAnalysisService.swift; sourceTree = "<group>"; };
 		A10002010000000000000005 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
 		A10002010000000000000006 /* DailySummaryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DailySummaryView.swift; sourceTree = "<group>"; };
 		A10002010000000000000007 /* AddEntryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AddEntryView.swift; sourceTree = "<group>"; };
@@ -82,7 +82,7 @@
 			isa = PBXGroup;
 			children = (
 				A10002010000000000000003 /* KeychainService.swift */,
-				A10002010000000000000004 /* ClaudeAPIService.swift */,
+				A10002010000000000000004 /* FoodAnalysisService.swift */,
 			);
 			path = Services;
 			sourceTree = "<group>";
@@ -181,7 +181,7 @@
 				A10001010000000000000001 /* FoodTrackerApp.swift in Sources */,
 				A10001010000000000000002 /* FoodEntry.swift in Sources */,
 				A10001010000000000000003 /* KeychainService.swift in Sources */,
-				A10001010000000000000004 /* ClaudeAPIService.swift in Sources */,
+				A10001010000000000000004 /* FoodAnalysisService.swift in Sources */,
 				A10001010000000000000005 /* ContentView.swift in Sources */,
 				A10001010000000000000006 /* DailySummaryView.swift in Sources */,
 				A10001010000000000000007 /* AddEntryView.swift in Sources */,

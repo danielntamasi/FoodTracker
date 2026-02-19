@@ -35,9 +35,9 @@ struct SettingsView: View {
                     }
                     .disabled(apiKey.isEmpty)
                 } header: {
-                    Text("Claude API Key")
+                    Text("Gemini API Key")
                 } footer: {
-                    Text("Your API key is stored securely in the Keychain. Get your key from console.anthropic.com.")
+                    Text("Your API key is stored securely in the Keychain. Get a free key from aistudio.google.com.")
                 }
 
                 Section("About") {
@@ -48,9 +48,15 @@ struct SettingsView: View {
                             .foregroundStyle(.secondary)
                     }
                     HStack {
-                        Text("AI Model")
+                        Text("Vision")
                         Spacer()
-                        Text("Claude Sonnet 4.6")
+                        Text("Gemini 2.0 Flash")
+                            .foregroundStyle(.secondary)
+                    }
+                    HStack {
+                        Text("Nutrition Data")
+                        Spacer()
+                        Text("USDA FoodData Central")
                             .foregroundStyle(.secondary)
                     }
                 }
@@ -64,7 +70,7 @@ struct SettingsView: View {
             .alert("API Key Saved", isPresented: $savedSuccessfully) {
                 Button("OK", role: .cancel) {}
             } message: {
-                Text("Your API key has been securely saved to the Keychain.")
+                Text("Your Gemini API key has been securely saved to the Keychain.")
             }
         }
     }

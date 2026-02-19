@@ -3,7 +3,7 @@ import Security
 
 enum KeychainService {
     private static let service = "com.foodtracker.apikey"
-    private static let account = "claude-api-key"
+    private static let account = "gemini-api-key"
 
     static func save(apiKey: String) -> Bool {
         guard let data = apiKey.data(using: .utf8) else { return false }

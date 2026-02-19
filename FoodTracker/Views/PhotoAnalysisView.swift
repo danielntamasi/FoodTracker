@@ -9,6 +9,7 @@ struct PhotoAnalysisView: View {
 
     @State private var identifiedFoods: [IdentifiedFood] = []
     @State private var isLoading = true
+    @State private var loadingStatus = "Identifying food..."
     @State private var errorMessage: String?
 
     var body: some View {
@@ -22,7 +23,7 @@ struct PhotoAnalysisView: View {
                             .frame(maxHeight: 200)
                             .clipShape(RoundedRectangle(cornerRadius: 12))
 
-                        ProgressView("Analyzing your food...")
+                        ProgressView(loadingStatus)
                             .font(.headline)
                     }
                     .padding()
@@ -57,6 +58,22 @@ struct PhotoAnalysisView: View {
                                         .multilineTextAlignment(.trailing)
                                 }
                                 HStack {
+                                    Text("Portion")
+                                    Spacer()
+                                    TextField("Portion", text: $food.portionDescription)
+                                        .multilineTextAlignment(.trailing)
+                                }
+                                HStack {
+                                    Text("Grams")
+                                    Spacer()
+                                    TextField("Grams", value: $food.portionGrams, format: .number)
+                                        .keyboardType(.decimalPad)
+                                        .multilineTextAlignment(.trailing)
+                                        .onChange(of: food.portionGrams) { _, _ in
+                                            recalculateMacros(for: &food)
+                                        }
+                                }
+                                HStack {
                                     Text("Calories")
                                     Spacer()
                                     TextField("Calories", value: $food.calories, format: .number)
@@ -82,12 +99,6 @@ struct PhotoAnalysisView: View {
                                     Spacer()
                                     TextField("Fat", value: $food.fatGrams, format: .number)
                                         .keyboardType(.decimalPad)
-                                        .multilineTextAlignment(.trailing)
-                                }
-                                HStack {
-                                    Text("Quantity")
-                                    Spacer()
-                                    TextField("Quantity", text: $food.quantity)
                                         .multilineTextAlignment(.trailing)
                                 }
                             }
@@ -117,10 +128,12 @@ struct PhotoAnalysisView: View {
     private func analyzePhoto() {
         isLoading = true
         errorMessage = nil
+        loadingStatus = "Identifying food with Gemini..."
 
         Task {
             do {
-                let foods = try await ClaudeAPIService.shared.analyzeImage(image)
+                loadingStatus = "Looking up nutrition data..."
+                let foods = try await FoodAnalysisPipeline.analyzeImage(image)
                 identifiedFoods = foods
                 isLoading = false
             } catch {
@@ -128,6 +141,11 @@ struct PhotoAnalysisView: View {
                 isLoading = false
             }
         }
+    }
+
+    private func recalculateMacros(for food: inout IdentifiedFood) {
+        // Re-lookup would be async; for now user adjusts manually after changing grams
+        // The initial values are proportional, so the user can edit directly
     }
 
     private func saveAll() {
