@@ -9,11 +9,12 @@ struct BarcodeScannerView: View {
     @State private var lookupError: String?
     @State private var showingResults = false
     @State private var scannedFoods: [IdentifiedFood] = []
+    @State private var resetCounter = 0
 
     var body: some View {
         NavigationStack {
             ZStack {
-                BarcodeCameraView(onBarcodeScanned: handleBarcode)
+                BarcodeCameraView(onBarcodeScanned: handleBarcode, resetCounter: resetCounter)
                     .ignoresSafeArea()
 
                 VStack {
@@ -36,6 +37,7 @@ struct BarcodeScannerView: View {
                                 Button("Scan Again") {
                                     lookupError = nil
                                     scannedBarcode = nil
+                                    resetCounter += 1
                                 }
                                 .buttonStyle(.borderedProminent)
                             }
@@ -88,7 +90,12 @@ struct BarcodeScannerView: View {
                     fatGrams: product.fatGrams,
                     portionGrams: product.portionGrams,
                     portionDescription: product.servingSize,
-                    source: .barcode
+                    source: .barcode,
+                    caloriesPer100g: product.caloriesPer100g,
+                    proteinPer100g: product.proteinPer100g,
+                    carbsPer100g: product.carbsPer100g,
+                    fatPer100g: product.fatPer100g,
+                    servingGrams: product.portionGrams
                 )
                 scannedFoods = [food]
                 isLookingUp = false
@@ -115,14 +122,27 @@ struct BarcodeScannerView: View {
 
 struct BarcodeCameraView: UIViewControllerRepresentable {
     let onBarcodeScanned: (String) -> Void
+    var resetCounter: Int
 
     func makeUIViewController(context: Context) -> BarcodeScannerController {
         let controller = BarcodeScannerController()
         controller.onBarcodeScanned = onBarcodeScanned
+        context.coordinator.lastResetCounter = resetCounter
         return controller
     }
 
-    func updateUIViewController(_ uiViewController: BarcodeScannerController, context: Context) {}
+    func updateUIViewController(_ uiViewController: BarcodeScannerController, context: Context) {
+        if resetCounter != context.coordinator.lastResetCounter {
+            context.coordinator.lastResetCounter = resetCounter
+            uiViewController.resetScanning()
+        }
+    }
+
+    func makeCoordinator() -> Coordinator { Coordinator() }
+
+    class Coordinator {
+        var lastResetCounter = 0
+    }
 }
 
 class BarcodeScannerController: UIViewController, AVCaptureMetadataOutputObjectsDelegate {

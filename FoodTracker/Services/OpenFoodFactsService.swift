@@ -14,6 +14,11 @@ actor OpenFoodFactsService {
         let fatGrams: Double
         let servingSize: String
         let portionGrams: Double
+        // Per-100g values for portion recalculation
+        let caloriesPer100g: Double
+        let proteinPer100g: Double
+        let carbsPer100g: Double
+        let fatPer100g: Double
     }
 
     enum LookupError: LocalizedError {
@@ -74,6 +79,12 @@ actor OpenFoodFactsService {
         let carbs = asDouble(nutriments["carbohydrates\(suffix)"]) ?? 0
         let fat = asDouble(nutriments["fat\(suffix)"]) ?? 0
 
+        // Always capture per-100g values for portion recalculation
+        let calPer100g = asDouble(nutriments["energy-kcal_100g"]) ?? 0
+        let protPer100g = asDouble(nutriments["proteins_100g"]) ?? 0
+        let carbsPer100g = asDouble(nutriments["carbohydrates_100g"]) ?? 0
+        let fatPer100g = asDouble(nutriments["fat_100g"]) ?? 0
+
         let servingSize = product["serving_size"] as? String ?? (hasServing ? "1 serving" : "100g")
         let servingGrams = asDouble(product["serving_quantity"]) ?? (hasServing ? 0 : 100)
 
@@ -92,7 +103,11 @@ actor OpenFoodFactsService {
             carbsGrams: (carbs * 10).rounded() / 10,
             fatGrams: (fat * 10).rounded() / 10,
             servingSize: servingSize,
-            portionGrams: servingGrams
+            portionGrams: servingGrams,
+            caloriesPer100g: calPer100g,
+            proteinPer100g: protPer100g,
+            carbsPer100g: carbsPer100g,
+            fatPer100g: fatPer100g
         )
     }
 

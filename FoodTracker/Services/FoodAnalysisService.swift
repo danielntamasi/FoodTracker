@@ -37,6 +37,17 @@ struct IdentifiedFood: Identifiable {
     var source: NutritionSource = .estimate
     var mealGroupID: UUID?
     var mealName: String?
+
+    // Portion selection support (barcode + label items)
+    // Per-100g base values for recalculating when servings change
+    var caloriesPer100g: Double?
+    var proteinPer100g: Double?
+    var carbsPer100g: Double?
+    var fatPer100g: Double?
+    // The weight in grams of one serving
+    var servingGrams: Double?
+    // How many servings the user selected (default 1)
+    var servings: Double = 1.0
 }
 
 // MARK: - Vision Provider Selection
@@ -181,6 +192,33 @@ Return ONLY valid JSON with no additional text, in this exact format:
 A photo may contain a mix of grouped meals and standalone items.
 """
 
+// MARK: - Image Preparation
+
+/// Resizes and compresses an image to stay under the API size limit (~4MB JPEG).
+private func prepareImageForUpload(_ image: UIImage, maxDimension: CGFloat = 1536, maxBytes: Int = 4_000_000) -> Data? {
+    // Step 1: Resize if larger than maxDimension
+    let size = image.size
+    let resized: UIImage
+    if max(size.width, size.height) > maxDimension {
+        let scale = maxDimension / max(size.width, size.height)
+        let newSize = CGSize(width: (size.width * scale).rounded(), height: (size.height * scale).rounded())
+        let renderer = UIGraphicsImageRenderer(size: newSize)
+        resized = renderer.image { _ in
+            image.draw(in: CGRect(origin: .zero, size: newSize))
+        }
+    } else {
+        resized = image
+    }
+
+    // Step 2: Compress, lowering quality until under maxBytes
+    for quality in stride(from: 0.8, through: 0.2, by: -0.1) {
+        if let data = resized.jpegData(compressionQuality: quality), data.count <= maxBytes {
+            return data
+        }
+    }
+    return resized.jpegData(compressionQuality: 0.2)
+}
+
 // MARK: - Claude Vision Service
 
 actor ClaudeAPIService {
@@ -195,7 +233,7 @@ actor ClaudeAPIService {
             throw FoodAnalysisError.noAPIKey
         }
 
-        guard let jpegData = image.jpegData(compressionQuality: 0.8) else {
+        guard let jpegData = prepareImageForUpload(image) else {
             throw FoodAnalysisError.invalidImage
         }
 
@@ -203,7 +241,7 @@ actor ClaudeAPIService {
 
         let requestBody: [String: Any] = [
             "model": model,
-            "max_tokens": 1024,
+            "max_tokens": 2048,
             "system": "You are a food identification assistant. Always respond with valid JSON only.",
             "messages": [
                 [
@@ -280,7 +318,7 @@ actor GeminiAPIService {
             throw FoodAnalysisError.noAPIKey
         }
 
-        guard let jpegData = image.jpegData(compressionQuality: 0.8) else {
+        guard let jpegData = prepareImageForUpload(image) else {
             throw FoodAnalysisError.invalidImage
         }
 
@@ -350,29 +388,50 @@ private func decodeVisionResponse(from text: String) throws -> VisionFoodRespons
     let jsonString = extractJSON(from: text)
 
     guard let jsonData = jsonString.data(using: .utf8) else {
-        throw FoodAnalysisError.invalidResponse
+        throw FoodAnalysisError.apiError("Response was not valid text.")
     }
 
     do {
         return try JSONDecoder().decode(VisionFoodResponse.self, from: jsonData)
+    } catch let decodingError as DecodingError {
+        // Try a lenient fallback: strip trailing commas and retry
+        let cleaned = jsonString
+            .replacingOccurrences(of: ",\\s*\\}", with: "}", options: .regularExpression)
+            .replacingOccurrences(of: ",\\s*\\]", with: "]", options: .regularExpression)
+        if let cleanedData = cleaned.data(using: .utf8),
+           let result = try? JSONDecoder().decode(VisionFoodResponse.self, from: cleanedData) {
+            return result
+        }
+
+        // Provide a meaningful error with context
+        let detail: String
+        switch decodingError {
+        case .keyNotFound(let key, _):
+            detail = "Missing key: \(key.stringValue)"
+        case .typeMismatch(let type, let context):
+            detail = "Type mismatch for \(type) at \(context.codingPath.map(\.stringValue).joined(separator: "."))"
+        case .valueNotFound(let type, let context):
+            detail = "Missing value for \(type) at \(context.codingPath.map(\.stringValue).joined(separator: "."))"
+        case .dataCorrupted(let context):
+            detail = "Data corrupted: \(context.debugDescription)"
+        @unknown default:
+            detail = decodingError.localizedDescription
+        }
+        throw FoodAnalysisError.apiError("Could not parse AI response. \(detail)")
     } catch {
-        throw FoodAnalysisError.invalidResponse
+        throw FoodAnalysisError.apiError("Could not parse AI response: \(error.localizedDescription)")
     }
 }
 
 private func extractJSON(from text: String) -> String {
-    if let range = text.range(of: "```json\n") {
+    // Handle ```json ... ``` (with optional whitespace/newlines)
+    if let range = text.range(of: "```(?:json)?\\s*\n", options: .regularExpression) {
         let start = range.upperBound
-        if let endRange = text.range(of: "\n```", range: start..<text.endIndex) {
+        if let endRange = text.range(of: "\n\\s*```", options: .regularExpression, range: start..<text.endIndex) {
             return String(text[start..<endRange.lowerBound])
         }
     }
-    if let range = text.range(of: "```\n") {
-        let start = range.upperBound
-        if let endRange = text.range(of: "\n```", range: start..<text.endIndex) {
-            return String(text[start..<endRange.lowerBound])
-        }
-    }
+    // Fallback: extract outermost { ... }
     if let start = text.firstIndex(of: "{"),
        let end = text.lastIndex(of: "}") {
         return String(text[start...end])
@@ -513,18 +572,29 @@ enum FoodAnalysisPipeline {
 
                 group.addTask {
                     if item.hasLabelNutrition {
-                        // Label items: keep brand names as-is
+                        // Label items: title-case brand names for consistency
+                        let cal = item.calories ?? 0
+                        let prot = item.protein_grams ?? 0
+                        let carb = item.carbs_grams ?? 0
+                        let f = item.fat_grams ?? 0
+                        let grams = item.portion_grams
+                        let scale = grams > 0 ? 100.0 / grams : 1.0
                         return IdentifiedFood(
-                            name: item.name,
-                            calories: Int(item.calories ?? 0),
-                            proteinGrams: item.protein_grams ?? 0,
-                            carbsGrams: item.carbs_grams ?? 0,
-                            fatGrams: item.fat_grams ?? 0,
-                            portionGrams: item.portion_grams,
+                            name: item.name.titleCased(),
+                            calories: Int(cal),
+                            proteinGrams: prot,
+                            carbsGrams: carb,
+                            fatGrams: f,
+                            portionGrams: grams,
                             portionDescription: item.portion,
                             source: .label,
                             mealGroupID: groupID,
-                            mealName: mealName
+                            mealName: mealName,
+                            caloriesPer100g: cal * scale,
+                            proteinPer100g: prot * scale,
+                            carbsPer100g: carb * scale,
+                            fatPer100g: f * scale,
+                            servingGrams: grams
                         )
                     } else {
                         // Try USDA first; fall back to AI-provided estimates

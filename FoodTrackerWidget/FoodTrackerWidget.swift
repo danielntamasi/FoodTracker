@@ -41,7 +41,7 @@ struct FoodTrackerProvider: TimelineProvider {
 
     func getTimeline(in context: Context, completion: @escaping (Timeline<FoodTrackerEntry>) -> Void) {
         let entry = makeEntry()
-        let nextUpdate = Calendar.current.date(byAdding: .minute, value: 30, to: .now)!
+        let nextUpdate = Calendar.current.date(byAdding: .minute, value: 15, to: .now)!
         completion(Timeline(entries: [entry], policy: .after(nextUpdate)))
     }
 

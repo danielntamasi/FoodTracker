@@ -107,7 +107,7 @@ struct PhotoAnalysisView: View {
                 }
                 if !isLoading && errorMessage == nil {
                     ToolbarItem(placement: .confirmationAction) {
-                        Button("Save All") { saveAll() }
+                        Button("Save") { saveAll() }
                             .disabled(identifiedFoods.isEmpty)
                     }
                 }
@@ -146,6 +146,7 @@ struct PhotoAnalysisView: View {
             HStack {
                 TextField("Meal name", text: mealNameBinding(for: indices))
                     .font(.headline)
+                    .textInputAutocapitalization(.sentences)
                 Spacer()
                 SourceBadge(source: .estimate)
             }
@@ -183,6 +184,7 @@ struct PhotoAnalysisView: View {
             HStack {
                 TextField("Name", text: $identifiedFoods[index].name)
                     .font(.subheadline)
+                    .textInputAutocapitalization(.sentences)
                 Spacer()
                 TextField("Portion", text: $identifiedFoods[index].portionDescription)
                     .font(.caption)
@@ -227,6 +229,8 @@ struct PhotoAnalysisView: View {
 
     // MARK: - Standalone Food Section
 
+    private let servingPresets: [Double] = stride(from: 0.25, through: 3.0, by: 0.25).map { $0 }
+
     @ViewBuilder
     private func standaloneFoodSection(index: Int) -> some View {
         Section {
@@ -241,21 +245,29 @@ struct PhotoAnalysisView: View {
                 Text("Name")
                 Spacer()
                 TextField("Name", text: $identifiedFoods[index].name)
+                    .textInputAutocapitalization(.sentences)
                     .multilineTextAlignment(.trailing)
             }
-            HStack {
-                Text("Portion")
-                Spacer()
-                TextField("Portion", text: $identifiedFoods[index].portionDescription)
-                    .multilineTextAlignment(.trailing)
+
+            // Portion picker for items with per-100g data (barcode, label)
+            if identifiedFoods[index].caloriesPer100g != nil {
+                portionPicker(index: index)
+            } else {
+                HStack {
+                    Text("Portion")
+                    Spacer()
+                    TextField("Portion", text: $identifiedFoods[index].portionDescription)
+                        .multilineTextAlignment(.trailing)
+                }
+                HStack {
+                    Text("Grams")
+                    Spacer()
+                    TextField("Grams", value: $identifiedFoods[index].portionGrams, format: .number)
+                        .keyboardType(.decimalPad)
+                        .multilineTextAlignment(.trailing)
+                }
             }
-            HStack {
-                Text("Grams")
-                Spacer()
-                TextField("Grams", value: $identifiedFoods[index].portionGrams, format: .number)
-                    .keyboardType(.decimalPad)
-                    .multilineTextAlignment(.trailing)
-            }
+
             HStack {
                 Text("Calories")
                 Spacer()
@@ -287,6 +299,103 @@ struct PhotoAnalysisView: View {
         }
     }
 
+    // MARK: - Barcode Portion Picker
+
+    @ViewBuilder
+    private func portionPicker(index: Int) -> some View {
+        let servingDesc = identifiedFoods[index].portionDescription
+        let servingLabel = servingDesc.isEmpty ? "serving" : servingDesc
+
+        VStack(alignment: .leading, spacing: 8) {
+            HStack {
+                Text("Servings")
+                Spacer()
+                Text(formatServings(identifiedFoods[index].servings))
+                    .foregroundStyle(.secondary)
+                Text("x \(servingLabel)")
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+            }
+
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 8) {
+                    ForEach(servingPresets, id: \.self) { preset in
+                        Button {
+                            applyServings(preset, at: index)
+                        } label: {
+                            Text(formatServings(preset))
+                                .font(.subheadline)
+                                .fontWeight(identifiedFoods[index].servings == preset ? .bold : .regular)
+                                .padding(.horizontal, 12)
+                                .padding(.vertical, 6)
+                                .background(
+                                    identifiedFoods[index].servings == preset
+                                        ? Color.accentColor.opacity(0.2)
+                                        : Color(.systemGray5)
+                                )
+                                .foregroundStyle(
+                                    identifiedFoods[index].servings == preset
+                                        ? Color.accentColor
+                                        : .primary
+                                )
+                                .clipShape(Capsule())
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+            }
+        }
+        .padding(.vertical, 4)
+
+        HStack {
+            Text("Custom servings")
+            Spacer()
+            TextField("Servings", value: Binding(
+                get: { identifiedFoods[index].servings },
+                set: { newValue in
+                    applyServings(max(0.01, newValue), at: index)
+                }
+            ), format: .number)
+            .keyboardType(.decimalPad)
+            .multilineTextAlignment(.trailing)
+            .frame(maxWidth: 80)
+        }
+    }
+
+    private func applyServings(_ servings: Double, at index: Int) {
+        guard let calPer100g = identifiedFoods[index].caloriesPer100g,
+              let protPer100g = identifiedFoods[index].proteinPer100g,
+              let carbsPer100g = identifiedFoods[index].carbsPer100g,
+              let fatPer100g = identifiedFoods[index].fatPer100g else { return }
+
+        let oneServingGrams = identifiedFoods[index].servingGrams ?? 100
+        let totalGrams = oneServingGrams * servings
+        let scale = totalGrams / 100.0
+
+        identifiedFoods[index].servings = servings
+        identifiedFoods[index].portionGrams = (totalGrams * 10).rounded() / 10
+        identifiedFoods[index].calories = Int((calPer100g * scale).rounded())
+        identifiedFoods[index].proteinGrams = (protPer100g * scale * 10).rounded() / 10
+        identifiedFoods[index].carbsGrams = (carbsPer100g * scale * 10).rounded() / 10
+        identifiedFoods[index].fatGrams = (fatPer100g * scale * 10).rounded() / 10
+    }
+
+    private func formatServings(_ value: Double) -> String {
+        let whole = Int(value)
+        let frac = value - Double(whole)
+        let fracStr: String?
+        if abs(frac - 0.25) < 0.001 { fracStr = "\u{00BC}" }
+        else if abs(frac - 0.5) < 0.001 { fracStr = "\u{00BD}" }
+        else if abs(frac - 0.75) < 0.001 { fracStr = "\u{00BE}" }
+        else if abs(frac) < 0.001 { fracStr = nil }
+        else { return String(format: "%.2g", value) }
+
+        if let f = fracStr {
+            return whole > 0 ? "\(whole)\(f)" : f
+        }
+        return "\(whole)"
+    }
+
     // MARK: - Actions
 
     private func analyzePhoto() {
@@ -313,7 +422,7 @@ struct PhotoAnalysisView: View {
 
         for food in identifiedFoods {
             let entry = FoodEntry(
-                name: food.name,
+                name: food.name.titleCased(),
                 calories: food.calories,
                 proteinGrams: food.proteinGrams,
                 carbsGrams: food.carbsGrams,
