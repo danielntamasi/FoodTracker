@@ -9,20 +9,20 @@ enum DailyTarget {
     static let fatKey = "fatTarget"
 
     static var calories: Int {
-        get { UserDefaults.standard.integer(forKey: calorieKey) }
-        set { UserDefaults.standard.set(newValue, forKey: calorieKey) }
+        get { sharedDefaults.integer(forKey: calorieKey) }
+        set { sharedDefaults.set(newValue, forKey: calorieKey) }
     }
     static var protein: Int {
-        get { UserDefaults.standard.integer(forKey: proteinKey) }
-        set { UserDefaults.standard.set(newValue, forKey: proteinKey) }
+        get { sharedDefaults.integer(forKey: proteinKey) }
+        set { sharedDefaults.set(newValue, forKey: proteinKey) }
     }
     static var carbs: Int {
-        get { UserDefaults.standard.integer(forKey: carbsKey) }
-        set { UserDefaults.standard.set(newValue, forKey: carbsKey) }
+        get { sharedDefaults.integer(forKey: carbsKey) }
+        set { sharedDefaults.set(newValue, forKey: carbsKey) }
     }
     static var fat: Int {
-        get { UserDefaults.standard.integer(forKey: fatKey) }
-        set { UserDefaults.standard.set(newValue, forKey: fatKey) }
+        get { sharedDefaults.integer(forKey: fatKey) }
+        set { sharedDefaults.set(newValue, forKey: fatKey) }
     }
 }
 

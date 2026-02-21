@@ -11,6 +11,7 @@ struct EditEntryView: View {
     @State private var isEditing = false
     @State private var isLookingUp = false
     @State private var lookupError: String?
+    @State private var lookupDescription: String?
     @State private var extractedColor: Color?
     @State private var showingBarcodeScanner = false
 
@@ -36,27 +37,7 @@ struct EditEntryView: View {
     }
 
     private var iconDerivedBgColor: Color {
-        let iconName = entry.iconName ?? foodIconName(for: entry.name)
-        switch iconName {
-        case "bird": return Color(red: 0.15, green: 0.10, blue: 0.05)
-        case "flame": return Color(red: 0.21, green: 0.09, blue: 0.05)
-        case "fish": return Color(red: 0.05, green: 0.15, blue: 0.15)
-        case "egg": return Color(red: 0.22, green: 0.19, blue: 0.08)
-        case "cup.and.saucer": return Color(red: 0.14, green: 0.09, blue: 0.05)
-        case "cup.and.saucer.fill": return Color(red: 0.10, green: 0.15, blue: 0.20)
-        case "waterbottle": return Color(red: 0.05, green: 0.15, blue: 0.18)
-        case "wineglass": return Color(red: 0.15, green: 0.05, blue: 0.10)
-        case "birthday.cake": return Color(red: 0.18, green: 0.08, blue: 0.12)
-        case "takeoutbag.and.cup.and.straw": return Color(red: 0.20, green: 0.12, blue: 0.05)
-        case "triangle": return Color(red: 0.22, green: 0.08, blue: 0.05)
-        case "leaf": return Color(red: 0.05, green: 0.15, blue: 0.05)
-        case "carrot": return Color(red: 0.24, green: 0.14, blue: 0.05)
-        case "leaf.circle": return Color(red: 0.12, green: 0.15, blue: 0.08)
-        case "chart.bar": return Color(red: 0.10, green: 0.12, blue: 0.18)
-        case "snowflake": return Color(red: 0.12, green: 0.19, blue: 0.22)
-        case "bowl": return Color(red: 0.20, green: 0.14, blue: 0.06)
-        default: return Color(red: 0.12, green: 0.12, blue: 0.14)
-        }
+        iconDarkColor(for: entry.iconName ?? foodIconName(for: entry.name))
     }
 
     // MARK: - Macro Calculations
@@ -77,10 +58,6 @@ struct EditEntryView: View {
     private var fatPct: Int {
         guard totalMacroCals > 0 else { return 0 }
         return Int((fatCals / totalMacroCals * 100).rounded())
-    }
-
-    private var hasTargets: Bool {
-        DailyTarget.calories > 0 || DailyTarget.protein > 0 || DailyTarget.carbs > 0 || DailyTarget.fat > 0
     }
 
     private var formattedTimestamp: String {
@@ -111,7 +88,7 @@ struct EditEntryView: View {
         }
         .onAppear {
             if let uiImage = entryImage {
-                extractedColor = dominantColor(from: uiImage)
+                extractedColor = dominantColor(from: uiImage, colorScheme: colorScheme)
             }
         }
         .sheet(isPresented: $showingBarcodeScanner) {
@@ -178,6 +155,7 @@ struct EditEntryView: View {
         entry.date = originalDate
         servings = 1.0
         lookupError = nil
+        lookupDescription = nil
         withAnimation(.easeInOut(duration: 0.25)) { isEditing = false }
     }
 
@@ -191,6 +169,7 @@ struct EditEntryView: View {
         entry.name = entry.name.titleCased()
         entry.iconName = foodIconName(for: entry.name)
         lookupError = nil
+        lookupDescription = nil
         withAnimation(.easeInOut(duration: 0.25)) { isEditing = false }
     }
 
@@ -239,14 +218,14 @@ struct EditEntryView: View {
                                     .shadow(color: .black.opacity(0.3), radius: 6, y: 2)
 
                                 HStack(spacing: 12) {
-                                    metricPill(value: "\(entry.calories)", label: "cal", color: .white)
-                                    metricPill(value: formatMacro(entry.proteinGrams), label: "P", color: .blue)
-                                    metricPill(value: formatMacro(entry.carbsGrams), label: "C", color: .orange)
-                                    metricPill(value: formatMacro(entry.fatGrams), label: "F", color: .purple)
+                                    MetricPill(value: "\(entry.calories)", label: "cal", color: .white)
+                                    MetricPill(value: formatMacro(entry.proteinGrams), label: "P", color: .blue)
+                                    MetricPill(value: formatMacro(entry.carbsGrams), label: "C", color: .orange)
+                                    MetricPill(value: formatMacro(entry.fatGrams), label: "F", color: .purple)
                                 }
 
                                 if totalMacroCals > 0 {
-                                    macroDonut(size: 80)
+                                    HeroMacroDonut(proteinCals: proteinCals, carbsCals: carbsCals, fatCals: fatCals, proteinPct: proteinPct, carbsPct: carbsPct, fatPct: fatPct)
                                 }
                             }
                             .padding(.bottom, 16)
@@ -298,14 +277,14 @@ struct EditEntryView: View {
                                     .shadow(color: .black.opacity(0.3), radius: 6, y: 2)
 
                                 HStack(spacing: 12) {
-                                    metricPill(value: "\(entry.calories)", label: "cal", color: .white)
-                                    metricPill(value: formatMacro(entry.proteinGrams), label: "P", color: .blue)
-                                    metricPill(value: formatMacro(entry.carbsGrams), label: "C", color: .orange)
-                                    metricPill(value: formatMacro(entry.fatGrams), label: "F", color: .purple)
+                                    MetricPill(value: "\(entry.calories)", label: "cal", color: .white)
+                                    MetricPill(value: formatMacro(entry.proteinGrams), label: "P", color: .blue)
+                                    MetricPill(value: formatMacro(entry.carbsGrams), label: "C", color: .orange)
+                                    MetricPill(value: formatMacro(entry.fatGrams), label: "F", color: .purple)
                                 }
 
                                 if totalMacroCals > 0 {
-                                    macroDonut(size: 80)
+                                    HeroMacroDonut(proteinCals: proteinCals, carbsCals: carbsCals, fatCals: fatCals, proteinPct: proteinPct, carbsPct: carbsPct, fatPct: fatPct)
                                 }
                             }
                             .padding(.bottom, 16)
@@ -319,8 +298,13 @@ struct EditEntryView: View {
                             .transition(.opacity.combined(with: .move(edge: .bottom)))
                     } else {
                         VStack(spacing: 20) {
-                            if hasTargets {
-                                dailyGoalBars
+                            if DailyTarget.hasTargets {
+                                DailyGoalBarsView(
+                                    calories: Double(entry.calories),
+                                    protein: entry.proteinGrams,
+                                    carbs: entry.carbsGrams,
+                                    fat: entry.fatGrams
+                                )
                             }
 
                             Text(formattedTimestamp)
@@ -337,198 +321,6 @@ struct EditEntryView: View {
         }
         .background(bgColor)
         .toolbar(.hidden, for: .navigationBar)
-    }
-
-    // MARK: - Macro Donut
-
-    private func macroDonut(size: CGFloat) -> some View {
-        let segments: [(name: String, cals: Double, color: Color)] = [
-            ("Protein", proteinCals, .blue),
-            ("Carbs", carbsCals, .orange),
-            ("Fat", fatCals, .purple),
-        ].filter { $0.cals > 0 }
-
-        return HStack(spacing: 12) {
-            Chart(segments, id: \.name) { segment in
-                SectorMark(
-                    angle: .value(segment.name, segment.cals),
-                    innerRadius: .ratio(0.65),
-                    angularInset: 2
-                )
-                .foregroundStyle(segment.color)
-            }
-            .chartLegend(.hidden)
-            .frame(width: size, height: size)
-
-            VStack(alignment: .leading, spacing: 4) {
-                macroLabel(pct: proteinPct, name: "P", color: .blue)
-                macroLabel(pct: carbsPct, name: "C", color: .orange)
-                macroLabel(pct: fatPct, name: "F", color: .purple)
-            }
-        }
-    }
-
-    private func macroLabel(pct: Int, name: String, color: Color) -> some View {
-        HStack(spacing: 4) {
-            Circle()
-                .fill(color)
-                .frame(width: 8, height: 8)
-            Text("\(pct)% \(name)")
-                .font(.caption2)
-                .fontWeight(.medium)
-                .foregroundStyle(.white.opacity(0.8))
-        }
-    }
-
-    // MARK: - Shared Components
-
-    private func metricPill(value: String, label: String, color: Color) -> some View {
-        HStack(spacing: 4) {
-            Text(value)
-                .font(.subheadline)
-                .fontWeight(.bold)
-            Text(label)
-                .font(.caption)
-        }
-        .foregroundStyle(color)
-        .padding(.horizontal, 10)
-        .padding(.vertical, 6)
-        .background(color.opacity(0.15))
-        .clipShape(Capsule())
-    }
-
-    private var dailyGoalBars: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Text("% of Daily Goal")
-                .font(.caption)
-                .fontWeight(.semibold)
-                .foregroundStyle(.white.opacity(0.6))
-
-            VStack(spacing: 8) {
-                if DailyTarget.calories > 0 {
-                    goalBar(
-                        label: "Cal",
-                        value: Double(entry.calories),
-                        target: Double(DailyTarget.calories),
-                        color: .gray
-                    )
-                }
-                if DailyTarget.protein > 0 {
-                    goalBar(
-                        label: "Protein",
-                        value: entry.proteinGrams,
-                        target: Double(DailyTarget.protein),
-                        color: .blue
-                    )
-                }
-                if DailyTarget.carbs > 0 {
-                    goalBar(
-                        label: "Carbs",
-                        value: entry.carbsGrams,
-                        target: Double(DailyTarget.carbs),
-                        color: .orange
-                    )
-                }
-                if DailyTarget.fat > 0 {
-                    goalBar(
-                        label: "Fat",
-                        value: entry.fatGrams,
-                        target: Double(DailyTarget.fat),
-                        color: .purple
-                    )
-                }
-            }
-        }
-        .padding(.horizontal, 24)
-        .padding(.vertical, 12)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(.white.opacity(0.08))
-        .clipShape(RoundedRectangle(cornerRadius: 12))
-        .padding(.horizontal, 20)
-    }
-
-    private func goalBar(label: String, value: Double, target: Double, color: Color) -> some View {
-        let pct = target > 0 ? Int((value / target * 100).rounded()) : 0
-        return HStack(spacing: 8) {
-            Text(label)
-                .font(.caption)
-                .foregroundStyle(.white.opacity(0.6))
-                .frame(width: 48, alignment: .leading)
-
-            GeometryReader { geo in
-                ZStack(alignment: .leading) {
-                    Capsule()
-                        .fill(.white.opacity(0.1))
-                        .frame(height: 6)
-                    Capsule()
-                        .fill(color)
-                        .frame(width: geo.size.width * min(value / max(target, 1), 1.0), height: 6)
-                }
-            }
-            .frame(height: 6)
-
-            Text("\(pct)%")
-                .font(.caption)
-                .fontWeight(.medium)
-                .foregroundStyle(color)
-                .frame(width: 36, alignment: .trailing)
-        }
-    }
-
-    private func formatMacro(_ value: Double) -> String {
-        value == value.rounded() ? String(format: "%.0f", value) : String(format: "%.1f", value)
-    }
-
-    private func formatServings(_ value: Double) -> String {
-        let whole = Int(value)
-        let frac = value - Double(whole)
-        let fracStr: String?
-        if abs(frac - 0.25) < 0.001 { fracStr = "\u{00BC}" }
-        else if abs(frac - 0.5) < 0.001 { fracStr = "\u{00BD}" }
-        else if abs(frac - 0.75) < 0.001 { fracStr = "\u{00BE}" }
-        else if abs(frac) < 0.001 { fracStr = nil }
-        else { return String(format: "%.2g", value) }
-
-        if let f = fracStr {
-            return whole > 0 ? "\(whole)\(f)" : f
-        }
-        return "\(whole)"
-    }
-
-    // MARK: - Color Extraction
-
-    private func dominantColor(from image: UIImage) -> Color? {
-        guard let cgImage = image.cgImage else { return nil }
-        let width = cgImage.width
-        let height = cgImage.height
-
-        let sampleHeight = max(height / 5, 1)
-        let yOffset = height - sampleHeight
-        guard let cropped = cgImage.cropping(to: CGRect(x: 0, y: yOffset, width: width, height: sampleHeight)) else { return nil }
-
-        let ciImage = CIImage(cgImage: cropped)
-        let filter = CIFilter(name: "CIAreaAverage", parameters: [
-            kCIInputImageKey: ciImage,
-            kCIInputExtentKey: CIVector(cgRect: ciImage.extent)
-        ])
-        guard let outputImage = filter?.outputImage else { return nil }
-
-        var bitmap = [UInt8](repeating: 0, count: 4)
-        let context = CIContext(options: [.workingColorSpace: kCFNull!])
-        context.render(outputImage, toBitmap: &bitmap, rowBytes: 4,
-                       bounds: CGRect(x: 0, y: 0, width: 1, height: 1),
-                       format: .RGBA8, colorSpace: nil)
-
-        let r = Double(bitmap[0]) / 255.0
-        let g = Double(bitmap[1]) / 255.0
-        let b = Double(bitmap[2]) / 255.0
-
-        let darkenFactor: Double = colorScheme == .dark ? 0.3 : 0.55
-        return Color(
-            red: r * darkenFactor,
-            green: g * darkenFactor,
-            blue: b * darkenFactor
-        )
     }
 
     // MARK: - Edit Content
@@ -570,6 +362,14 @@ struct EditEntryView: View {
                         Text(error)
                             .font(.caption)
                             .foregroundStyle(.red)
+                    }
+                }
+                if let desc = lookupDescription {
+                    groupedDivider
+                    groupedRow {
+                        Text(desc)
+                            .font(.caption)
+                            .foregroundStyle(.green)
                     }
                 }
                 groupedDivider
@@ -737,15 +537,25 @@ struct EditEntryView: View {
     private func lookupNutrition() {
         isLookingUp = true
         lookupError = nil
+        lookupDescription = nil
 
         Task {
             do {
-                let nutrients = try await USDAService.shared.lookupNutrients(for: entry.name)
-                if nutrients.calories > 0 || nutrients.protein > 0 || nutrients.carbs > 0 || nutrients.fat > 0 {
-                    entry.calories = Int(nutrients.calories)
-                    entry.proteinGrams = (nutrients.protein * 10).rounded() / 10
-                    entry.carbsGrams = (nutrients.carbs * 10).rounded() / 10
-                    entry.fatGrams = (nutrients.fat * 10).rounded() / 10
+                let result = try await USDAService.shared.lookupFood(for: entry.name)
+                let per100g = result.nutrientsPer100g
+                if per100g.calories > 0 || per100g.protein > 0 || per100g.carbs > 0 || per100g.fat > 0 {
+                    let scaled = result.perServing
+                    entry.calories = Int(scaled.calories)
+                    entry.proteinGrams = scaled.protein
+                    entry.carbsGrams = scaled.carbs
+                    entry.fatGrams = scaled.fat
+                    // Build description for user verification
+                    if let servingDesc = result.servingDescription {
+                        let gramsNote = result.servingGrams.map { " (\(Int($0))g)" } ?? ""
+                        lookupDescription = "\(result.description.titleCased()) — \(servingDesc)\(gramsNote)"
+                    } else {
+                        lookupDescription = "\(result.description.titleCased()) — per 100g"
+                    }
                 } else {
                     lookupError = "No nutrition data found for \"\(entry.name)\"."
                 }

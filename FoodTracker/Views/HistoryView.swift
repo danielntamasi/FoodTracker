@@ -112,7 +112,6 @@ struct HistoryView: View {
     @State private var editingMealGroup: MealGroup?
     @State private var expandedGroups: Set<UUID> = []
     @State private var expandedDays: Set<String> = []
-    @State private var didInitExpandedDays = false
 
     private var groupedEntries: [(String, [FoodEntry])] {
         let formatter = DateFormatter()
@@ -127,37 +126,6 @@ struct HistoryView: View {
                 return false
             }
             return lhsDate > rhsDate
-        }
-    }
-
-    private func quickAddEntry(_ entry: FoodEntry) {
-        let newEntry = FoodEntry(
-            name: entry.name,
-            calories: entry.calories,
-            proteinGrams: entry.proteinGrams,
-            carbsGrams: entry.carbsGrams,
-            fatGrams: entry.fatGrams,
-            photoData: entry.photoData,
-            iconName: entry.iconName ?? foodIconName(for: entry.name)
-        )
-        modelContext.insert(newEntry)
-    }
-
-    private func quickAddMealGroup(_ entries: [FoodEntry], mealName: String?) {
-        let newGroupID = UUID()
-        for entry in entries {
-            let newEntry = FoodEntry(
-                name: entry.name,
-                calories: entry.calories,
-                proteinGrams: entry.proteinGrams,
-                carbsGrams: entry.carbsGrams,
-                fatGrams: entry.fatGrams,
-                photoData: entry.photoData,
-                mealGroupID: newGroupID,
-                mealName: mealName,
-                iconName: entry.iconName ?? foodIconName(for: entry.name)
-            )
-            modelContext.insert(newEntry)
         }
     }
 
@@ -199,7 +167,7 @@ struct HistoryView: View {
                                                     Label("Edit", systemImage: "pencil")
                                                 }
                                                 .tint(.blue)
-                                                Button { quickAddEntry(entry) } label: {
+                                                Button { quickAddEntry(entry, into: modelContext) } label: {
                                                     Label("Add Again", systemImage: "plus.circle")
                                                 }
                                                 .tint(.green)
@@ -243,7 +211,7 @@ struct HistoryView: View {
                                                 Label("Edit", systemImage: "pencil")
                                             }
                                             .tint(.blue)
-                                            Button { quickAddMealGroup(entries, mealName: mealName) } label: {
+                                            Button { quickAddMealGroup(entries, mealName: mealName, into: modelContext) } label: {
                                                 Label("Add Again", systemImage: "plus.circle")
                                             }
                                             .tint(.green)
@@ -265,7 +233,7 @@ struct HistoryView: View {
                                                             Label("Edit", systemImage: "pencil")
                                                         }
                                                         .tint(.blue)
-                                                        Button { quickAddEntry(entry) } label: {
+                                                        Button { quickAddEntry(entry, into: modelContext) } label: {
                                                             Label("Add Again", systemImage: "plus.circle")
                                                         }
                                                         .tint(.green)
@@ -308,15 +276,6 @@ struct HistoryView: View {
                 }
             }
             .contentMargins(.bottom, 88, for: .scrollContent)
-            .task {
-                guard !didInitExpandedDays else { return }
-                didInitExpandedDays = true
-                let formatter = DateFormatter()
-                formatter.dateStyle = .medium
-                if let yesterday = Calendar.current.date(byAdding: .day, value: -1, to: Date()) {
-                    expandedDays.insert(formatter.string(from: yesterday))
-                }
-            }
             .navigationTitle("History")
             .sheet(item: $editingEntry) { entry in
                 EditEntryView(entry: entry)

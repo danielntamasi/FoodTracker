@@ -14,7 +14,7 @@ struct AddEntryView: View {
     @State private var servings: Double = 1.0
     @State private var isLookingUp = false
     @State private var lookupError: String?
-    @State private var pendingNutrients: (calories: Int, protein: Double, carbs: Double, fat: Double)?
+    @State private var pendingNutrients: (calories: Int, protein: Double, carbs: Double, fat: Double, description: String)?
 
     private let servingPresets: [Double] = stride(from: 0.25, through: 3.0, by: 0.25).map { $0 }
 
@@ -125,7 +125,7 @@ struct AddEntryView: View {
 
                     if let nutrients = pendingNutrients {
                         VStack(alignment: .leading, spacing: 6) {
-                            Text("USDA Result")
+                            Text(nutrients.description)
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
                             HStack {
@@ -187,14 +187,25 @@ struct AddEntryView: View {
 
         Task {
             do {
-                let nutrients = try await USDAService.shared.lookupNutrients(for: name)
-                if nutrients.calories > 0 || nutrients.protein > 0 || nutrients.carbs > 0 || nutrients.fat > 0 {
+                let result = try await USDAService.shared.lookupFood(for: name)
+                let per100g = result.nutrientsPer100g
+                if per100g.calories > 0 || per100g.protein > 0 || per100g.carbs > 0 || per100g.fat > 0 {
+                    let scaled = result.perServing
+                    // Build description: "Bananas, Raw — 1 medium (118g)" or "Bananas, Raw — per 100g"
+                    let desc: String
+                    if let servingDesc = result.servingDescription {
+                        let gramsNote = result.servingGrams.map { " (\(Int($0))g)" } ?? ""
+                        desc = "\(result.description.titleCased()) — \(servingDesc)\(gramsNote)"
+                    } else {
+                        desc = "\(result.description.titleCased()) — per 100g"
+                    }
                     withAnimation {
                         pendingNutrients = (
-                            calories: Int(nutrients.calories),
-                            protein: (nutrients.protein * 10).rounded() / 10,
-                            carbs: (nutrients.carbs * 10).rounded() / 10,
-                            fat: (nutrients.fat * 10).rounded() / 10
+                            calories: Int(scaled.calories),
+                            protein: scaled.protein,
+                            carbs: scaled.carbs,
+                            fat: scaled.fat,
+                            description: desc
                         )
                     }
                 } else {
@@ -207,7 +218,7 @@ struct AddEntryView: View {
         }
     }
 
-    private func acceptNutrients(_ nutrients: (calories: Int, protein: Double, carbs: Double, fat: Double)) {
+    private func acceptNutrients(_ nutrients: (calories: Int, protein: Double, carbs: Double, fat: Double, description: String)) {
         caloriesText = "\(nutrients.calories)"
         proteinText = "\(nutrients.protein)"
         carbsText = "\(nutrients.carbs)"
@@ -234,19 +245,4 @@ struct AddEntryView: View {
         dismiss()
     }
 
-    private func formatServings(_ value: Double) -> String {
-        let whole = Int(value)
-        let frac = value - Double(whole)
-        let fracStr: String?
-        if abs(frac - 0.25) < 0.001 { fracStr = "\u{00BC}" }
-        else if abs(frac - 0.5) < 0.001 { fracStr = "\u{00BD}" }
-        else if abs(frac - 0.75) < 0.001 { fracStr = "\u{00BE}" }
-        else if abs(frac) < 0.001 { fracStr = nil }
-        else { return String(format: "%.2g", value) }
-
-        if let f = fracStr {
-            return whole > 0 ? "\(whole)\(f)" : f
-        }
-        return "\(whole)"
-    }
 }

@@ -9,34 +9,10 @@ struct DailySummaryView: View {
     @State private var editingEntry: FoodEntry?
     @State private var editingMealGroup: MealGroup?
     @State private var expandedGroups: Set<UUID> = []
-    @State private var reverseChronological = UserDefaults.standard.bool(forKey: "reverseChronological")
+    @State private var reverseChronological = sharedDefaults.bool(forKey: "reverseChronological")
 
     private var orderedPeriods: [TimeOfDay] {
         reverseChronological ? TimeOfDay.allCases.reversed() : TimeOfDay.allCases
-    }
-
-    private var flatListItems: [FlatListItem] {
-        var items: [FlatListItem] = []
-        for period in orderedPeriods {
-            items.append(.sectionHeader(period))
-            let filtered = todayEntries.filter { TimeOfDay.from($0.date) == period }
-            let periodEntries = reverseChronological ? Array(filtered.reversed()) : filtered
-            let displayItems = groupedDisplayItems(from: periodEntries)
-            for displayItem in displayItems {
-                items.append(.entry(displayItem))
-                if case .mealGroup(let groupID, _, let entries) = displayItem,
-                   expandedGroups.contains(groupID) {
-                    for entry in entries {
-                        items.append(.expandedSubItem(entry, groupID: groupID))
-                    }
-                }
-            }
-        }
-        return items
-    }
-
-    private func periodHasEntries(_ period: TimeOfDay) -> Bool {
-        todayEntries.contains { TimeOfDay.from($0.date) == period }
     }
 
     private var todayEntries: [FoodEntry] {
@@ -51,24 +27,45 @@ struct DailySummaryView: View {
             }
     }
 
-    private var totalCalories: Int {
-        todayEntries.reduce(0) { $0 + $1.calories }
+    private var totals: (cal: Int, protein: Double, carbs: Double, fat: Double) {
+        todayEntries.reduce((0, 0.0, 0.0, 0.0)) {
+            ($0.0 + $1.calories, $0.1 + $1.proteinGrams, $0.2 + $1.carbsGrams, $0.3 + $1.fatGrams)
+        }
     }
 
-    private var totalProtein: Double {
-        todayEntries.reduce(0) { $0 + $1.proteinGrams }
+    private var totalCalories: Int { totals.cal }
+    private var totalProtein: Double { totals.protein }
+    private var totalCarbs: Double { totals.carbs }
+    private var totalFat: Double { totals.fat }
+
+    // Bucket entries by time-of-day in a single pass
+    private var entriesByPeriod: [TimeOfDay: [FoodEntry]] {
+        Dictionary(grouping: todayEntries) { TimeOfDay.from($0.date) }
     }
 
-    private var totalCarbs: Double {
-        todayEntries.reduce(0) { $0 + $1.carbsGrams }
+    private var flatListItems: [FlatListItem] {
+        let buckets = entriesByPeriod
+        var items: [FlatListItem] = []
+        for period in orderedPeriods {
+            items.append(.sectionHeader(period))
+            let periodEntries = buckets[period] ?? []
+            let ordered = reverseChronological ? Array(periodEntries.reversed()) : periodEntries
+            let displayItems = groupedDisplayItems(from: ordered)
+            for displayItem in displayItems {
+                items.append(.entry(displayItem))
+                if case .mealGroup(let groupID, _, let entries) = displayItem,
+                   expandedGroups.contains(groupID) {
+                    for entry in entries {
+                        items.append(.expandedSubItem(entry, groupID: groupID))
+                    }
+                }
+            }
+        }
+        return items
     }
 
-    private var totalFat: Double {
-        todayEntries.reduce(0) { $0 + $1.fatGrams }
-    }
-
-    private var hasTargets: Bool {
-        DailyTarget.calories > 0 || DailyTarget.protein > 0 || DailyTarget.carbs > 0 || DailyTarget.fat > 0
+    private func periodHasEntries(_ period: TimeOfDay) -> Bool {
+        !(entriesByPeriod[period]?.isEmpty ?? true)
     }
 
     private var widgetSyncID: String {
@@ -76,16 +73,11 @@ struct DailySummaryView: View {
     }
 
     private func syncWidgetData() {
-        guard let defaults = UserDefaults(suiteName: appGroupID) else { return }
-        defaults.set(totalCalories, forKey: "widgetCalories")
-        defaults.set(totalProtein, forKey: "widgetProtein")
-        defaults.set(totalCarbs, forKey: "widgetCarbs")
-        defaults.set(totalFat, forKey: "widgetFat")
-        defaults.set(Date.now.timeIntervalSince1970, forKey: "widgetLastSync")
-        defaults.set(DailyTarget.calories, forKey: "calorieTarget")
-        defaults.set(DailyTarget.protein, forKey: "proteinTarget")
-        defaults.set(DailyTarget.carbs, forKey: "carbsTarget")
-        defaults.set(DailyTarget.fat, forKey: "fatTarget")
+        sharedDefaults.set(totalCalories, forKey: "widgetCalories")
+        sharedDefaults.set(totalProtein, forKey: "widgetProtein")
+        sharedDefaults.set(totalCarbs, forKey: "widgetCarbs")
+        sharedDefaults.set(totalFat, forKey: "widgetFat")
+        sharedDefaults.set(Date.now.timeIntervalSince1970, forKey: "widgetLastSync")
         WidgetCenter.shared.reloadAllTimelines()
     }
 
@@ -157,37 +149,6 @@ struct DailySummaryView: View {
         }
     }
 
-    private func quickAddEntry(_ entry: FoodEntry) {
-        let newEntry = FoodEntry(
-            name: entry.name,
-            calories: entry.calories,
-            proteinGrams: entry.proteinGrams,
-            carbsGrams: entry.carbsGrams,
-            fatGrams: entry.fatGrams,
-            photoData: entry.photoData,
-            iconName: entry.iconName ?? foodIconName(for: entry.name)
-        )
-        modelContext.insert(newEntry)
-    }
-
-    private func quickAddMealGroup(_ entries: [FoodEntry], mealName: String?) {
-        let newGroupID = UUID()
-        for entry in entries {
-            let newEntry = FoodEntry(
-                name: entry.name,
-                calories: entry.calories,
-                proteinGrams: entry.proteinGrams,
-                carbsGrams: entry.carbsGrams,
-                fatGrams: entry.fatGrams,
-                photoData: entry.photoData,
-                mealGroupID: newGroupID,
-                mealName: mealName,
-                iconName: entry.iconName ?? foodIconName(for: entry.name)
-            )
-            modelContext.insert(newEntry)
-        }
-    }
-
     var body: some View {
         NavigationStack {
             List {
@@ -253,7 +214,7 @@ struct DailySummaryView: View {
 
     private var summaryCard: some View {
         Group {
-            if hasTargets {
+            if DailyTarget.hasTargets {
                 MacroDonutCard(
                     calories: totalCalories,
                     calorieTarget: DailyTarget.calories,
@@ -333,7 +294,7 @@ struct DailySummaryView: View {
                 Button {
                     withAnimation(.spring(duration: 0.4, bounce: 0.15)) {
                         reverseChronological.toggle()
-                        UserDefaults.standard.set(reverseChronological, forKey: "reverseChronological")
+                        sharedDefaults.set(reverseChronological, forKey: "reverseChronological")
                     }
                 } label: {
                     Image(systemName: reverseChronological ? "arrow.down" : "arrow.up")
@@ -367,7 +328,7 @@ struct DailySummaryView: View {
                         Label("Edit", systemImage: "pencil")
                     }
                     .tint(.blue)
-                    Button { quickAddEntry(entry) } label: {
+                    Button { quickAddEntry(entry, into: modelContext) } label: {
                         Label("Add Again", systemImage: "plus.circle")
                     }
                     .tint(.green)
@@ -414,7 +375,7 @@ struct DailySummaryView: View {
                     Label("Edit", systemImage: "pencil")
                 }
                 .tint(.blue)
-                Button { quickAddMealGroup(entries, mealName: mealName) } label: {
+                Button { quickAddMealGroup(entries, mealName: mealName, into: modelContext) } label: {
                     Label("Add Again", systemImage: "plus.circle")
                 }
                 .tint(.green)
@@ -446,7 +407,7 @@ struct DailySummaryView: View {
                     Label("Edit", systemImage: "pencil")
                 }
                 .tint(.blue)
-                Button { quickAddEntry(entry) } label: {
+                Button { quickAddEntry(entry, into: modelContext) } label: {
                     Label("Add Again", systemImage: "plus.circle")
                 }
                 .tint(.green)
@@ -514,14 +475,22 @@ enum FlatListItem: Identifiable {
 }
 
 func groupedDisplayItems(from entries: [FoodEntry]) -> [EntryDisplayItem] {
+    // First pass: collect meal group entries by ID
+    var groupsByID: [UUID: [FoodEntry]] = [:]
+    for entry in entries {
+        if let groupID = entry.mealGroupID {
+            groupsByID[groupID, default: []].append(entry)
+        }
+    }
+
+    // Second pass: build result maintaining original order
     var result: [EntryDisplayItem] = []
     var seenGroups: Set<UUID> = []
-
     for entry in entries {
         if let groupID = entry.mealGroupID {
             if seenGroups.contains(groupID) { continue }
             seenGroups.insert(groupID)
-            let groupEntries = entries.filter { $0.mealGroupID == groupID }
+            let groupEntries = groupsByID[groupID] ?? [entry]
             let mealName = groupEntries.first?.mealName ?? "Meal"
             result.append(.mealGroup(groupID: groupID, mealName: mealName, entries: groupEntries))
         } else {
@@ -614,12 +583,8 @@ struct MealEntryRow: View {
 
     var body: some View {
         HStack {
-            if let photoData = entries.first?.photoData, let uiImage = UIImage(data: photoData) {
-                Image(uiImage: uiImage)
-                    .resizable()
-                    .scaledToFill()
-                    .frame(width: 52, height: 52)
-                    .clipShape(RoundedRectangle(cornerRadius: 8))
+            if entries.first?.photoData != nil {
+                CachedThumbnailImage(photoData: entries.first?.photoData)
             } else {
                 FoodIconThumbnail(iconName: entries.first?.iconName ?? "fork.knife")
             }
@@ -791,12 +756,8 @@ struct FoodEntryRow: View {
 
     var body: some View {
         HStack {
-            if let photoData = entry.photoData, let uiImage = UIImage(data: photoData) {
-                Image(uiImage: uiImage)
-                    .resizable()
-                    .scaledToFill()
-                    .frame(width: 52, height: 52)
-                    .clipShape(RoundedRectangle(cornerRadius: 8))
+            if entry.photoData != nil {
+                CachedThumbnailImage(photoData: entry.photoData)
             } else {
                 FoodIconThumbnail(iconName: entry.iconName ?? foodIconName(for: entry.name))
             }
@@ -827,407 +788,3 @@ struct MealGroup: Identifiable {
     let entries: [FoodEntry]
 }
 
-// MARK: - Meal Summary View
-
-struct MealSummaryView: View {
-    @Environment(\.dismiss) private var dismiss
-    @Environment(\.colorScheme) private var colorScheme
-    let mealGroup: MealGroup
-
-    @State private var extractedColor: Color?
-
-    private var totalCalories: Int { mealGroup.entries.reduce(0) { $0 + $1.calories } }
-    private var totalProtein: Double { mealGroup.entries.reduce(0) { $0 + $1.proteinGrams } }
-    private var totalCarbs: Double { mealGroup.entries.reduce(0) { $0 + $1.carbsGrams } }
-    private var totalFat: Double { mealGroup.entries.reduce(0) { $0 + $1.fatGrams } }
-
-    private var proteinCals: Double { totalProtein * 4 }
-    private var carbsCals: Double { totalCarbs * 4 }
-    private var fatCals: Double { totalFat * 9 }
-    private var totalMacroCals: Double { proteinCals + carbsCals + fatCals }
-
-    private var proteinPct: Int {
-        guard totalMacroCals > 0 else { return 0 }
-        return Int((proteinCals / totalMacroCals * 100).rounded())
-    }
-    private var carbsPct: Int {
-        guard totalMacroCals > 0 else { return 0 }
-        return Int((carbsCals / totalMacroCals * 100).rounded())
-    }
-    private var fatPct: Int {
-        guard totalMacroCals > 0 else { return 0 }
-        return Int((fatCals / totalMacroCals * 100).rounded())
-    }
-
-    private var hasTargets: Bool {
-        DailyTarget.calories > 0 || DailyTarget.protein > 0 || DailyTarget.carbs > 0 || DailyTarget.fat > 0
-    }
-
-    private var mealImage: UIImage? {
-        for entry in mealGroup.entries {
-            if let data = entry.photoData, let img = UIImage(data: data) {
-                return img
-            }
-        }
-        return nil
-    }
-
-    private var bgColor: Color {
-        if let extracted = extractedColor { return extracted }
-        // Derive from first entry's food icon category
-        let iconName = mealGroup.entries.first?.iconName ?? foodIconName(for: mealGroup.name)
-        return mealIconDarkColor(for: iconName)
-    }
-
-    private func mealIconDarkColor(for iconName: String) -> Color {
-        switch iconName {
-        case "bird": return Color(red: 0.15, green: 0.10, blue: 0.05)
-        case "flame": return Color(red: 0.21, green: 0.09, blue: 0.05)
-        case "fish": return Color(red: 0.05, green: 0.15, blue: 0.15)
-        case "egg": return Color(red: 0.22, green: 0.19, blue: 0.08)
-        case "cup.and.saucer": return Color(red: 0.14, green: 0.09, blue: 0.05)
-        case "cup.and.saucer.fill": return Color(red: 0.10, green: 0.15, blue: 0.20)
-        case "waterbottle": return Color(red: 0.05, green: 0.15, blue: 0.18)
-        case "wineglass": return Color(red: 0.15, green: 0.05, blue: 0.10)
-        case "birthday.cake": return Color(red: 0.18, green: 0.08, blue: 0.12)
-        case "takeoutbag.and.cup.and.straw": return Color(red: 0.20, green: 0.12, blue: 0.05)
-        case "triangle": return Color(red: 0.22, green: 0.08, blue: 0.05)
-        case "leaf": return Color(red: 0.05, green: 0.15, blue: 0.05)
-        case "carrot": return Color(red: 0.24, green: 0.14, blue: 0.05)
-        case "leaf.circle": return Color(red: 0.12, green: 0.15, blue: 0.08)
-        case "chart.bar": return Color(red: 0.10, green: 0.12, blue: 0.18)
-        case "snowflake": return Color(red: 0.12, green: 0.19, blue: 0.22)
-        case "bowl": return Color(red: 0.20, green: 0.14, blue: 0.06)
-        default: return Color(red: 0.12, green: 0.12, blue: 0.14)
-        }
-    }
-
-    private var formattedTimestamp: String {
-        guard let earliest = mealGroup.entries.map(\.date).min() else { return "" }
-        let calendar = Calendar.current
-        let formatter = DateFormatter()
-        if calendar.isDateInToday(earliest) {
-            formatter.dateFormat = "'Today at' h:mm a"
-        } else if calendar.isDateInYesterday(earliest) {
-            formatter.dateFormat = "'Yesterday at' h:mm a"
-        } else {
-            formatter.dateFormat = "MMM d 'at' h:mm a"
-        }
-        return formatter.string(from: earliest)
-    }
-
-    var body: some View {
-        NavigationStack {
-            ZStack(alignment: .top) {
-                GeometryReader { fullGeo in
-                    ScrollView {
-                        VStack(spacing: 0) {
-                            if let uiImage = mealImage {
-                                ZStack(alignment: .bottom) {
-                                    Image(uiImage: uiImage)
-                                        .resizable()
-                                        .scaledToFill()
-                                        .frame(width: fullGeo.size.width, height: fullGeo.size.height * 0.65)
-                                        .clipped()
-
-                                    LinearGradient(
-                                        stops: [
-                                            .init(color: .clear, location: 0.0),
-                                            .init(color: bgColor.opacity(0.3), location: 0.3),
-                                            .init(color: bgColor.opacity(0.85), location: 0.7),
-                                            .init(color: bgColor, location: 1.0)
-                                        ],
-                                        startPoint: .top,
-                                        endPoint: .bottom
-                                    )
-                                    .frame(height: fullGeo.size.height * 0.65 * 0.6)
-
-                                    VStack(spacing: 12) {
-                                        Text(mealGroup.name)
-                                            .font(.title)
-                                            .fontWeight(.bold)
-                                            .foregroundStyle(.white)
-                                            .multilineTextAlignment(.center)
-                                            .shadow(color: .black.opacity(0.3), radius: 6, y: 2)
-
-                                        HStack(spacing: 12) {
-                                            metricPill(value: "\(totalCalories)", label: "cal", color: .white)
-                                            metricPill(value: formatMacro(totalProtein), label: "P", color: .blue)
-                                            metricPill(value: formatMacro(totalCarbs), label: "C", color: .orange)
-                                            metricPill(value: formatMacro(totalFat), label: "F", color: .purple)
-                                        }
-
-                                        if totalMacroCals > 0 {
-                                            macroDonut(size: 80)
-                                        }
-                                    }
-                                    .padding(.bottom, 16)
-                                    .padding(.horizontal, 16)
-                                }
-                                .frame(height: fullGeo.size.height * 0.65)
-                            } else {
-                                // No photo — icon hero with category color
-                                let iconName = mealGroup.entries.first?.iconName ?? foodIconName(for: mealGroup.name)
-                                let iconClr = foodIconColor(for: iconName)
-
-                                ZStack(alignment: .bottom) {
-                                    LinearGradient(
-                                        stops: [
-                                            .init(color: iconClr.opacity(0.35), location: 0.0),
-                                            .init(color: bgColor.opacity(0.6), location: 0.5),
-                                            .init(color: bgColor, location: 1.0)
-                                        ],
-                                        startPoint: .top,
-                                        endPoint: .bottom
-                                    )
-
-                                    VStack(spacing: 16) {
-                                        ZStack {
-                                            Circle()
-                                                .fill(
-                                                    RadialGradient(
-                                                        colors: [iconClr.opacity(0.25), .clear],
-                                                        center: .center,
-                                                        startRadius: 20,
-                                                        endRadius: 90
-                                                    )
-                                                )
-                                                .frame(width: 180, height: 180)
-
-                                            Image(systemName: iconName)
-                                                .font(.system(size: 44, weight: .light))
-                                                .foregroundStyle(iconClr)
-                                                .frame(width: 88, height: 88)
-                                                .background(iconClr.opacity(0.12))
-                                                .clipShape(Circle())
-                                        }
-
-                                        Text(mealGroup.name)
-                                            .font(.title)
-                                            .fontWeight(.bold)
-                                            .foregroundStyle(.white)
-                                            .multilineTextAlignment(.center)
-                                            .shadow(color: .black.opacity(0.3), radius: 6, y: 2)
-
-                                        HStack(spacing: 12) {
-                                            metricPill(value: "\(totalCalories)", label: "cal", color: .white)
-                                            metricPill(value: formatMacro(totalProtein), label: "P", color: .blue)
-                                            metricPill(value: formatMacro(totalCarbs), label: "C", color: .orange)
-                                            metricPill(value: formatMacro(totalFat), label: "F", color: .purple)
-                                        }
-
-                                        if totalMacroCals > 0 {
-                                            macroDonut(size: 80)
-                                        }
-                                    }
-                                    .padding(.bottom, 16)
-                                    .padding(.horizontal, 16)
-                                }
-                                .padding(.top, 44)
-                            }
-
-                            VStack(spacing: 16) {
-                                VStack(alignment: .leading, spacing: 0) {
-                                    Text("\(mealGroup.entries.count) items")
-                                        .font(.caption)
-                                        .fontWeight(.semibold)
-                                        .foregroundStyle(.white.opacity(0.6))
-                                        .padding(.horizontal, 24)
-                                        .padding(.bottom, 8)
-
-                                    VStack(spacing: 0) {
-                                        ForEach(Array(mealGroup.entries.enumerated()), id: \.element.id) { index, entry in
-                                            HStack {
-                                                Text(entry.name)
-                                                    .font(.subheadline)
-                                                    .foregroundStyle(.white.opacity(0.9))
-                                                Spacer()
-                                                Text("\(entry.calories) cal")
-                                                    .font(.caption)
-                                                    .foregroundStyle(.white.opacity(0.5))
-                                            }
-                                            .padding(.horizontal, 16)
-                                            .padding(.vertical, 10)
-                                            if index < mealGroup.entries.count - 1 {
-                                                Divider().opacity(0.3).padding(.leading, 16)
-                                            }
-                                        }
-                                    }
-                                    .background(.white.opacity(0.08))
-                                    .clipShape(RoundedRectangle(cornerRadius: 12))
-                                    .padding(.horizontal, 20)
-                                }
-
-                                if hasTargets {
-                                    dailyGoalBars
-                                }
-
-                                Text(formattedTimestamp)
-                                    .font(.caption)
-                                    .foregroundStyle(.white.opacity(0.5))
-                                    .padding(.top, 4)
-                            }
-                            .padding(.top, 12)
-                        }
-                        .padding(.bottom, 20)
-                    }
-                }
-                .background(bgColor)
-                .toolbar(.hidden, for: .navigationBar)
-
-                HStack {
-                    Spacer()
-                    Button { dismiss() } label: {
-                        Text("Done")
-                            .fontWeight(.semibold)
-                            .foregroundStyle(.white)
-                            .padding(.horizontal, 16)
-                            .padding(.vertical, 8)
-                            .background(.ultraThinMaterial.opacity(0.6))
-                            .clipShape(Capsule())
-                    }
-                }
-                .padding(.horizontal, 16)
-                .padding(.top, 12)
-            }
-        }
-        .onAppear {
-            if let uiImage = mealImage {
-                extractedColor = dominantColor(from: uiImage)
-            }
-        }
-    }
-
-    private func metricPill(value: String, label: String, color: Color) -> some View {
-        HStack(spacing: 4) {
-            Text(value).font(.subheadline).fontWeight(.bold)
-            Text(label).font(.caption)
-        }
-        .foregroundStyle(color)
-        .padding(.horizontal, 10)
-        .padding(.vertical, 6)
-        .background(color.opacity(0.15))
-        .clipShape(Capsule())
-    }
-
-    private func macroDonut(size: CGFloat) -> some View {
-        let segments: [(name: String, cals: Double, color: Color)] = [
-            ("Protein", proteinCals, .blue),
-            ("Carbs", carbsCals, .orange),
-            ("Fat", fatCals, .purple),
-        ].filter { $0.cals > 0 }
-
-        return HStack(spacing: 12) {
-            Chart(segments, id: \.name) { segment in
-                SectorMark(
-                    angle: .value(segment.name, segment.cals),
-                    innerRadius: .ratio(0.65),
-                    angularInset: 2
-                )
-                .foregroundStyle(segment.color)
-            }
-            .chartLegend(.hidden)
-            .frame(width: size, height: size)
-
-            VStack(alignment: .leading, spacing: 4) {
-                pctLabel(pct: proteinPct, name: "P", color: .blue)
-                pctLabel(pct: carbsPct, name: "C", color: .orange)
-                pctLabel(pct: fatPct, name: "F", color: .purple)
-            }
-        }
-    }
-
-    private func pctLabel(pct: Int, name: String, color: Color) -> some View {
-        HStack(spacing: 4) {
-            Circle().fill(color).frame(width: 8, height: 8)
-            Text("\(pct)% \(name)")
-                .font(.caption2)
-                .fontWeight(.medium)
-                .foregroundStyle(.white.opacity(0.8))
-        }
-    }
-
-    private var dailyGoalBars: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Text("% of Daily Goal")
-                .font(.caption)
-                .fontWeight(.semibold)
-                .foregroundStyle(.white.opacity(0.6))
-
-            VStack(spacing: 8) {
-                if DailyTarget.calories > 0 {
-                    goalBar(label: "Cal", value: Double(totalCalories), target: Double(DailyTarget.calories), color: .gray)
-                }
-                if DailyTarget.protein > 0 {
-                    goalBar(label: "Protein", value: totalProtein, target: Double(DailyTarget.protein), color: .blue)
-                }
-                if DailyTarget.carbs > 0 {
-                    goalBar(label: "Carbs", value: totalCarbs, target: Double(DailyTarget.carbs), color: .orange)
-                }
-                if DailyTarget.fat > 0 {
-                    goalBar(label: "Fat", value: totalFat, target: Double(DailyTarget.fat), color: .purple)
-                }
-            }
-        }
-        .padding(.horizontal, 24)
-        .padding(.vertical, 12)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(.white.opacity(0.08))
-        .clipShape(RoundedRectangle(cornerRadius: 12))
-        .padding(.horizontal, 20)
-    }
-
-    private func goalBar(label: String, value: Double, target: Double, color: Color) -> some View {
-        let pct = target > 0 ? Int((value / target * 100).rounded()) : 0
-        return HStack(spacing: 8) {
-            Text(label)
-                .font(.caption)
-                .foregroundStyle(.white.opacity(0.6))
-                .frame(width: 48, alignment: .leading)
-            GeometryReader { geo in
-                ZStack(alignment: .leading) {
-                    Capsule().fill(.white.opacity(0.1)).frame(height: 6)
-                    Capsule().fill(color).frame(width: geo.size.width * min(value / max(target, 1), 1.0), height: 6)
-                }
-            }
-            .frame(height: 6)
-            Text("\(pct)%")
-                .font(.caption)
-                .fontWeight(.medium)
-                .foregroundStyle(color)
-                .frame(width: 36, alignment: .trailing)
-        }
-    }
-
-    private func formatMacro(_ value: Double) -> String {
-        value == value.rounded() ? String(format: "%.0f", value) : String(format: "%.1f", value)
-    }
-
-    private func dominantColor(from image: UIImage) -> Color? {
-        guard let cgImage = image.cgImage else { return nil }
-        let width = cgImage.width
-        let height = cgImage.height
-        let sampleHeight = max(height / 5, 1)
-        let yOffset = height - sampleHeight
-        guard let cropped = cgImage.cropping(to: CGRect(x: 0, y: yOffset, width: width, height: sampleHeight)) else { return nil }
-
-        let ciImage = CIImage(cgImage: cropped)
-        let filter = CIFilter(name: "CIAreaAverage", parameters: [
-            kCIInputImageKey: ciImage,
-            kCIInputExtentKey: CIVector(cgRect: ciImage.extent)
-        ])
-        guard let outputImage = filter?.outputImage else { return nil }
-
-        var bitmap = [UInt8](repeating: 0, count: 4)
-        let context = CIContext(options: [.workingColorSpace: kCFNull!])
-        context.render(outputImage, toBitmap: &bitmap, rowBytes: 4,
-                       bounds: CGRect(x: 0, y: 0, width: 1, height: 1),
-                       format: .RGBA8, colorSpace: nil)
-
-        let r = Double(bitmap[0]) / 255.0
-        let g = Double(bitmap[1]) / 255.0
-        let b = Double(bitmap[2]) / 255.0
-        let darkenFactor: Double = colorScheme == .dark ? 0.3 : 0.55
-        return Color(red: r * darkenFactor, green: g * darkenFactor, blue: b * darkenFactor)
-    }
-}

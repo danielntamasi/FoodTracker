@@ -2,32 +2,32 @@ import Foundation
 import SwiftData
 
 /// Maps food name keywords to SF Symbol icons
+private let iconMappings: [(keywords: [String], icon: String)] = [
+    (["chicken", "turkey", "poultry"], "bird"),
+    (["beef", "steak", "burger", "meat", "pork", "lamb", "bacon", "sausage"], "flame"),
+    (["fish", "salmon", "tuna", "shrimp", "seafood", "sushi"], "fish"),
+    (["egg"], "egg"),
+    (["coffee", "espresso", "latte", "cappuccino"], "cup.and.saucer"),
+    (["tea"], "cup.and.saucer"),
+    (["milk", "yogurt", "cheese", "dairy"], "cup.and.saucer.fill"),
+    (["water", "juice", "smoothie", "drink", "soda", "cola"], "waterbottle"),
+    (["beer", "wine", "cocktail", "alcohol"], "wineglass"),
+    (["bread", "toast", "bagel", "muffin", "croissant", "pastry", "cake", "cookie", "donut"], "birthday.cake"),
+    (["rice", "noodle", "pasta", "ramen", "pho"], "takeoutbag.and.cup.and.straw"),
+    (["pizza"], "triangle"),
+    (["salad", "vegetable", "broccoli", "spinach", "kale", "lettuce", "greens"], "leaf"),
+    (["fruit", "apple", "banana", "orange", "berry", "grape", "mango", "peach", "pear", "melon", "strawberry"], "carrot"),
+    (["nut", "almond", "peanut", "walnut", "cashew"], "leaf.circle"),
+    (["protein bar", "energy bar", "granola bar"], "chart.bar"),
+    (["ice cream", "frozen"], "snowflake"),
+    (["soup", "stew", "chili"], "flame"),
+    (["sandwich", "wrap", "burrito", "taco"], "takeoutbag.and.cup.and.straw"),
+    (["cereal", "oatmeal", "granola"], "bowl"),
+]
+
 func foodIconName(for name: String) -> String {
     let lowered = name.lowercased()
-    let mappings: [(keywords: [String], icon: String)] = [
-        (["chicken", "turkey", "poultry"], "bird"),
-        (["beef", "steak", "burger", "meat", "pork", "lamb", "bacon", "sausage"], "flame"),
-        (["fish", "salmon", "tuna", "shrimp", "seafood", "sushi"], "fish"),
-        (["egg"], "egg"),
-        (["coffee", "espresso", "latte", "cappuccino"], "cup.and.saucer"),
-        (["tea"], "cup.and.saucer"),
-        (["milk", "yogurt", "cheese", "dairy"], "cup.and.saucer.fill"),
-        (["water", "juice", "smoothie", "drink", "soda", "cola"], "waterbottle"),
-        (["beer", "wine", "cocktail", "alcohol"], "wineglass"),
-        (["bread", "toast", "bagel", "muffin", "croissant", "pastry", "cake", "cookie", "donut"], "birthday.cake"),
-        (["rice", "noodle", "pasta", "ramen", "pho"], "takeoutbag.and.cup.and.straw"),
-        (["pizza"], "triangle"),
-        (["salad", "vegetable", "broccoli", "spinach", "kale", "lettuce", "greens"], "leaf"),
-        (["fruit", "apple", "banana", "orange", "berry", "grape", "mango", "peach", "pear", "melon", "strawberry"], "carrot"),
-        (["nut", "almond", "peanut", "walnut", "cashew"], "leaf.circle"),
-        (["protein bar", "energy bar", "granola bar"], "chart.bar"),
-        (["ice cream", "frozen"], "snowflake"),
-        (["soup", "stew", "chili"], "flame"),
-        (["sandwich", "wrap", "burrito", "taco"], "takeoutbag.and.cup.and.straw"),
-        (["cereal", "oatmeal", "granola"], "bowl"),
-    ]
-
-    for mapping in mappings {
+    for mapping in iconMappings {
         for keyword in mapping.keywords {
             if lowered.contains(keyword) {
                 return mapping.icon

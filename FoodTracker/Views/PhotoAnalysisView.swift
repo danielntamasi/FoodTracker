@@ -380,21 +380,6 @@ struct PhotoAnalysisView: View {
         identifiedFoods[index].fatGrams = (fatPer100g * scale * 10).rounded() / 10
     }
 
-    private func formatServings(_ value: Double) -> String {
-        let whole = Int(value)
-        let frac = value - Double(whole)
-        let fracStr: String?
-        if abs(frac - 0.25) < 0.001 { fracStr = "\u{00BC}" }
-        else if abs(frac - 0.5) < 0.001 { fracStr = "\u{00BD}" }
-        else if abs(frac - 0.75) < 0.001 { fracStr = "\u{00BE}" }
-        else if abs(frac) < 0.001 { fracStr = nil }
-        else { return String(format: "%.2g", value) }
-
-        if let f = fracStr {
-            return whole > 0 ? "\(whole)\(f)" : f
-        }
-        return "\(whole)"
-    }
 
     // MARK: - Actions
 
