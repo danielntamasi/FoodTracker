@@ -24,8 +24,6 @@ struct EditEntryView: View {
     @State private var originalDate = Date()
     @State private var servings: Double = 1.0
 
-    private let servingPresets: [Double] = stride(from: 0.25, through: 3.0, by: 0.25).map { $0 }
-
     private var entryImage: UIImage? {
         guard let data = entry.photoData else { return nil }
         return UIImage(data: data)
@@ -42,22 +40,13 @@ struct EditEntryView: View {
 
     // MARK: - Macro Calculations
 
-    private var proteinCals: Double { entry.proteinGrams * 4 }
-    private var carbsCals: Double { entry.carbsGrams * 4 }
-    private var fatCals: Double { entry.fatGrams * 9 }
-    private var totalMacroCals: Double { proteinCals + carbsCals + fatCals }
+    private var proteinCals: Double { proteinCalories(entry.proteinGrams) }
+    private var carbsCals: Double { carbCalories(entry.carbsGrams) }
+    private var fatCals: Double { fatCalories(entry.fatGrams) }
+    private var totalMacroCals: Double { totalMacroCalories(protein: entry.proteinGrams, carbs: entry.carbsGrams, fat: entry.fatGrams) }
 
-    private var proteinPct: Int {
-        guard totalMacroCals > 0 else { return 0 }
-        return Int((proteinCals / totalMacroCals * 100).rounded())
-    }
-    private var carbsPct: Int {
-        guard totalMacroCals > 0 else { return 0 }
-        return Int((carbsCals / totalMacroCals * 100).rounded())
-    }
-    private var fatPct: Int {
-        guard totalMacroCals > 0 else { return 0 }
-        return Int((fatCals / totalMacroCals * 100).rounded())
+    private var macroPcts: (protein: Int, carbs: Int, fat: Int) {
+        macroPercentages(protein: entry.proteinGrams, carbs: entry.carbsGrams, fat: entry.fatGrams)
     }
 
     private var formattedTimestamp: String {
@@ -225,7 +214,7 @@ struct EditEntryView: View {
                                 }
 
                                 if totalMacroCals > 0 {
-                                    HeroMacroDonut(proteinCals: proteinCals, carbsCals: carbsCals, fatCals: fatCals, proteinPct: proteinPct, carbsPct: carbsPct, fatPct: fatPct)
+                                    HeroMacroDonut(proteinCals: proteinCals, carbsCals: carbsCals, fatCals: fatCals, proteinPct: macroPcts.protein, carbsPct: macroPcts.carbs, fatPct: macroPcts.fat)
                                 }
                             }
                             .padding(.bottom, 16)
@@ -284,7 +273,7 @@ struct EditEntryView: View {
                                 }
 
                                 if totalMacroCals > 0 {
-                                    HeroMacroDonut(proteinCals: proteinCals, carbsCals: carbsCals, fatCals: fatCals, proteinPct: proteinPct, carbsPct: carbsPct, fatPct: fatPct)
+                                    HeroMacroDonut(proteinCals: proteinCals, carbsCals: carbsCals, fatCals: fatCals, proteinPct: macroPcts.protein, carbsPct: macroPcts.carbs, fatPct: macroPcts.fat)
                                 }
                             }
                             .padding(.bottom, 16)

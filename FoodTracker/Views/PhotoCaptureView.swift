@@ -33,16 +33,49 @@ struct PhotoCaptureView: View {
     }
 }
 
+struct PhotoUploadView: View {
+    @Environment(\.dismiss) private var dismiss
+    @State private var selectedImage: UIImage?
+    @State private var showingAnalysis = false
+
+    var body: some View {
+        NavigationStack {
+            ImagePicker(image: $selectedImage, sourceType: .photoLibrary)
+                .ignoresSafeArea()
+                .navigationTitle("Choose Photo")
+                .navigationBarTitleDisplayMode(.inline)
+                .toolbar {
+                    ToolbarItem(placement: .cancellationAction) {
+                        Button("Cancel") { dismiss() }
+                    }
+                }
+                .onChange(of: selectedImage) { _, newImage in
+                    if newImage != nil {
+                        showingAnalysis = true
+                    }
+                }
+                .fullScreenCover(isPresented: $showingAnalysis, onDismiss: {
+                    dismiss()
+                }) {
+                    if let image = selectedImage {
+                        PhotoAnalysisView(image: image)
+                    }
+                }
+        }
+    }
+}
+
 struct ImagePicker: UIViewControllerRepresentable {
     @Binding var image: UIImage?
+    var sourceType: UIImagePickerController.SourceType = .camera
     @Environment(\.dismiss) private var dismiss
 
     func makeUIViewController(context: Context) -> UIImagePickerController {
         let picker = UIImagePickerController()
         picker.delegate = context.coordinator
-        // Use camera if available, otherwise fall back to photo library (Simulator)
-        if UIImagePickerController.isSourceTypeAvailable(.camera) {
-            picker.sourceType = .camera
+        // Use requested source type, falling back to photo library (Simulator)
+        if UIImagePickerController.isSourceTypeAvailable(sourceType) {
+            picker.sourceType = sourceType
         } else {
             picker.sourceType = .photoLibrary
         }

@@ -13,22 +13,13 @@ struct MealSummaryView: View {
     private var totalCarbs: Double { mealGroup.entries.reduce(0) { $0 + $1.carbsGrams } }
     private var totalFat: Double { mealGroup.entries.reduce(0) { $0 + $1.fatGrams } }
 
-    private var proteinCals: Double { totalProtein * 4 }
-    private var carbsCals: Double { totalCarbs * 4 }
-    private var fatCals: Double { totalFat * 9 }
-    private var totalMacroCals: Double { proteinCals + carbsCals + fatCals }
+    private var proteinCals: Double { proteinCalories(totalProtein) }
+    private var carbsCals: Double { carbCalories(totalCarbs) }
+    private var fatCals: Double { fatCalories(totalFat) }
+    private var totalMacroCals: Double { totalMacroCalories(protein: totalProtein, carbs: totalCarbs, fat: totalFat) }
 
-    private var proteinPct: Int {
-        guard totalMacroCals > 0 else { return 0 }
-        return Int((proteinCals / totalMacroCals * 100).rounded())
-    }
-    private var carbsPct: Int {
-        guard totalMacroCals > 0 else { return 0 }
-        return Int((carbsCals / totalMacroCals * 100).rounded())
-    }
-    private var fatPct: Int {
-        guard totalMacroCals > 0 else { return 0 }
-        return Int((fatCals / totalMacroCals * 100).rounded())
+    private var macroPcts: (protein: Int, carbs: Int, fat: Int) {
+        macroPercentages(protein: totalProtein, carbs: totalCarbs, fat: totalFat)
     }
 
     private var mealImage: UIImage? {
@@ -102,7 +93,7 @@ struct MealSummaryView: View {
                                         }
 
                                         if totalMacroCals > 0 {
-                                            HeroMacroDonut(proteinCals: proteinCals, carbsCals: carbsCals, fatCals: fatCals, proteinPct: proteinPct, carbsPct: carbsPct, fatPct: fatPct)
+                                            HeroMacroDonut(proteinCals: proteinCals, carbsCals: carbsCals, fatCals: fatCals, proteinPct: macroPcts.protein, carbsPct: macroPcts.carbs, fatPct: macroPcts.fat)
                                         }
                                     }
                                     .padding(.bottom, 16)
@@ -160,7 +151,7 @@ struct MealSummaryView: View {
                                         }
 
                                         if totalMacroCals > 0 {
-                                            HeroMacroDonut(proteinCals: proteinCals, carbsCals: carbsCals, fatCals: fatCals, proteinPct: proteinPct, carbsPct: carbsPct, fatPct: fatPct)
+                                            HeroMacroDonut(proteinCals: proteinCals, carbsCals: carbsCals, fatCals: fatCals, proteinPct: macroPcts.protein, carbsPct: macroPcts.carbs, fatPct: macroPcts.fat)
                                         }
                                     }
                                     .padding(.bottom, 16)

@@ -229,8 +229,6 @@ struct PhotoAnalysisView: View {
 
     // MARK: - Standalone Food Section
 
-    private let servingPresets: [Double] = stride(from: 0.25, through: 3.0, by: 0.25).map { $0 }
-
     @ViewBuilder
     private func standaloneFoodSection(index: Int) -> some View {
         Section {
@@ -404,18 +402,28 @@ struct PhotoAnalysisView: View {
 
     private func saveAll() {
         let thumbnailData = image?.jpegData(compressionQuality: 0.5)
+        var groupsWithPhoto: Set<UUID> = []
 
         for food in identifiedFoods {
+            // Only store photo on the first entry of each meal group to avoid duplicate blob storage
+            let shouldAttachPhoto: Bool
+            if let groupID = food.mealGroupID {
+                shouldAttachPhoto = groupsWithPhoto.insert(groupID).inserted
+            } else {
+                shouldAttachPhoto = true
+            }
+            let photoForEntry = shouldAttachPhoto ? thumbnailData : nil
+
             let entry = FoodEntry(
                 name: food.name.titleCased(),
                 calories: food.calories,
                 proteinGrams: food.proteinGrams,
                 carbsGrams: food.carbsGrams,
                 fatGrams: food.fatGrams,
-                photoData: thumbnailData,
+                photoData: photoForEntry,
                 mealGroupID: food.mealGroupID,
                 mealName: food.mealName,
-                iconName: thumbnailData == nil ? foodIconName(for: food.name) : nil
+                iconName: foodIconName(for: food.name)
             )
             modelContext.insert(entry)
         }

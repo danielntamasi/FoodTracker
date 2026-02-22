@@ -218,8 +218,9 @@ struct HistoryView: View {
                                         }
 
                                         if expandedGroups.contains(groupID) {
+                                            let groupPhoto = entries.first(where: { $0.photoData != nil })?.photoData
                                             ForEach(entries) { entry in
-                                                FoodEntryRow(entry: entry)
+                                                FoodEntryRow(entry: entry, groupPhotoData: groupPhoto)
                                                     .contentShape(Rectangle())
                                                     .onTapGesture { editingEntry = entry }
                                                     .padding(.leading, 16)

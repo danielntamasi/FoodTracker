@@ -24,6 +24,34 @@ func formatServings(_ value: Double) -> String {
     return "\(whole)"
 }
 
+// MARK: - Serving Presets
+
+let servingPresets: [Double] = stride(from: 0.25, through: 3.0, by: 0.25).map { $0 }
+
+// MARK: - Macro Calorie Calculations
+
+/// Protein calories (4 cal/g)
+func proteinCalories(_ grams: Double) -> Double { grams * 4 }
+/// Carb calories (4 cal/g)
+func carbCalories(_ grams: Double) -> Double { grams * 4 }
+/// Fat calories (9 cal/g)
+func fatCalories(_ grams: Double) -> Double { grams * 9 }
+/// Total macro-derived calories
+func totalMacroCalories(protein: Double, carbs: Double, fat: Double) -> Double {
+    proteinCalories(protein) + carbCalories(carbs) + fatCalories(fat)
+}
+
+/// Macro percentages as (protein%, carbs%, fat%) — all zero if total is zero
+func macroPercentages(protein: Double, carbs: Double, fat: Double) -> (protein: Int, carbs: Int, fat: Int) {
+    let total = totalMacroCalories(protein: protein, carbs: carbs, fat: fat)
+    guard total > 0 else { return (0, 0, 0) }
+    return (
+        protein: Int((proteinCalories(protein) / total * 100).rounded()),
+        carbs: Int((carbCalories(carbs) / total * 100).rounded()),
+        fat: Int((fatCalories(fat) / total * 100).rounded())
+    )
+}
+
 // MARK: - Format Macro
 
 func formatMacro(_ value: Double) -> String {

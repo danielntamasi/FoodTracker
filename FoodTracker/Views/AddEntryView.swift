@@ -16,8 +16,6 @@ struct AddEntryView: View {
     @State private var lookupError: String?
     @State private var pendingNutrients: (calories: Int, protein: Double, carbs: Double, fat: Double, description: String)?
 
-    private let servingPresets: [Double] = stride(from: 0.25, through: 3.0, by: 0.25).map { $0 }
-
     var body: some View {
         NavigationStack {
             Form {

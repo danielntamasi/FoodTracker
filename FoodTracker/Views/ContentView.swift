@@ -6,17 +6,27 @@ enum AppTab {
 }
 
 enum QuickAddAction {
-    case photo, barcode, manual, browse
+    case photo, barcode, manual, browse, uploadPhoto
 }
 
 struct ContentView: View {
     @State private var activeTab: AppTab = .today
-    @State private var showingQuickAdd = false
+    @State private var showingRadialMenu = false
     @State private var showingAddEntry = false
     @State private var showingPhotoCapture = false
+    @State private var showingPhotoUpload = false
     @State private var showingBarcodeScanner = false
     @State private var showingBrowse = false
-    @State private var pendingQuickAction: QuickAddAction?
+    @State private var layoutHeight: CGFloat = 700
+    @State private var layoutWidth: CGFloat = 393
+
+    private let radialItems: [(icon: String, label: String, action: QuickAddAction)] = [
+        ("clock.arrow.circlepath", "Recent", .browse),
+        ("pencil", "Manual", .manual),
+        ("camera", "Photo", .photo),
+        ("photo.on.rectangle", "Upload", .uploadPhoto),
+        ("barcode.viewfinder", "Barcode", .barcode),
+    ]
 
     var body: some View {
         ZStack(alignment: .bottom) {
@@ -34,30 +44,40 @@ struct ContentView: View {
                 Color.clear.frame(height: 110)
             }
 
+            // Dimming backdrop
+            if showingRadialMenu {
+                Color.black.opacity(0.3)
+                    .ignoresSafeArea()
+                    .onTapGesture {
+                        withAnimation(.spring(duration: 0.3, bounce: 0.2)) {
+                            showingRadialMenu = false
+                        }
+                    }
+            }
+
             floatingTabBar
         }
-        .sheet(isPresented: $showingQuickAdd, onDismiss: {
-            guard let action = pendingQuickAction else { return }
-            pendingQuickAction = nil
-            Task { @MainActor in
-                try? await Task.sleep(for: .milliseconds(300))
-                switch action {
-                case .photo: showingPhotoCapture = true
-                case .barcode: showingBarcodeScanner = true
-                case .manual: showingAddEntry = true
-                case .browse: showingBrowse = true
-                }
+        .background(
+            GeometryReader { geo in
+                Color.clear
+                    .onAppear {
+                        layoutHeight = geo.size.height
+                        layoutWidth = geo.size.width
+                    }
+                    .onChange(of: geo.size) { _, s in
+                        layoutHeight = s.height
+                        layoutWidth = s.width
+                    }
             }
-        }) {
-            QuickAddSheet(selectedAction: $pendingQuickAction)
-                .presentationDetents([.height(320)])
-                .presentationDragIndicator(.visible)
-        }
+        )
         .sheet(isPresented: $showingAddEntry) {
             AddEntryView()
         }
         .sheet(isPresented: $showingPhotoCapture) {
             PhotoCaptureView()
+        }
+        .sheet(isPresented: $showingPhotoUpload) {
+            PhotoUploadView()
         }
         .sheet(isPresented: $showingBarcodeScanner) {
             BarcodeScannerView()
@@ -67,13 +87,86 @@ struct ContentView: View {
         }
     }
 
+    // MARK: - Radial Menu
+
+    /// Offset from the + button center for each radial item.
+    /// Fixed values — no screen geometry needed. Negative Y = upward.
+    private func radialOffset(for index: Int) -> CGSize {
+        let spacing: CGFloat = 65
+        let archCurve: CGFloat = 20
+        let riseAboveButton: CGFloat = 100
+        // The + button is the 3rd of 4 items: [Today][History][+][Settings]
+        // With 3 flex tabs + 1 fixed 52pt button + 56pt total padding,
+        // the button sits (layoutWidth - 108) / 6 to the right of screen center.
+        // Shift items left by that amount so they land at screen center.
+        let buttonOffsetFromCenter = (layoutWidth - 108) / 6
+        let midIndex = Double(radialItems.count - 1) / 2.0
+        let dx = CGFloat(Double(index) - midIndex) * spacing - buttonOffsetFromCenter
+        let normalizedX = CGFloat(Double(index) - midIndex) / midIndex
+        let archDy = archCurve * normalizedX * normalizedX
+        return CGSize(width: dx, height: -riseAboveButton + archDy)
+    }
+
+    private func radialMenuItem(index: Int, item: (icon: String, label: String, action: QuickAddAction)) -> some View {
+        let offset = radialOffset(for: index)
+
+        return Button {
+            let action = item.action
+            withAnimation(.spring(duration: 0.3, bounce: 0.2)) {
+                showingRadialMenu = false
+            }
+            Task { @MainActor in
+                try? await Task.sleep(for: .milliseconds(350))
+                triggerAction(action)
+            }
+        } label: {
+            VStack(spacing: 6) {
+                Image(systemName: item.icon)
+                    .font(.title3)
+                    .fontWeight(.medium)
+                    .foregroundStyle(.white)
+                    .frame(width: 52, height: 52)
+                    .background(Color.accentColor)
+                    .clipShape(Circle())
+                    .shadow(color: Color.accentColor.opacity(0.3), radius: 6, y: 2)
+                Text(item.label)
+                    .font(.caption2)
+                    .fontWeight(.medium)
+                    .foregroundStyle(.primary)
+            }
+        }
+        .buttonStyle(.plain)
+        .offset(x: showingRadialMenu ? offset.width : 0,
+                y: showingRadialMenu ? offset.height : 0)
+        .scaleEffect(showingRadialMenu ? 1 : 0.01)
+        .opacity(showingRadialMenu ? 1 : 0)
+        .animation(
+            .spring(duration: 0.45, bounce: 0.35).delay(Double(index) * 0.03),
+            value: showingRadialMenu
+        )
+    }
+
+    private func triggerAction(_ action: QuickAddAction) {
+        switch action {
+        case .photo: showingPhotoCapture = true
+        case .barcode: showingBarcodeScanner = true
+        case .manual: showingAddEntry = true
+        case .browse: showingBrowse = true
+        case .uploadPhoto: showingPhotoUpload = true
+        }
+    }
+
+    // MARK: - Tab Bar
+
     private var floatingTabBar: some View {
         HStack(spacing: 0) {
             tabItem(icon: "fork.knife", label: "Today", tab: .today)
             tabItem(icon: "calendar", label: "History", tab: .history)
 
             Button {
-                showingQuickAdd = true
+                withAnimation(.spring(duration: 0.4, bounce: 0.3)) {
+                    showingRadialMenu.toggle()
+                }
             } label: {
                 Image(systemName: "plus")
                     .font(.title3)
@@ -83,8 +176,14 @@ struct ContentView: View {
                     .background(Color.accentColor)
                     .clipShape(Circle())
                     .shadow(color: Color.accentColor.opacity(0.3), radius: 8, y: 4)
+                    .rotationEffect(.degrees(showingRadialMenu ? 45 : 0))
             }
             .buttonStyle(ScaleButtonStyle())
+            .overlay {
+                ForEach(Array(radialItems.enumerated()), id: \.offset) { index, item in
+                    radialMenuItem(index: index, item: item)
+                }
+            }
 
             tabItem(icon: "gearshape", label: "Settings", tab: .settings)
         }
@@ -126,58 +225,6 @@ struct ScaleButtonStyle: ButtonStyle {
         configuration.label
             .scaleEffect(configuration.isPressed ? 0.9 : 1.0)
             .animation(.spring(duration: 0.2), value: configuration.isPressed)
-    }
-}
-
-// MARK: - Quick Add Sheet
-
-struct QuickAddSheet: View {
-    @Environment(\.dismiss) private var dismiss
-    @Binding var selectedAction: QuickAddAction?
-
-    var body: some View {
-        VStack(spacing: 12) {
-            quickAddCard(icon: "camera", label: "Add with Photo") {
-                selectedAction = .photo
-                dismiss()
-            }
-            quickAddCard(icon: "barcode.viewfinder", label: "Scan Barcode") {
-                selectedAction = .barcode
-                dismiss()
-            }
-            quickAddCard(icon: "pencil", label: "Add Manually") {
-                selectedAction = .manual
-                dismiss()
-            }
-            quickAddCard(icon: "clock.arrow.circlepath", label: "Browse Recent") {
-                selectedAction = .browse
-                dismiss()
-            }
-        }
-        .padding(20)
-    }
-
-    private func quickAddCard(icon: String, label: String, action: @escaping () -> Void) -> some View {
-        Button(action: action) {
-            HStack {
-                Image(systemName: icon)
-                    .font(.title2)
-                    .foregroundStyle(Color.accentColor)
-                    .frame(width: 32)
-                Text(label)
-                    .font(.body)
-                    .fontWeight(.medium)
-                    .foregroundStyle(.primary)
-                Spacer()
-                Image(systemName: "chevron.right")
-                    .font(.caption)
-                    .foregroundStyle(.tertiary)
-            }
-            .padding(16)
-            .background(Color(.secondarySystemGroupedBackground))
-            .clipShape(RoundedRectangle(cornerRadius: 12))
-        }
-        .buttonStyle(.plain)
     }
 }
 

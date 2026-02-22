@@ -55,8 +55,9 @@ struct DailySummaryView: View {
                 items.append(.entry(displayItem))
                 if case .mealGroup(let groupID, _, let entries) = displayItem,
                    expandedGroups.contains(groupID) {
+                    let groupPhoto = entries.first(where: { $0.photoData != nil })?.photoData
                     for entry in entries {
-                        items.append(.expandedSubItem(entry, groupID: groupID))
+                        items.append(.expandedSubItem(entry, groupID: groupID, groupPhotoData: groupPhoto))
                     }
                 }
             }
@@ -130,11 +131,7 @@ struct DailySummaryView: View {
     private func adjustedDate(for date: Date, movingTo period: TimeOfDay) -> Date {
         let calendar = Calendar.current
         var components = calendar.dateComponents([.year, .month, .day, .minute, .second], from: date)
-        switch period {
-        case .morning: components.hour = 9
-        case .afternoon: components.hour = 13
-        case .evening: components.hour = 18
-        }
+        components.hour = period.defaultHour
         return calendar.date(from: components) ?? date
     }
 
@@ -180,8 +177,8 @@ struct DailySummaryView: View {
                                 .listRowSeparator(.hidden)
                                 .listRowInsets(EdgeInsets(top: 4, leading: 16, bottom: 4, trailing: 16))
 
-                        case .expandedSubItem(let entry, _):
-                            expandedSubItemRow(entry: entry)
+                        case .expandedSubItem(let entry, _, let groupPhotoData):
+                            expandedSubItemRow(entry: entry, groupPhotoData: groupPhotoData)
                                 .moveDisabled(true)
                         }
                     }
@@ -386,8 +383,8 @@ struct DailySummaryView: View {
 
     // MARK: - Expanded Sub-Item Row
 
-    private func expandedSubItemRow(entry: FoodEntry) -> some View {
-        FoodEntryRow(entry: entry)
+    private func expandedSubItemRow(entry: FoodEntry, groupPhotoData: Data? = nil) -> some View {
+        FoodEntryRow(entry: entry, groupPhotoData: groupPhotoData)
             .padding(.vertical, 8)
             .padding(.horizontal, 12)
             .background(Color(.secondarySystemGroupedBackground).opacity(0.7))
@@ -422,6 +419,24 @@ enum TimeOfDay: String, CaseIterable {
     case afternoon = "Afternoon"
     case evening = "Evening"
 
+    /// Hour boundary where this period starts (morning=0, afternoon=12, evening=17)
+    var startHour: Int {
+        switch self {
+        case .morning: return 0
+        case .afternoon: return 12
+        case .evening: return 17
+        }
+    }
+
+    /// Default hour assigned when an entry is moved into this period
+    var defaultHour: Int {
+        switch self {
+        case .morning: return 9
+        case .afternoon: return 13
+        case .evening: return 18
+        }
+    }
+
     var systemImage: String {
         switch self {
         case .morning: return "sunrise"
@@ -440,8 +455,8 @@ enum TimeOfDay: String, CaseIterable {
 
     static func from(_ date: Date) -> TimeOfDay {
         let hour = Calendar.current.component(.hour, from: date)
-        if hour < 12 { return .morning }
-        if hour < 17 { return .afternoon }
+        if hour < Self.afternoon.startHour { return .morning }
+        if hour < Self.evening.startHour { return .afternoon }
         return .evening
     }
 }
@@ -463,13 +478,13 @@ enum EntryDisplayItem: Identifiable {
 enum FlatListItem: Identifiable {
     case sectionHeader(TimeOfDay)
     case entry(EntryDisplayItem)
-    case expandedSubItem(FoodEntry, groupID: UUID)
+    case expandedSubItem(FoodEntry, groupID: UUID, groupPhotoData: Data?)
 
     var id: String {
         switch self {
         case .sectionHeader(let period): return "header-\(period.rawValue)"
         case .entry(let item): return item.id
-        case .expandedSubItem(let entry, _): return "sub-\(entry.id.uuidString)"
+        case .expandedSubItem(let entry, _, _): return "sub-\(entry.id.uuidString)"
         }
     }
 }
@@ -753,11 +768,16 @@ struct MacroLabel: View {
 
 struct FoodEntryRow: View {
     let entry: FoodEntry
+    var groupPhotoData: Data? = nil
+
+    private var effectivePhotoData: Data? {
+        entry.photoData ?? groupPhotoData
+    }
 
     var body: some View {
         HStack {
-            if entry.photoData != nil {
-                CachedThumbnailImage(photoData: entry.photoData)
+            if effectivePhotoData != nil {
+                CachedThumbnailImage(photoData: effectivePhotoData)
             } else {
                 FoodIconThumbnail(iconName: entry.iconName ?? foodIconName(for: entry.name))
             }

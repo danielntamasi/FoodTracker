@@ -180,7 +180,7 @@ struct SettingsView: View {
                 .frame(maxWidth: 80)
                 .focused($isTargetFieldFocused)
                 .onChange(of: value.wrappedValue) { _, newValue in
-                    UserDefaults.standard.set(newValue, forKey: key)
+                    sharedDefaults.set(newValue, forKey: key)
                 }
         }
     }

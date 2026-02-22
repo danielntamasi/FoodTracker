@@ -177,19 +177,16 @@ MODE 1 – NUTRITION LABEL VISIBLE: If you can see a nutrition facts label or pr
 
 MODE 2 – NO LABEL: If there is no nutrition label visible for an item, identify it using common USDA-compatible names (e.g. "white rice" not "steamed jasmine rice"). Estimate portion size. Set "source": "estimate". Include your best estimate for "calories", "protein_grams", "carbs_grams", and "fat_grams" based on the identified portion.
 
-GROUPING: If multiple items are clearly part of one composite dish (e.g., bibimbap, burrito bowl, stir fry, pasta dish), group them under a "meal_name" with an "ingredients" array. Standalone items (a banana, a protein bar) should NOT be grouped.
+GROUPING: If there are multiple food items in the photo, ALWAYS group them under a single "meal_name" with an "ingredients" array. The meal_name should be a natural description of the whole plate or meal (e.g. "Steak with Sides", "Chicken and Vegetables", "Lunch Plate"). Only return a standalone item (without meal_name/ingredients) if there is literally one single food item in the entire photo.
 
 Return ONLY valid JSON with no additional text, in this exact format:
 {"foods": [
-  {"meal_name": "Bibimbap", "ingredients": [
-    {"name": "white rice", "portion": "1 cup", "portion_grams": 185, "source": "estimate", "calories": 240, "protein_grams": 4.4, "carbs_grams": 53, "fat_grams": 0.4},
-    {"name": "fried egg", "portion": "1 large", "portion_grams": 46, "source": "estimate", "calories": 90, "protein_grams": 6.3, "carbs_grams": 0.4, "fat_grams": 7}
-  ]},
-  {"name": "David Protein Bar", "portion": "1 bar (50g)", "portion_grams": 50, "source": "label", "calories": 200, "protein_grams": 20, "carbs_grams": 22, "fat_grams": 7},
-  {"name": "banana", "portion": "1 medium", "portion_grams": 118, "source": "estimate", "calories": 105, "protein_grams": 1.3, "carbs_grams": 27, "fat_grams": 0.4}
+  {"meal_name": "Steak Dinner", "ingredients": [
+    {"name": "ribeye steak", "portion": "8 oz", "portion_grams": 227, "source": "estimate", "calories": 544, "protein_grams": 48, "carbs_grams": 0, "fat_grams": 38},
+    {"name": "mashed potatoes", "portion": "1 cup", "portion_grams": 210, "source": "estimate", "calories": 237, "protein_grams": 4, "carbs_grams": 35, "fat_grams": 9},
+    {"name": "steamed broccoli", "portion": "1 cup", "portion_grams": 156, "source": "estimate", "calories": 55, "protein_grams": 3.7, "carbs_grams": 11, "fat_grams": 0.6}
+  ]}
 ]}
-
-A photo may contain a mix of grouped meals and standalone items.
 """
 
 // MARK: - Image Preparation
@@ -565,12 +562,20 @@ actor USDAService {
             }
         }
 
-        // Fallback: use servingSize field if foodMeasures had nothing usable
+        // Fallback 1: use servingSize field from search results
         if servingGrams == nil,
            let size = bestFood["servingSize"] as? Double, size > 0 {
             servingGrams = size
             let unit = bestFood["servingSizeUnit"] as? String ?? "g"
             servingDesc = "1 serving (\(Int(size))\(unit))"
+        }
+
+        // Fallback 2: fetch detail endpoint for foodPortions
+        if servingGrams == nil, let fdcId = bestFood["fdcId"] as? Int {
+            if let portion = try? await fetchServingFromDetail(fdcId: fdcId) {
+                servingDesc = portion.description
+                servingGrams = portion.grams
+            }
         }
 
         return USDALookupResult(
@@ -579,6 +584,46 @@ actor USDAService {
             servingDescription: servingDesc,
             servingGrams: servingGrams
         )
+    }
+
+    /// Fetches serving info from the USDA detail endpoint when the search results lack it.
+    private func fetchServingFromDetail(fdcId: Int) async throws -> (description: String, grams: Double)? {
+        let detailURL = "https://api.nal.usda.gov/fdc/v1/food/\(fdcId)"
+        var components = URLComponents(string: detailURL)!
+        components.queryItems = [URLQueryItem(name: "api_key", value: apiKey)]
+
+        guard let url = components.url else { return nil }
+
+        let (data, response) = try await URLSession.shared.data(from: url)
+        guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200,
+              let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let portions = json["foodPortions"] as? [[String: Any]] else {
+            return nil
+        }
+
+        for portion in portions {
+            guard let gramWeight = portion["gramWeight"] as? Double, gramWeight > 0 else { continue }
+
+            // Build a readable description from amount + unit + modifier
+            let amount = portion["amount"] as? Double
+            let unitName = (portion["measureUnit"] as? [String: Any])?["name"] as? String
+            let modifier = portion["modifier"] as? String
+
+            var parts: [String] = []
+            if let amount, amount > 0 {
+                parts.append(amount.truncatingRemainder(dividingBy: 1) == 0 ? "\(Int(amount))" : String(format: "%.1f", amount))
+            }
+            if let unitName, !unitName.isEmpty, unitName.lowercased() != "quantity not specified" {
+                parts.append(unitName)
+            }
+            if let modifier, !modifier.isEmpty {
+                parts.append("(\(modifier))")
+            }
+
+            let desc = parts.isEmpty ? "1 serving" : parts.joined(separator: " ")
+            return (description: desc, grams: gramWeight)
+        }
+        return nil
     }
 
     private func scoreFood(_ food: [String: Any], penaltyKeywords: [String]) -> Int {
@@ -591,65 +636,6 @@ actor USDAService {
         return score
     }
 
-    func lookupNutrients(for foodName: String) async throws -> NutrientsPer100g {
-        var components = URLComponents(string: baseURL)!
-        components.queryItems = [
-            URLQueryItem(name: "api_key", value: apiKey),
-            URLQueryItem(name: "query", value: foodName),
-            URLQueryItem(name: "pageSize", value: "1"),
-            URLQueryItem(name: "dataType", value: "Foundation,SR Legacy")
-        ]
-
-        guard let url = components.url else {
-            throw FoodAnalysisError.invalidResponse
-        }
-
-        let (data, response): (Data, URLResponse)
-        do {
-            (data, response) = try await URLSession.shared.data(from: url)
-        } catch {
-            throw FoodAnalysisError.networkError(error)
-        }
-
-        guard let httpResponse = response as? HTTPURLResponse else {
-            throw FoodAnalysisError.apiError("USDA: invalid response")
-        }
-
-        guard httpResponse.statusCode == 200 else {
-            if httpResponse.statusCode == 429 {
-                let isDemo = KeychainService.load(account: Self.keychainAccount) == nil
-                let hint = isDemo
-                    ? "DEMO_KEY allows 30 requests/hour. Get a free key at fdc.nal.usda.gov/api-key-signup and add it in Settings."
-                    : "Rate limit exceeded (1,000 requests/hour). Try again later."
-                throw FoodAnalysisError.apiError("USDA rate limit exceeded. \(hint)")
-            }
-            throw FoodAnalysisError.apiError("USDA API error (HTTP \(httpResponse.statusCode))")
-        }
-
-        guard let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-              let foods = json["foods"] as? [[String: Any]],
-              let firstFood = foods.first,
-              let nutrients = firstFood["foodNutrients"] as? [[String: Any]] else {
-            return NutrientsPer100g()
-        }
-
-        var result = NutrientsPer100g()
-
-        for nutrient in nutrients {
-            guard let nutrientId = nutrient["nutrientId"] as? Int,
-                  let value = nutrient["value"] as? Double else { continue }
-
-            switch nutrientId {
-            case 1008: result.calories = value
-            case 1003: result.protein = value
-            case 1005: result.carbs = value
-            case 1004: result.fat = value
-            default: break
-            }
-        }
-
-        return result
-    }
 }
 
 // MARK: - Title Case Helper
@@ -730,23 +716,21 @@ enum FoodAnalysisPipeline {
                             servingGrams: grams
                         )
                     } else {
-                        // Try USDA first; fall back to AI-provided estimates
-                        let nutrients = try? await USDAService.shared.lookupNutrients(for: item.name)
-                        let usdaHasData = nutrients != nil
-                            && (nutrients!.calories > 0 || nutrients!.protein > 0
-                                || nutrients!.carbs > 0 || nutrients!.fat > 0)
+                        // Try USDA first (with better matching); fall back to AI-provided estimates
+                        let result = try? await USDAService.shared.lookupFood(for: item.name)
 
                         let calories: Int
                         let protein: Double
                         let carbs: Double
                         let fat: Double
 
-                        if usdaHasData {
+                        if let nutrients = result?.nutrientsPer100g,
+                           nutrients.calories > 0 || nutrients.protein > 0 || nutrients.carbs > 0 || nutrients.fat > 0 {
                             let scale = item.portion_grams / 100.0
-                            calories = Int(nutrients!.calories * scale)
-                            protein = (nutrients!.protein * scale * 10).rounded() / 10
-                            carbs = (nutrients!.carbs * scale * 10).rounded() / 10
-                            fat = (nutrients!.fat * scale * 10).rounded() / 10
+                            calories = Int(nutrients.calories * scale)
+                            protein = (nutrients.protein * scale * 10).rounded() / 10
+                            carbs = (nutrients.carbs * scale * 10).rounded() / 10
+                            fat = (nutrients.fat * scale * 10).rounded() / 10
                         } else {
                             // Use AI-estimated values from the vision response
                             calories = Int(item.calories ?? 0)
