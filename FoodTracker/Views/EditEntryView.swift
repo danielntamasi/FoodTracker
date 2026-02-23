@@ -22,6 +22,7 @@ struct EditEntryView: View {
     @State private var originalCarbs = 0.0
     @State private var originalFat = 0.0
     @State private var originalDate = Date()
+    @State private var originalServings: Double = 1.0
     @State private var servings: Double = 1.0
 
     private var entryImage: UIImage? {
@@ -36,17 +37,6 @@ struct EditEntryView: View {
 
     private var iconDerivedBgColor: Color {
         iconDarkColor(for: entry.iconName ?? foodIconName(for: entry.name))
-    }
-
-    // MARK: - Macro Calculations
-
-    private var proteinCals: Double { proteinCalories(entry.proteinGrams) }
-    private var carbsCals: Double { carbCalories(entry.carbsGrams) }
-    private var fatCals: Double { fatCalories(entry.fatGrams) }
-    private var totalMacroCals: Double { totalMacroCalories(protein: entry.proteinGrams, carbs: entry.carbsGrams, fat: entry.fatGrams) }
-
-    private var macroPcts: (protein: Int, carbs: Int, fat: Int) {
-        macroPercentages(protein: entry.proteinGrams, carbs: entry.carbsGrams, fat: entry.fatGrams)
     }
 
     private var formattedTimestamp: String {
@@ -88,6 +78,8 @@ struct EditEntryView: View {
                 entry.carbsGrams = product.carbsGrams
                 entry.fatGrams = product.fatGrams
                 entry.iconName = foodIconName(for: product.name)
+                entry.servings = 1.0
+                servings = 1.0
             }
         }
     }
@@ -131,7 +123,8 @@ struct EditEntryView: View {
         originalCarbs = entry.carbsGrams
         originalFat = entry.fatGrams
         originalDate = entry.date
-        servings = 1.0
+        originalServings = entry.servings
+        servings = entry.servings
         withAnimation(.easeInOut(duration: 0.25)) { isEditing = true }
     }
 
@@ -142,19 +135,15 @@ struct EditEntryView: View {
         entry.carbsGrams = originalCarbs
         entry.fatGrams = originalFat
         entry.date = originalDate
-        servings = 1.0
+        entry.servings = originalServings
+        servings = originalServings
         lookupError = nil
         lookupDescription = nil
         withAnimation(.easeInOut(duration: 0.25)) { isEditing = false }
     }
 
     private func finishEditing() {
-        if servings != 1.0 {
-            entry.calories = Int((Double(entry.calories) * servings).rounded())
-            entry.proteinGrams = (entry.proteinGrams * servings * 10).rounded() / 10
-            entry.carbsGrams = (entry.carbsGrams * servings * 10).rounded() / 10
-            entry.fatGrams = (entry.fatGrams * servings * 10).rounded() / 10
-        }
+        entry.servings = servings
         entry.name = entry.name.titleCased()
         entry.iconName = foodIconName(for: entry.name)
         lookupError = nil
@@ -178,109 +167,18 @@ struct EditEntryView: View {
         GeometryReader { fullGeo in
             ScrollView {
                 VStack(spacing: 0) {
-                    if let uiImage = entryImage {
-                        ZStack(alignment: .bottom) {
-                            Image(uiImage: uiImage)
-                                .resizable()
-                                .scaledToFill()
-                                .frame(width: fullGeo.size.width, height: fullGeo.size.height * 0.65)
-                                .clipped()
-
-                            LinearGradient(
-                                stops: [
-                                    .init(color: .clear, location: 0.0),
-                                    .init(color: bgColor.opacity(0.3), location: 0.3),
-                                    .init(color: bgColor.opacity(0.85), location: 0.7),
-                                    .init(color: bgColor, location: 1.0)
-                                ],
-                                startPoint: .top,
-                                endPoint: .bottom
-                            )
-                            .frame(height: fullGeo.size.height * 0.65 * 0.6)
-
-                            VStack(spacing: 12) {
-                                Text(entry.name)
-                                    .font(.title)
-                                    .fontWeight(.bold)
-                                    .foregroundStyle(.white)
-                                    .multilineTextAlignment(.center)
-                                    .shadow(color: .black.opacity(0.3), radius: 6, y: 2)
-
-                                HStack(spacing: 12) {
-                                    MetricPill(value: "\(entry.calories)", label: "cal", color: .white)
-                                    MetricPill(value: formatMacro(entry.proteinGrams), label: "P", color: .blue)
-                                    MetricPill(value: formatMacro(entry.carbsGrams), label: "C", color: .orange)
-                                    MetricPill(value: formatMacro(entry.fatGrams), label: "F", color: .purple)
-                                }
-
-                                if totalMacroCals > 0 {
-                                    HeroMacroDonut(proteinCals: proteinCals, carbsCals: carbsCals, fatCals: fatCals, proteinPct: macroPcts.protein, carbsPct: macroPcts.carbs, fatPct: macroPcts.fat)
-                                }
-                            }
-                            .padding(.bottom, 16)
-                            .padding(.horizontal, 16)
-                        }
-                        .frame(height: fullGeo.size.height * 0.65)
-                    } else {
-                        let iconName = entry.iconName ?? foodIconName(for: entry.name)
-                        let iconClr = foodIconColor(for: iconName)
-
-                        ZStack(alignment: .bottom) {
-                            LinearGradient(
-                                stops: [
-                                    .init(color: iconClr.opacity(0.35), location: 0.0),
-                                    .init(color: bgColor.opacity(0.6), location: 0.5),
-                                    .init(color: bgColor, location: 1.0)
-                                ],
-                                startPoint: .top,
-                                endPoint: .bottom
-                            )
-                            .frame(height: fullGeo.size.height * 0.55)
-
-                            VStack(spacing: 16) {
-                                ZStack {
-                                    Circle()
-                                        .fill(
-                                            RadialGradient(
-                                                colors: [iconClr.opacity(0.25), .clear],
-                                                center: .center,
-                                                startRadius: 20,
-                                                endRadius: 90
-                                            )
-                                        )
-                                        .frame(width: 180, height: 180)
-
-                                    Image(systemName: iconName)
-                                        .font(.system(size: 44, weight: .light))
-                                        .foregroundStyle(iconClr)
-                                        .frame(width: 88, height: 88)
-                                        .background(iconClr.opacity(0.12))
-                                        .clipShape(Circle())
-                                }
-
-                                Text(entry.name)
-                                    .font(.title)
-                                    .fontWeight(.bold)
-                                    .foregroundStyle(.white)
-                                    .multilineTextAlignment(.center)
-                                    .shadow(color: .black.opacity(0.3), radius: 6, y: 2)
-
-                                HStack(spacing: 12) {
-                                    MetricPill(value: "\(entry.calories)", label: "cal", color: .white)
-                                    MetricPill(value: formatMacro(entry.proteinGrams), label: "P", color: .blue)
-                                    MetricPill(value: formatMacro(entry.carbsGrams), label: "C", color: .orange)
-                                    MetricPill(value: formatMacro(entry.fatGrams), label: "F", color: .purple)
-                                }
-
-                                if totalMacroCals > 0 {
-                                    HeroMacroDonut(proteinCals: proteinCals, carbsCals: carbsCals, fatCals: fatCals, proteinPct: macroPcts.protein, carbsPct: macroPcts.carbs, fatPct: macroPcts.fat)
-                                }
-                            }
-                            .padding(.bottom, 16)
-                            .padding(.horizontal, 16)
-                        }
-                        .frame(height: fullGeo.size.height * 0.55)
-                    }
+                    HeroPhotoSection(
+                        image: entryImage,
+                        title: entry.name,
+                        iconName: entry.iconName ?? foodIconName(for: entry.name),
+                        bgColor: bgColor,
+                        totalCalories: entry.totalCalories,
+                        totalProtein: entry.totalProteinGrams,
+                        totalCarbs: entry.totalCarbsGrams,
+                        totalFat: entry.totalFatGrams,
+                        geoWidth: fullGeo.size.width,
+                        geoHeight: fullGeo.size.height
+                    )
 
                     if isEditing {
                         editContent
@@ -289,10 +187,10 @@ struct EditEntryView: View {
                         VStack(spacing: 20) {
                             if DailyTarget.hasTargets {
                                 DailyGoalBarsView(
-                                    calories: Double(entry.calories),
-                                    protein: entry.proteinGrams,
-                                    carbs: entry.carbsGrams,
-                                    fat: entry.fatGrams
+                                    calories: Double(entry.totalCalories),
+                                    protein: entry.totalProteinGrams,
+                                    carbs: entry.totalCarbsGrams,
+                                    fat: entry.totalFatGrams
                                 )
                             }
 
@@ -538,6 +436,7 @@ struct EditEntryView: View {
                     entry.proteinGrams = scaled.protein
                     entry.carbsGrams = scaled.carbs
                     entry.fatGrams = scaled.fat
+                    servings = 1.0
                     // Build description for user verification
                     if let servingDesc = result.servingDescription {
                         let gramsNote = result.servingGrams.map { " (\(Int($0))g)" } ?? ""

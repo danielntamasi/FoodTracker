@@ -225,19 +225,15 @@ struct AddEntryView: View {
     }
 
     private func save() {
-        let baseCal = Int(caloriesText) ?? 0
-        let baseP = Double(proteinText) ?? 0
-        let baseC = Double(carbsText) ?? 0
-        let baseF = Double(fatText) ?? 0
-
         let entry = FoodEntry(
             name: name.titleCased(),
-            calories: Int((Double(baseCal) * servings).rounded()),
-            proteinGrams: (baseP * servings * 10).rounded() / 10,
-            carbsGrams: (baseC * servings * 10).rounded() / 10,
-            fatGrams: (baseF * servings * 10).rounded() / 10,
+            calories: Int(caloriesText) ?? 0,
+            proteinGrams: Double(proteinText) ?? 0,
+            carbsGrams: Double(carbsText) ?? 0,
+            fatGrams: Double(fatText) ?? 0,
             notes: notes,
-            iconName: foodIconName(for: name)
+            iconName: foodIconName(for: name),
+            servings: servings
         )
         modelContext.insert(entry)
         dismiss()

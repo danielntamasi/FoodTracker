@@ -368,14 +368,18 @@ struct PhotoAnalysisView: View {
 
         let oneServingGrams = identifiedFoods[index].servingGrams ?? 100
         let totalGrams = oneServingGrams * servings
-        let scale = totalGrams / 100.0
+        let scaled = perServingFromPer100g(
+            calPer100g: calPer100g, protPer100g: protPer100g,
+            carbsPer100g: carbsPer100g, fatPer100g: fatPer100g,
+            servingGrams: totalGrams
+        )
 
         identifiedFoods[index].servings = servings
         identifiedFoods[index].portionGrams = (totalGrams * 10).rounded() / 10
-        identifiedFoods[index].calories = Int((calPer100g * scale).rounded())
-        identifiedFoods[index].proteinGrams = (protPer100g * scale * 10).rounded() / 10
-        identifiedFoods[index].carbsGrams = (carbsPer100g * scale * 10).rounded() / 10
-        identifiedFoods[index].fatGrams = (fatPer100g * scale * 10).rounded() / 10
+        identifiedFoods[index].calories = scaled.calories
+        identifiedFoods[index].proteinGrams = scaled.protein
+        identifiedFoods[index].carbsGrams = scaled.carbs
+        identifiedFoods[index].fatGrams = scaled.fat
     }
 
 
@@ -414,16 +418,49 @@ struct PhotoAnalysisView: View {
             }
             let photoForEntry = shouldAttachPhoto ? thumbnailData : nil
 
+            // Store per-serving values; computed total* properties handle multiplication
+            let perServingCal: Int
+            let perServingP: Double
+            let perServingC: Double
+            let perServingF: Double
+            let savedServings: Double
+
+            if let calPer100g = food.caloriesPer100g,
+               let protPer100g = food.proteinPer100g,
+               let carbsPer100g = food.carbsPer100g,
+               let fatPer100g = food.fatPer100g {
+                // Has per-100g data: compute per-serving from base values
+                let oneServingGrams = food.servingGrams ?? 100
+                let scaled = perServingFromPer100g(
+                    calPer100g: calPer100g, protPer100g: protPer100g,
+                    carbsPer100g: carbsPer100g, fatPer100g: fatPer100g,
+                    servingGrams: oneServingGrams
+                )
+                perServingCal = scaled.calories
+                perServingP = scaled.protein
+                perServingC = scaled.carbs
+                perServingF = scaled.fat
+                savedServings = food.servings
+            } else {
+                // AI-estimated: values represent the detected portion (= 1 serving)
+                perServingCal = food.calories
+                perServingP = food.proteinGrams
+                perServingC = food.carbsGrams
+                perServingF = food.fatGrams
+                savedServings = food.servings
+            }
+
             let entry = FoodEntry(
                 name: food.name.titleCased(),
-                calories: food.calories,
-                proteinGrams: food.proteinGrams,
-                carbsGrams: food.carbsGrams,
-                fatGrams: food.fatGrams,
+                calories: perServingCal,
+                proteinGrams: perServingP,
+                carbsGrams: perServingC,
+                fatGrams: perServingF,
                 photoData: photoForEntry,
                 mealGroupID: food.mealGroupID,
                 mealName: food.mealName,
-                iconName: foodIconName(for: food.name)
+                iconName: foodIconName(for: food.name),
+                servings: savedServings
             )
             modelContext.insert(entry)
         }

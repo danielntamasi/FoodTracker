@@ -1,173 +1,6 @@
 import Foundation
 import UIKit
 
-// MARK: - Nutrition Source
-
-enum NutritionSource: String, Codable {
-    case label
-    case estimate
-    case barcode
-
-    var displayLabel: String {
-        switch self {
-        case .label: return "From Label"
-        case .estimate: return "AI Estimate"
-        case .barcode: return "Barcode"
-        }
-    }
-
-    var badgeColor: String {
-        switch self {
-        case .label: return "green"
-        case .estimate: return "orange"
-        case .barcode: return "blue"
-        }
-    }
-}
-
-struct IdentifiedFood: Identifiable {
-    var id = UUID()
-    var name: String
-    var calories: Int
-    var proteinGrams: Double
-    var carbsGrams: Double
-    var fatGrams: Double
-    var portionGrams: Double
-    var portionDescription: String
-    var source: NutritionSource = .estimate
-    var mealGroupID: UUID?
-    var mealName: String?
-
-    // Portion selection support (barcode + label items)
-    // Per-100g base values for recalculating when servings change
-    var caloriesPer100g: Double?
-    var proteinPer100g: Double?
-    var carbsPer100g: Double?
-    var fatPer100g: Double?
-    // The weight in grams of one serving
-    var servingGrams: Double?
-    // How many servings the user selected (default 1)
-    var servings: Double = 1.0
-}
-
-// MARK: - Vision Provider Selection
-
-enum VisionProvider: String, CaseIterable, Identifiable {
-    case claude = "Claude Sonnet 4.6"
-    case gemini = "Gemini 2.0 Flash"
-
-    var id: String { rawValue }
-
-    var keychainAccount: String {
-        switch self {
-        case .claude: return "claude-api-key"
-        case .gemini: return "gemini-api-key"
-        }
-    }
-
-    var keyInstructions: String {
-        switch self {
-        case .claude: return "Get your key from console.anthropic.com"
-        case .gemini: return "Get a free key from aistudio.google.com"
-        }
-    }
-
-    static var selected: VisionProvider {
-        get {
-            if let raw = UserDefaults.standard.string(forKey: "visionProvider"),
-               let provider = VisionProvider(rawValue: raw) {
-                return provider
-            }
-            return .gemini
-        }
-        set {
-            UserDefaults.standard.set(newValue.rawValue, forKey: "visionProvider")
-        }
-    }
-}
-
-// Vision response model (shared by both providers)
-struct VisionIdentifiedItem: Codable {
-    let name: String
-    let portion: String
-    let portion_grams: Double
-    let source: String?
-    let calories: Double?
-    let protein_grams: Double?
-    let carbs_grams: Double?
-    let fat_grams: Double?
-
-    var nutritionSource: NutritionSource {
-        switch source {
-        case "label": return .label
-        default: return .estimate
-        }
-    }
-
-    var hasLabelNutrition: Bool {
-        source == "label" && calories != nil
-    }
-}
-
-// Polymorphic element: either a grouped meal or a standalone item
-enum VisionFoodElement: Codable {
-    case meal(name: String, ingredients: [VisionIdentifiedItem])
-    case standalone(VisionIdentifiedItem)
-
-    init(from decoder: Decoder) throws {
-        let container = try decoder.container(keyedBy: CodingKeys.self)
-        if let mealName = try container.decodeIfPresent(String.self, forKey: .meal_name),
-           let ingredients = try container.decodeIfPresent([VisionIdentifiedItem].self, forKey: .ingredients) {
-            self = .meal(name: mealName, ingredients: ingredients)
-        } else {
-            let item = try VisionIdentifiedItem(from: decoder)
-            self = .standalone(item)
-        }
-    }
-
-    func encode(to encoder: Encoder) throws {
-        switch self {
-        case .meal(let name, let ingredients):
-            var container = encoder.container(keyedBy: CodingKeys.self)
-            try container.encode(name, forKey: .meal_name)
-            try container.encode(ingredients, forKey: .ingredients)
-        case .standalone(let item):
-            try item.encode(to: encoder)
-        }
-    }
-
-    private enum CodingKeys: String, CodingKey {
-        case meal_name, ingredients
-    }
-}
-
-struct VisionFoodResponse: Codable {
-    let foods: [VisionFoodElement]
-}
-
-enum FoodAnalysisError: LocalizedError {
-    case noAPIKey
-    case invalidImage
-    case networkError(Error)
-    case invalidResponse
-    case apiError(String)
-
-    var errorDescription: String? {
-        switch self {
-        case .noAPIKey:
-            return "No API key configured. Please add your API key in Settings."
-        case .invalidImage:
-            return "Could not process the image."
-        case .networkError(let error):
-            return "Network error: \(error.localizedDescription)"
-        case .invalidResponse:
-            return "Could not parse the response."
-        case .apiError(let message):
-            return "API error: \(message)"
-        }
-    }
-}
-
 // MARK: - Shared prompt
 
 private let visionPrompt = """
@@ -436,220 +269,6 @@ private func extractJSON(from text: String) -> String {
     return text
 }
 
-// MARK: - USDA FoodData Central Service
-
-actor USDAService {
-    static let shared = USDAService()
-
-    private let baseURL = "https://api.nal.usda.gov/fdc/v1/foods/search"
-    static let keychainAccount = "usda-api-key"
-
-    private var apiKey: String {
-        KeychainService.load(account: Self.keychainAccount) ?? "DEMO_KEY"
-    }
-
-    struct NutrientsPer100g {
-        var calories: Double = 0
-        var protein: Double = 0
-        var carbs: Double = 0
-        var fat: Double = 0
-    }
-
-    struct USDALookupResult {
-        var description: String
-        var nutrientsPer100g: NutrientsPer100g
-        var servingDescription: String?
-        var servingGrams: Double?
-
-        /// Nutrients scaled to one serving (or per-100g if no serving info)
-        var perServing: NutrientsPer100g {
-            guard let grams = servingGrams, grams > 0 else { return nutrientsPer100g }
-            let scale = grams / 100.0
-            return NutrientsPer100g(
-                calories: (nutrientsPer100g.calories * scale * 10).rounded() / 10,
-                protein: (nutrientsPer100g.protein * scale * 10).rounded() / 10,
-                carbs: (nutrientsPer100g.carbs * scale * 10).rounded() / 10,
-                fat: (nutrientsPer100g.fat * scale * 10).rounded() / 10
-            )
-        }
-    }
-
-    /// Looks up a food with better matching (prefers raw, penalizes dried/canned) and extracts serving info.
-    func lookupFood(for foodName: String) async throws -> USDALookupResult {
-        // Clean query: strip parenthetical content and special chars that cause USDA API errors
-        let cleanedName = foodName
-            .replacingOccurrences(of: "\\s*\\([^)]*\\)", with: "", options: .regularExpression)
-            .trimmingCharacters(in: .whitespaces)
-        let query = cleanedName.isEmpty ? foodName : cleanedName
-
-        var components = URLComponents(string: baseURL)!
-        components.queryItems = [
-            URLQueryItem(name: "api_key", value: apiKey),
-            URLQueryItem(name: "query", value: query),
-            URLQueryItem(name: "pageSize", value: "5"),
-            URLQueryItem(name: "dataType", value: "Foundation,SR Legacy")
-        ]
-
-        guard let url = components.url else {
-            throw FoodAnalysisError.invalidResponse
-        }
-
-        let (data, response): (Data, URLResponse)
-        do {
-            (data, response) = try await URLSession.shared.data(from: url)
-        } catch {
-            throw FoodAnalysisError.networkError(error)
-        }
-
-        guard let httpResponse = response as? HTTPURLResponse else {
-            throw FoodAnalysisError.apiError("USDA: invalid response")
-        }
-
-        guard httpResponse.statusCode == 200 else {
-            if httpResponse.statusCode == 429 {
-                let isDemo = KeychainService.load(account: Self.keychainAccount) == nil
-                let hint = isDemo
-                    ? "DEMO_KEY allows 30 requests/hour. Get a free key at fdc.nal.usda.gov/api-key-signup and add it in Settings."
-                    : "Rate limit exceeded (1,000 requests/hour). Try again later."
-                throw FoodAnalysisError.apiError("USDA rate limit exceeded. \(hint)")
-            }
-            throw FoodAnalysisError.apiError("USDA API error (HTTP \(httpResponse.statusCode))")
-        }
-
-        guard let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-              let foods = json["foods"] as? [[String: Any]],
-              !foods.isEmpty else {
-            return USDALookupResult(description: foodName, nutrientsPer100g: NutrientsPer100g())
-        }
-
-        // Score each result: prefer "raw", penalize processed forms
-        let penaltyKeywords = ["dried", "dehydrated", "powder", "concentrate", "canned", "juice", "frozen", "infant formula"]
-        let bestFood = foods.max { a, b in
-            scoreFood(a, penaltyKeywords: penaltyKeywords) < scoreFood(b, penaltyKeywords: penaltyKeywords)
-        } ?? foods[0]
-
-        // Extract nutrients
-        var nutrients = NutrientsPer100g()
-        if let foodNutrients = bestFood["foodNutrients"] as? [[String: Any]] {
-            for nutrient in foodNutrients {
-                guard let nutrientId = nutrient["nutrientId"] as? Int,
-                      let value = nutrient["value"] as? Double else { continue }
-                switch nutrientId {
-                case 1008: nutrients.calories = value
-                case 1003: nutrients.protein = value
-                case 1005: nutrients.carbs = value
-                case 1004: nutrients.fat = value
-                default: break
-                }
-            }
-        }
-
-        // Extract serving info from foodMeasures
-        let desc = bestFood["description"] as? String ?? foodName
-        var servingDesc: String?
-        var servingGrams: Double?
-
-        if let measures = bestFood["foodMeasures"] as? [[String: Any]] {
-            // Find a reasonable household measure (skip "Quantity not specified" and empty entries)
-            for measure in measures {
-                guard let gramWeight = measure["gramWeight"] as? Double, gramWeight > 0,
-                      let dissText = measure["disseminationText"] as? String,
-                      !dissText.isEmpty,
-                      !dissText.lowercased().contains("not specified") else { continue }
-                servingDesc = dissText
-                servingGrams = gramWeight
-                break
-            }
-        }
-
-        // Fallback 1: use servingSize field from search results
-        if servingGrams == nil,
-           let size = bestFood["servingSize"] as? Double, size > 0 {
-            servingGrams = size
-            let unit = bestFood["servingSizeUnit"] as? String ?? "g"
-            servingDesc = "1 serving (\(Int(size))\(unit))"
-        }
-
-        // Fallback 2: fetch detail endpoint for foodPortions
-        if servingGrams == nil, let fdcId = bestFood["fdcId"] as? Int {
-            if let portion = try? await fetchServingFromDetail(fdcId: fdcId) {
-                servingDesc = portion.description
-                servingGrams = portion.grams
-            }
-        }
-
-        return USDALookupResult(
-            description: desc,
-            nutrientsPer100g: nutrients,
-            servingDescription: servingDesc,
-            servingGrams: servingGrams
-        )
-    }
-
-    /// Fetches serving info from the USDA detail endpoint when the search results lack it.
-    private func fetchServingFromDetail(fdcId: Int) async throws -> (description: String, grams: Double)? {
-        let detailURL = "https://api.nal.usda.gov/fdc/v1/food/\(fdcId)"
-        var components = URLComponents(string: detailURL)!
-        components.queryItems = [URLQueryItem(name: "api_key", value: apiKey)]
-
-        guard let url = components.url else { return nil }
-
-        let (data, response) = try await URLSession.shared.data(from: url)
-        guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200,
-              let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-              let portions = json["foodPortions"] as? [[String: Any]] else {
-            return nil
-        }
-
-        for portion in portions {
-            guard let gramWeight = portion["gramWeight"] as? Double, gramWeight > 0 else { continue }
-
-            // Build a readable description from amount + unit + modifier
-            let amount = portion["amount"] as? Double
-            let unitName = (portion["measureUnit"] as? [String: Any])?["name"] as? String
-            let modifier = portion["modifier"] as? String
-
-            var parts: [String] = []
-            if let amount, amount > 0 {
-                parts.append(amount.truncatingRemainder(dividingBy: 1) == 0 ? "\(Int(amount))" : String(format: "%.1f", amount))
-            }
-            if let unitName, !unitName.isEmpty, unitName.lowercased() != "quantity not specified" {
-                parts.append(unitName)
-            }
-            if let modifier, !modifier.isEmpty {
-                parts.append("(\(modifier))")
-            }
-
-            let desc = parts.isEmpty ? "1 serving" : parts.joined(separator: " ")
-            return (description: desc, grams: gramWeight)
-        }
-        return nil
-    }
-
-    private func scoreFood(_ food: [String: Any], penaltyKeywords: [String]) -> Int {
-        let desc = (food["description"] as? String ?? "").lowercased()
-        var score = 0
-        if desc.contains("raw") { score += 10 }
-        for keyword in penaltyKeywords {
-            if desc.contains(keyword) { score -= 5 }
-        }
-        return score
-    }
-
-}
-
-// MARK: - Title Case Helper
-
-extension String {
-    /// Capitalizes the first letter of each word (e.g. "white rice" → "White Rice")
-    func titleCased() -> String {
-        self.lowercased()
-            .split(separator: " ")
-            .map { $0.prefix(1).uppercased() + $0.dropFirst() }
-            .joined(separator: " ")
-    }
-}
-
 // MARK: - Combined Analysis Pipeline
 
 enum FoodAnalysisPipeline {
@@ -723,14 +342,38 @@ enum FoodAnalysisPipeline {
                         let protein: Double
                         let carbs: Double
                         let fat: Double
+                        var detectedServings: Double = 1.0
+                        var calPer100g: Double?
+                        var protPer100g: Double?
+                        var carbPer100g: Double?
+                        var fatPer100g: Double?
+                        var srvGrams: Double?
 
                         if let nutrients = result?.nutrientsPer100g,
                            nutrients.calories > 0 || nutrients.protein > 0 || nutrients.carbs > 0 || nutrients.fat > 0 {
-                            let scale = item.portion_grams / 100.0
-                            calories = Int(nutrients.calories * scale)
-                            protein = (nutrients.protein * scale * 10).rounded() / 10
-                            carbs = (nutrients.carbs * scale * 10).rounded() / 10
-                            fat = (nutrients.fat * scale * 10).rounded() / 10
+                            calPer100g = nutrients.calories
+                            protPer100g = nutrients.protein
+                            carbPer100g = nutrients.carbs
+                            fatPer100g = nutrients.fat
+
+                            if let servingGrams = result?.servingGrams, servingGrams > 0 {
+                                // Calculate how many servings the detected portion represents
+                                srvGrams = servingGrams
+                                detectedServings = (item.portion_grams / servingGrams * 100).rounded() / 100
+                                // Per-serving values (scale per-100g by servingGrams/100)
+                                let servingScale = servingGrams / 100.0
+                                calories = Int((nutrients.calories * servingScale).rounded())
+                                protein = (nutrients.protein * servingScale * 10).rounded() / 10
+                                carbs = (nutrients.carbs * servingScale * 10).rounded() / 10
+                                fat = (nutrients.fat * servingScale * 10).rounded() / 10
+                            } else {
+                                // No serving info — treat detected portion as 1 serving
+                                let scale = item.portion_grams / 100.0
+                                calories = Int(nutrients.calories * scale)
+                                protein = (nutrients.protein * scale * 10).rounded() / 10
+                                carbs = (nutrients.carbs * scale * 10).rounded() / 10
+                                fat = (nutrients.fat * scale * 10).rounded() / 10
+                            }
                         } else {
                             // Use AI-estimated values from the vision response
                             calories = Int(item.calories ?? 0)
@@ -749,7 +392,13 @@ enum FoodAnalysisPipeline {
                             portionDescription: item.portion,
                             source: .estimate,
                             mealGroupID: groupID,
-                            mealName: mealName
+                            mealName: mealName,
+                            caloriesPer100g: calPer100g,
+                            proteinPer100g: protPer100g,
+                            carbsPer100g: carbPer100g,
+                            fatPer100g: fatPer100g,
+                            servingGrams: srvGrams,
+                            servings: detectedServings
                         )
                     }
                 }

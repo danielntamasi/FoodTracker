@@ -29,7 +29,7 @@ struct DailySummaryView: View {
 
     private var totals: (cal: Int, protein: Double, carbs: Double, fat: Double) {
         todayEntries.reduce((0, 0.0, 0.0, 0.0)) {
-            ($0.0 + $1.calories, $0.1 + $1.proteinGrams, $0.2 + $1.carbsGrams, $0.3 + $1.fatGrams)
+            ($0.0 + $1.totalCalories, $0.1 + $1.totalProteinGrams, $0.2 + $1.totalCarbsGrams, $0.3 + $1.totalFatGrams)
         }
     }
 
@@ -581,19 +581,19 @@ struct MealEntryRow: View {
     let entries: [FoodEntry]
 
     private var totalCalories: Int {
-        entries.reduce(0) { $0 + $1.calories }
+        entries.reduce(0) { $0 + $1.totalCalories }
     }
 
     private var totalProtein: Double {
-        entries.reduce(0) { $0 + $1.proteinGrams }
+        entries.reduce(0) { $0 + $1.totalProteinGrams }
     }
 
     private var totalCarbs: Double {
-        entries.reduce(0) { $0 + $1.carbsGrams }
+        entries.reduce(0) { $0 + $1.totalCarbsGrams }
     }
 
     private var totalFat: Double {
-        entries.reduce(0) { $0 + $1.fatGrams }
+        entries.reduce(0) { $0 + $1.totalFatGrams }
     }
 
     var body: some View {
@@ -785,13 +785,13 @@ struct FoodEntryRow: View {
             VStack(alignment: .leading, spacing: 2) {
                 Text(entry.name)
                     .font(.body)
-                coloredMacroText(protein: entry.proteinGrams, carbs: entry.carbsGrams, fat: entry.fatGrams)
+                coloredMacroText(protein: entry.totalProteinGrams, carbs: entry.totalCarbsGrams, fat: entry.totalFatGrams)
                     .font(.caption)
             }
 
             Spacer()
 
-            Text("\(entry.calories) cal")
+            Text("\(entry.totalCalories) cal")
                 .font(.subheadline)
                 .fontWeight(.semibold)
                 .foregroundStyle(.secondary)

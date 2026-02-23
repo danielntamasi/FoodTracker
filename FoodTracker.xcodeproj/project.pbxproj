@@ -30,6 +30,13 @@
 		A10001010000000000000023 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = A10002010000000000000021 /* Assets.xcassets */; };
 		A10001010000000000000024 /* FoodTrackerWidgetExtension.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = A10003010000000000000002 /* FoodTrackerWidgetExtension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		A2000101000000000000000A /* MealSummaryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000201000000000000000A /* MealSummaryView.swift */; };
+		B30001010000000000000001 /* PerformanceTileView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B30002010000000000000001 /* PerformanceTileView.swift */; };
+		B30001010000000000000002 /* PerformanceInfoView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B30002010000000000000002 /* PerformanceInfoView.swift */; };
+		B30001010000000000000003 /* BrowseFoodsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B30002010000000000000003 /* BrowseFoodsView.swift */; };
+		B30001010000000000000004 /* FoodAnalysisModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = B30002010000000000000004 /* FoodAnalysisModels.swift */; };
+		B30001010000000000000005 /* USDAService.swift in Sources */ = {isa = PBXBuildFile; fileRef = B30002010000000000000005 /* USDAService.swift */; };
+		B30001010000000000000006 /* SharedViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = B30002010000000000000006 /* SharedViews.swift */; };
+		B30001010000000000000007 /* HeroPhotoSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = B30002010000000000000007 /* HeroPhotoSection.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -83,6 +90,13 @@
 		A10003010000000000000001 /* FoodTracker.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = FoodTracker.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		A10003010000000000000002 /* FoodTrackerWidgetExtension.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = FoodTrackerWidgetExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		A2000201000000000000000A /* MealSummaryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MealSummaryView.swift; sourceTree = "<group>"; };
+		B30002010000000000000001 /* PerformanceTileView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PerformanceTileView.swift; sourceTree = "<group>"; };
+		B30002010000000000000002 /* PerformanceInfoView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PerformanceInfoView.swift; sourceTree = "<group>"; };
+		B30002010000000000000003 /* BrowseFoodsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BrowseFoodsView.swift; sourceTree = "<group>"; };
+		B30002010000000000000004 /* FoodAnalysisModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FoodAnalysisModels.swift; sourceTree = "<group>"; };
+		B30002010000000000000005 /* USDAService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = USDAService.swift; sourceTree = "<group>"; };
+		B30002010000000000000006 /* SharedViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SharedViews.swift; sourceTree = "<group>"; };
+		B30002010000000000000007 /* HeroPhotoSection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HeroPhotoSection.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -141,6 +155,8 @@
 				A10002010000000000000003 /* KeychainService.swift */,
 				A10002010000000000000004 /* FoodAnalysisService.swift */,
 				A1000201000000000000000E /* OpenFoodFactsService.swift */,
+				B30002010000000000000004 /* FoodAnalysisModels.swift */,
+				B30002010000000000000005 /* USDAService.swift */,
 			);
 			path = Services;
 			sourceTree = "<group>";
@@ -158,6 +174,9 @@
 				A1000201000000000000000F /* BarcodeScannerView.swift */,
 				A10002010000000000000010 /* EditEntryView.swift */,
 				A2000201000000000000000A /* MealSummaryView.swift */,
+				B30002010000000000000001 /* PerformanceTileView.swift */,
+				B30002010000000000000002 /* PerformanceInfoView.swift */,
+				B30002010000000000000003 /* BrowseFoodsView.swift */,
 			);
 			path = Views;
 			sourceTree = "<group>";
@@ -187,6 +206,8 @@
 			children = (
 				A10002010000000000000011 /* SharedConfig.swift */,
 				A10002010000000000000030 /* SharedHelpers.swift */,
+				B30002010000000000000006 /* SharedViews.swift */,
+				B30002010000000000000007 /* HeroPhotoSection.swift */,
 			);
 			path = Shared;
 			sourceTree = "<group>";
@@ -308,6 +329,13 @@
 				A2000101000000000000000A /* MealSummaryView.swift in Sources */,
 				A10001010000000000000010 /* SharedConfig.swift in Sources */,
 				A10001010000000000000030 /* SharedHelpers.swift in Sources */,
+				B30001010000000000000001 /* PerformanceTileView.swift in Sources */,
+				B30001010000000000000002 /* PerformanceInfoView.swift in Sources */,
+				B30001010000000000000003 /* BrowseFoodsView.swift in Sources */,
+				B30001010000000000000004 /* FoodAnalysisModels.swift in Sources */,
+				B30001010000000000000005 /* USDAService.swift in Sources */,
+				B30001010000000000000006 /* SharedViews.swift in Sources */,
+				B30001010000000000000007 /* HeroPhotoSection.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

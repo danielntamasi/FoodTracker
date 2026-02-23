@@ -52,6 +52,12 @@ final class FoodEntry {
     var mealName: String?
     var iconName: String?
     var sortOrder: Int?
+    var servings: Double = 1.0
+
+    var totalCalories: Int { Int((Double(calories) * servings).rounded()) }
+    var totalProteinGrams: Double { (proteinGrams * servings * 10).rounded() / 10 }
+    var totalCarbsGrams: Double { (carbsGrams * servings * 10).rounded() / 10 }
+    var totalFatGrams: Double { (fatGrams * servings * 10).rounded() / 10 }
 
     init(
         id: UUID = UUID(),
@@ -66,7 +72,8 @@ final class FoodEntry {
         mealGroupID: UUID? = nil,
         mealName: String? = nil,
         iconName: String? = nil,
-        sortOrder: Int? = nil
+        sortOrder: Int? = nil,
+        servings: Double = 1.0
     ) {
         self.id = id
         self.name = name
@@ -81,5 +88,6 @@ final class FoodEntry {
         self.mealName = mealName
         self.iconName = iconName
         self.sortOrder = sortOrder
+        self.servings = servings
     }
 }
