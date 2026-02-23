@@ -1,5 +1,36 @@
 import SwiftUI
 import SwiftData
+import UIKit
+
+// MARK: - Design Tokens
+
+extension Color {
+    /// Adaptive color initializer bridging UIColor's trait-based system.
+    init(light: Color, dark: Color) {
+        self.init(UIColor { tc in
+            tc.userInterfaceStyle == .dark ? UIColor(dark) : UIColor(light)
+        })
+    }
+
+    // Background colors
+    static let appBackground = Color(
+        light: Color(red: 0.98, green: 0.965, blue: 0.945),
+        dark: Color(red: 0.11, green: 0.10, blue: 0.09)
+    )
+    static let cardBackground = Color(
+        light: .white,
+        dark: Color(red: 0.17, green: 0.17, blue: 0.18)
+    )
+
+    // Gradient header colors (yellow → green)
+    static let headerGradientStart = Color(red: 1.0, green: 0.78, blue: 0.30)
+    static let headerGradientEnd   = Color(red: 0.40, green: 0.82, blue: 0.48)
+
+    // Macro colors
+    static let macroProtein = Color(red: 0.25, green: 0.55, blue: 0.95)
+    static let macroCarbs   = Color(red: 0.97, green: 0.55, blue: 0.15)
+    static let macroFat     = Color(red: 0.62, green: 0.30, blue: 0.92)
+}
 
 // MARK: - Shared Defaults
 

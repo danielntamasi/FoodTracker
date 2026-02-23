@@ -172,6 +172,9 @@ struct HistoryView: View {
                     }
                 }
             }
+            .listStyle(.plain)
+            .scrollContentBackground(.hidden)
+            .background(Color.appBackground)
             .contentMargins(.bottom, 88, for: .scrollContent)
             .navigationTitle("History")
             .sheet(item: $editingEntry) { entry in

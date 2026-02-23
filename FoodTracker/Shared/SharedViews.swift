@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 import Charts
 
 // MARK: - Metric Pill
@@ -34,9 +35,9 @@ struct HeroMacroDonut: View {
 
     var body: some View {
         let segments: [(name: String, cals: Double, color: Color)] = [
-            ("Protein", proteinCals, .blue),
-            ("Carbs", carbsCals, .orange),
-            ("Fat", fatCals, .purple),
+            ("Protein", proteinCals, Color.macroProtein),
+            ("Carbs", carbsCals, Color.macroCarbs),
+            ("Fat", fatCals, Color.macroFat),
         ].filter { $0.cals > 0 }
 
         HStack(spacing: 12) {
@@ -52,9 +53,9 @@ struct HeroMacroDonut: View {
             .frame(width: size, height: size)
 
             VStack(alignment: .leading, spacing: 4) {
-                donutLabel(pct: proteinPct, name: "P", color: .blue)
-                donutLabel(pct: carbsPct, name: "C", color: .orange)
-                donutLabel(pct: fatPct, name: "F", color: .purple)
+                donutLabel(pct: proteinPct, name: "P", color: .macroProtein)
+                donutLabel(pct: carbsPct, name: "C", color: .macroCarbs)
+                donutLabel(pct: fatPct, name: "F", color: .macroFat)
             }
         }
     }
@@ -109,13 +110,13 @@ struct DailyGoalBarsView: View {
                     goalBar(label: "Cal", value: calories, target: Double(calorieTarget), color: .gray)
                 }
                 if proteinTarget > 0 {
-                    goalBar(label: "Protein", value: protein, target: Double(proteinTarget), color: .blue)
+                    goalBar(label: "Protein", value: protein, target: Double(proteinTarget), color: .macroProtein)
                 }
                 if carbsTarget > 0 {
-                    goalBar(label: "Carbs", value: carbs, target: Double(carbsTarget), color: .orange)
+                    goalBar(label: "Carbs", value: carbs, target: Double(carbsTarget), color: .macroCarbs)
                 }
                 if fatTarget > 0 {
-                    goalBar(label: "Fat", value: fat, target: Double(fatTarget), color: .purple)
+                    goalBar(label: "Fat", value: fat, target: Double(fatTarget), color: .macroFat)
                 }
             }
         }
