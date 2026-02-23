@@ -39,7 +39,11 @@ actor OpenFoodFactsService {
     }
 
     func lookup(barcode: String) async throws -> Product {
-        guard let url = URL(string: "\(baseURL)/\(barcode).json") else {
+        guard var components = URLComponents(string: baseURL) else {
+            throw LookupError.invalidResponse
+        }
+        components.path += "/\(barcode).json"
+        guard let url = components.url else {
             throw LookupError.invalidResponse
         }
 

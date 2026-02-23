@@ -108,12 +108,7 @@ actor ClaudeAPIService {
         }
 
         guard httpResponse.statusCode == 200 else {
-            if let errorJSON = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-               let error = errorJSON["error"] as? [String: Any],
-               let message = error["message"] as? String {
-                throw FoodAnalysisError.apiError(message)
-            }
-            throw FoodAnalysisError.apiError("HTTP \(httpResponse.statusCode)")
+            throw FoodAnalysisError.apiError("Analysis failed (HTTP \(httpResponse.statusCode)). Please try again.")
         }
 
         guard let responseJSON = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
@@ -153,7 +148,7 @@ actor GeminiAPIService {
         }
 
         let base64Image = jpegData.base64EncodedString()
-        let endpoint = URL(string: "https://generativelanguage.googleapis.com/v1beta/models/\(model):generateContent?key=\(apiKey)")!
+        let endpoint = URL(string: "https://generativelanguage.googleapis.com/v1beta/models/\(model):generateContent")!
 
         let requestBody: [String: Any] = [
             "contents": [
@@ -176,6 +171,7 @@ actor GeminiAPIService {
         var request = URLRequest(url: endpoint)
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.setValue(apiKey, forHTTPHeaderField: "x-goog-api-key")
         request.httpBody = try JSONSerialization.data(withJSONObject: requestBody)
 
         let (data, response): (Data, URLResponse)
@@ -190,12 +186,7 @@ actor GeminiAPIService {
         }
 
         guard httpResponse.statusCode == 200 else {
-            if let errorJSON = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-               let error = errorJSON["error"] as? [String: Any],
-               let message = error["message"] as? String {
-                throw FoodAnalysisError.apiError(message)
-            }
-            throw FoodAnalysisError.apiError("HTTP \(httpResponse.statusCode)")
+            throw FoodAnalysisError.apiError("Analysis failed (HTTP \(httpResponse.statusCode)). Please try again.")
         }
 
         guard let responseJSON = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
@@ -223,7 +214,7 @@ private func decodeVisionResponse(from text: String) throws -> VisionFoodRespons
 
     do {
         return try JSONDecoder().decode(VisionFoodResponse.self, from: jsonData)
-    } catch let decodingError as DecodingError {
+    } catch is DecodingError {
         // Try a lenient fallback: strip trailing commas and retry
         let cleaned = jsonString
             .replacingOccurrences(of: ",\\s*\\}", with: "}", options: .regularExpression)
@@ -233,21 +224,7 @@ private func decodeVisionResponse(from text: String) throws -> VisionFoodRespons
             return result
         }
 
-        // Provide a meaningful error with context
-        let detail: String
-        switch decodingError {
-        case .keyNotFound(let key, _):
-            detail = "Missing key: \(key.stringValue)"
-        case .typeMismatch(let type, let context):
-            detail = "Type mismatch for \(type) at \(context.codingPath.map(\.stringValue).joined(separator: "."))"
-        case .valueNotFound(let type, let context):
-            detail = "Missing value for \(type) at \(context.codingPath.map(\.stringValue).joined(separator: "."))"
-        case .dataCorrupted(let context):
-            detail = "Data corrupted: \(context.debugDescription)"
-        @unknown default:
-            detail = decodingError.localizedDescription
-        }
-        throw FoodAnalysisError.apiError("Could not parse AI response. \(detail)")
+        throw FoodAnalysisError.apiError("Could not parse AI response. Try taking a clearer photo.")
     } catch {
         throw FoodAnalysisError.apiError("Could not parse AI response: \(error.localizedDescription)")
     }

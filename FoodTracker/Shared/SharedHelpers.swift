@@ -3,7 +3,7 @@ import SwiftData
 
 // MARK: - Shared Defaults
 
-let sharedDefaults = UserDefaults(suiteName: appGroupID)!
+let sharedDefaults = UserDefaults(suiteName: appGroupID) ?? .standard
 
 // MARK: - Format Servings
 
