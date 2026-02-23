@@ -1,3 +1,4 @@
+import Charts
 import SwiftUI
 
 // MARK: - Performance Period
@@ -209,6 +210,37 @@ struct PerformanceTileView: View {
         }
     }
 
+    private func dayOverallStatus(_ record: DayRecord) -> DotStatus {
+        guard record.hasData else { return .noData }
+        let macros = activeMacroTypes
+        guard !macros.isEmpty else { return .noTarget }
+
+        var worstSeverity = 0 // 0 = on target, 1 = slight, 2 = severe
+        var isOver = false
+
+        for macro in macros {
+            let val = macro.value(from: record)
+            let tgt = Double(macro.target)
+            guard tgt > 0 else { continue }
+            let pct = val / tgt
+            if pct >= PerformanceThresholds.onTargetLow && pct <= PerformanceThresholds.onTargetHigh {
+                continue
+            }
+            let severe = pct > PerformanceThresholds.severeOverThreshold || pct < PerformanceThresholds.severeUnderThreshold
+            let severity = severe ? 2 : 1
+            if severity > worstSeverity {
+                worstSeverity = severity
+                isOver = pct > PerformanceThresholds.onTargetHigh
+            }
+        }
+
+        switch worstSeverity {
+        case 0: return .onTarget
+        case 1: return isOver ? .over(severe: false) : .under(severe: false)
+        default: return isOver ? .over(severe: true) : .under(severe: true)
+        }
+    }
+
     private func daysOnTarget(in records: [DayRecord]) -> Int {
         records.filter { isDayFullyOnTarget($0) }.count
     }
@@ -383,6 +415,7 @@ struct PerformanceTileView: View {
     }
 
     @State private var showingInfo = false
+    @State private var useBarChart = true
 
     // MARK: - Body
 
@@ -399,6 +432,18 @@ struct PerformanceTileView: View {
                         .foregroundStyle(.secondary)
                 }
                 .buttonStyle(.plain)
+                if selectedPeriod == .week && hasTargets {
+                    Button {
+                        withAnimation(.easeInOut(duration: 0.25)) {
+                            useBarChart.toggle()
+                        }
+                    } label: {
+                        Image(systemName: useBarChart ? "chart.bar.fill" : "circle.grid.3x3.fill")
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
+                    }
+                    .buttonStyle(.plain)
+                }
                 Spacer()
                 Picker("Period", selection: $selectedPeriod) {
                     ForEach(PerformancePeriod.allCases, id: \.self) { period in
@@ -448,7 +493,13 @@ struct PerformanceTileView: View {
 
         VStack(spacing: 10) {
             heroStat(onTarget: onTarget, total: withData, pct: pct)
-            macroDotsMatrix(records: records)
+
+            if useBarChart {
+                weekBarChart(records: records)
+                weekStatusDotsRow(records: records)
+            } else {
+                macroDotsMatrix(records: records)
+            }
 
             HStack {
                 if withData > 0 && DailyTarget.calories > 0 {
@@ -461,6 +512,83 @@ struct PerformanceTileView: View {
                 if streak > 0 {
                     streakLabel(count: streak, isBest: false)
                 }
+            }
+        }
+    }
+
+    // MARK: - Week Bar Chart
+
+    private func barColor(for status: DotStatus) -> Color {
+        switch status {
+        case .onTarget: return .green
+        case .over(let severe), .under(let severe): return severe ? .red : .yellow
+        case .noData, .noTarget: return Color(.systemGray4)
+        }
+    }
+
+    private func weekBarChart(records: [DayRecord]) -> some View {
+        let calendar = Calendar.current
+        let calTarget = DailyTarget.calories
+
+        let chartData: [(label: String, calories: Int, status: DotStatus, index: Int)] = records.enumerated().map { i, record in
+            let weekday = calendar.component(.weekday, from: record.date)
+            let symbol = calendar.veryShortWeekdaySymbols[weekday - 1]
+            return (label: symbol, calories: record.calories, status: dayOverallStatus(record), index: i)
+        }
+
+        let maxCal = chartData.map { Double($0.calories) }.max() ?? 0
+        let yMax = max(Double(calTarget > 0 ? calTarget : 2000) * 1.4, maxCal * 1.15)
+
+        return Chart {
+            if calTarget > 0 {
+                RuleMark(y: .value("Target", calTarget))
+                    .lineStyle(StrokeStyle(lineWidth: 1, dash: [4, 3]))
+                    .foregroundStyle(.secondary.opacity(0.6))
+            }
+
+            ForEach(chartData, id: \.index) { item in
+                BarMark(
+                    x: .value("Day", item.index),
+                    y: .value("Calories", item.calories)
+                )
+                .foregroundStyle(barColor(for: item.status))
+                .cornerRadius(4)
+            }
+        }
+        .chartYAxis(.hidden)
+        .chartXAxis {
+            AxisMarks(values: chartData.map { $0.index }) { value in
+                if let idx = value.as(Int.self), idx < chartData.count {
+                    AxisValueLabel {
+                        Text(chartData[idx].label)
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+            }
+        }
+        .chartXScale(domain: -0.5...6.5)
+        .chartYScale(domain: 0...yMax)
+        .frame(height: 120)
+    }
+
+    // MARK: - Week Status Dots Row
+
+    private func weekStatusDotsRow(records: [DayRecord]) -> some View {
+        HStack(spacing: 0) {
+            ForEach(Array(records.enumerated()), id: \.offset) { _, record in
+                let status = dayOverallStatus(record)
+                ZStack {
+                    Circle()
+                        .fill(status.color)
+                        .frame(width: 10, height: 10)
+                    if let arrow = status.arrowName {
+                        Image(systemName: arrow)
+                            .font(.system(size: 5, weight: .bold))
+                            .foregroundStyle(.white)
+                    }
+                }
+                .frame(maxWidth: .infinity)
             }
         }
     }
