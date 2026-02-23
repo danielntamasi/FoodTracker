@@ -313,6 +313,54 @@ struct PerformanceTileView: View {
         return .red
     }
 
+    // MARK: - Month Weekly Dots
+
+    private func monthWeeklyDotsFrom(_ records: [DayRecord]) -> [(label: String, hasData: Bool, adherencePct: Double?)] {
+        // Split 28 days into 4 weeks (oldest first)
+        var dots: [(label: String, hasData: Bool, adherencePct: Double?)] = []
+        for week in 0..<4 {
+            let start = week * 7
+            let end = min(start + 7, records.count)
+            guard start < records.count else {
+                dots.append((label: "W\(week + 1)", hasData: false, adherencePct: nil))
+                continue
+            }
+            let weekRecords = Array(records[start..<end])
+            let withData = weekRecords.filter { $0.hasData }
+
+            if withData.isEmpty {
+                dots.append((label: "W\(week + 1)", hasData: false, adherencePct: nil))
+                continue
+            }
+
+            guard hasTargets else {
+                dots.append((label: "W\(week + 1)", hasData: true, adherencePct: nil))
+                continue
+            }
+
+            let onTarget = withData.filter { isDayFullyOnTarget($0) }.count
+            let adherence = Double(onTarget) / Double(withData.count)
+            dots.append((label: "W\(week + 1)", hasData: true, adherencePct: adherence))
+        }
+        return dots
+    }
+
+    private func weeklyDotsRow(dots: [(label: String, hasData: Bool, adherencePct: Double?)]) -> some View {
+        HStack(spacing: 0) {
+            ForEach(Array(dots.enumerated()), id: \.offset) { _, dot in
+                VStack(spacing: 4) {
+                    Circle()
+                        .fill(monthDotColor(hasData: dot.hasData, adherencePct: dot.adherencePct))
+                        .frame(width: 14, height: 14)
+                    Text(dot.label)
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                }
+                .frame(maxWidth: .infinity)
+            }
+        }
+    }
+
     // MARK: - Month Trend
 
     private var monthTrend: TrendDirection {
@@ -429,25 +477,30 @@ struct PerformanceTileView: View {
         let best = bestStreak(in: records)
         let trend = monthTrend
 
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(spacing: 10) {
             heroStat(onTarget: onTarget, total: withData, pct: pct)
+            weeklyDotsRow(dots: monthWeeklyDotsFrom(records))
 
-            if withData > 0 && DailyTarget.calories > 0 {
-                HStack(spacing: 0) {
-                    Text("Avg \(avg.formatted()) cal/day")
-                    Text("  \u{00B7}  Target \(DailyTarget.calories.formatted())")
+            HStack {
+                VStack(alignment: .leading, spacing: 4) {
+                    if withData > 0 && DailyTarget.calories > 0 {
+                        HStack(spacing: 0) {
+                            Text("Avg \(avg.formatted()) cal/day")
+                            Text("  \u{00B7}  Target \(DailyTarget.calories.formatted())")
+                        }
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    }
+
+                    Text(trend.label)
+                        .font(.caption)
+                        .fontWeight(.medium)
+                        .foregroundStyle(trend.color)
                 }
-                .font(.caption)
-                .foregroundStyle(.secondary)
-            }
-
-            Text(trend.label)
-                .font(.caption)
-                .fontWeight(.medium)
-                .foregroundStyle(trend.color)
-
-            if best > 0 {
-                streakLabel(count: best, isBest: true)
+                Spacer()
+                if best > 0 {
+                    streakLabel(count: best, isBest: true)
+                }
             }
         }
     }
@@ -494,6 +547,8 @@ struct PerformanceTileView: View {
 
             if selectedPeriod == .week {
                 noTargetDayDotsRow(records: records)
+            } else if selectedPeriod == .month {
+                weeklyDotsRow(dots: monthWeeklyDotsFrom(records))
             } else if selectedPeriod == .year {
                 monthDotsRow(dots: yearMonthlyDotsFrom(records))
             }
