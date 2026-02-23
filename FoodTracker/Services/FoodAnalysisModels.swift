@@ -47,6 +47,8 @@ struct IdentifiedFood: Identifiable {
     var servingGrams: Double?
     // How many servings the user selected (default 1)
     var servings: Double = 1.0
+    // Barcode string if this food came from a barcode scan
+    var barcode: String?
 }
 
 // MARK: - Vision Provider Selection

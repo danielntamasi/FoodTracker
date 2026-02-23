@@ -1,9 +1,36 @@
 import Foundation
+import os
 
 actor OpenFoodFactsService {
     static let shared = OpenFoodFactsService()
 
     private let baseURL = "https://world.openfoodfacts.org/api/v2/product"
+    private static let writeURL = "https://world.openfoodfacts.org/cgi/product_jqm2.pl"
+
+    // Keychain accounts for OFF app credentials
+    static let keychainAccountUserID = "off-user-id"
+    static let keychainAccountPassword = "off-password"
+
+    private static let logger = Logger(subsystem: "com.DNT.foodtracker", category: "OpenFoodFacts")
+
+    /// Stable per-device UUID for OFF moderation tracking
+    private static var deviceUUID: String {
+        let key = "off-device-uuid"
+        if let existing = UserDefaults.standard.string(forKey: key) {
+            return existing
+        }
+        let newUUID = UUID().uuidString
+        UserDefaults.standard.set(newUUID, forKey: key)
+        return newUUID
+    }
+
+    struct CorrectionData {
+        let barcode: String
+        let caloriesPerServing: Int
+        let proteinPerServing: Double
+        let carbsPerServing: Double
+        let fatPerServing: Double
+    }
 
     struct Product {
         let name: String
@@ -113,6 +140,51 @@ actor OpenFoodFactsService {
             carbsPer100g: carbsPer100g,
             fatPer100g: fatPer100g
         )
+    }
+
+    // MARK: - Submit Correction
+
+    /// Submits corrected nutrition data back to OpenFoodFacts. Fire-and-forget: errors are logged, never thrown.
+    func submitCorrection(_ correction: CorrectionData) async {
+        guard let userID = KeychainService.load(account: Self.keychainAccountUserID),
+              let password = KeychainService.load(account: Self.keychainAccountPassword),
+              !userID.isEmpty, !password.isEmpty else {
+            Self.logger.info("OFF correction skipped — no credentials configured")
+            return
+        }
+
+        guard let url = URL(string: Self.writeURL) else { return }
+
+        var bodyComponents = URLComponents()
+        bodyComponents.queryItems = [
+            URLQueryItem(name: "code", value: correction.barcode),
+            URLQueryItem(name: "user_id", value: userID),
+            URLQueryItem(name: "password", value: password),
+            URLQueryItem(name: "nutrition_data_per", value: "serving"),
+            URLQueryItem(name: "nutriment_energy-kcal", value: "\(correction.caloriesPerServing)"),
+            URLQueryItem(name: "nutriment_proteins", value: String(format: "%.1f", correction.proteinPerServing)),
+            URLQueryItem(name: "nutriment_carbohydrates", value: String(format: "%.1f", correction.carbsPerServing)),
+            URLQueryItem(name: "nutriment_fat", value: String(format: "%.1f", correction.fatPerServing)),
+            URLQueryItem(name: "app_name", value: "FoodTracker"),
+            URLQueryItem(name: "app_version", value: Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.0"),
+            URLQueryItem(name: "app_uuid", value: Self.deviceUUID),
+        ]
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("application/x-www-form-urlencoded", forHTTPHeaderField: "Content-Type")
+        request.setValue("FoodTracker iOS App", forHTTPHeaderField: "User-Agent")
+        request.httpBody = bodyComponents.query?.data(using: .utf8)
+
+        do {
+            let (data, response) = try await URLSession.shared.data(for: request)
+            if let httpResponse = response as? HTTPURLResponse {
+                let body = String(data: data, encoding: .utf8) ?? "(no body)"
+                Self.logger.info("OFF correction for \(correction.barcode): HTTP \(httpResponse.statusCode) — \(body)")
+            }
+        } catch {
+            Self.logger.error("OFF correction failed for \(correction.barcode): \(error.localizedDescription)")
+        }
     }
 
     private func asDouble(_ value: Any?) -> Double? {

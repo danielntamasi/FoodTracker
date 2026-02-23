@@ -11,6 +11,8 @@ struct PhotoAnalysisView: View {
     @State private var isLoading: Bool
     @State private var loadingStatus = "Identifying food..."
     @State private var errorMessage: String?
+    @State private var showCorrectionAlert = false
+    @State private var pendingCorrections: [OpenFoodFactsService.CorrectionData] = []
 
     // Standard init for photo analysis
     init(image: UIImage) {
@@ -116,6 +118,16 @@ struct PhotoAnalysisView: View {
                 if image != nil && identifiedFoods.isEmpty {
                     analyzePhoto()
                 }
+            }
+            .alert("Improve Nutrition Data?", isPresented: $showCorrectionAlert) {
+                Button("Submit Correction") {
+                    let corrections = pendingCorrections
+                    Task { for c in corrections { await OpenFoodFactsService.shared.submitCorrection(c) } }
+                    dismiss()
+                }
+                Button("No Thanks", role: .cancel) { dismiss() }
+            } message: {
+                Text("You corrected the nutrition data for a scanned product. Submit your correction to OpenFoodFacts to help other users?")
             }
         }
     }
@@ -304,60 +316,19 @@ struct PhotoAnalysisView: View {
         let servingDesc = identifiedFoods[index].portionDescription
         let servingLabel = servingDesc.isEmpty ? "serving" : servingDesc
 
-        VStack(alignment: .leading, spacing: 8) {
-            HStack {
-                Text("Servings")
-                Spacer()
-                Text(formatServings(identifiedFoods[index].servings))
-                    .foregroundStyle(.secondary)
-                Text("x \(servingLabel)")
-                    .foregroundStyle(.secondary)
-                    .lineLimit(1)
-            }
-
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 8) {
-                    ForEach(servingPresets, id: \.self) { preset in
-                        Button {
-                            applyServings(preset, at: index)
-                        } label: {
-                            Text(formatServings(preset))
-                                .font(.subheadline)
-                                .fontWeight(identifiedFoods[index].servings == preset ? .bold : .regular)
-                                .padding(.horizontal, 12)
-                                .padding(.vertical, 6)
-                                .background(
-                                    identifiedFoods[index].servings == preset
-                                        ? Color.accentColor.opacity(0.2)
-                                        : Color(.systemGray5)
-                                )
-                                .foregroundStyle(
-                                    identifiedFoods[index].servings == preset
-                                        ? Color.accentColor
-                                        : .primary
-                                )
-                                .clipShape(Capsule())
-                        }
-                        .buttonStyle(.plain)
-                    }
-                }
-            }
-        }
-        .padding(.vertical, 4)
-
         HStack {
-            Text("Custom servings")
+            Text("Serving Size")
             Spacer()
-            TextField("Servings", value: Binding(
-                get: { identifiedFoods[index].servings },
-                set: { newValue in
-                    applyServings(max(0.01, newValue), at: index)
-                }
-            ), format: .number)
-            .keyboardType(.decimalPad)
-            .multilineTextAlignment(.trailing)
-            .frame(maxWidth: 80)
+            Text(servingLabel)
+                .foregroundStyle(.secondary)
         }
+
+        ServingPicker(servings: Binding(
+            get: { identifiedFoods[index].servings },
+            set: { newValue in
+                applyServings(max(0.25, newValue), at: index)
+            }
+        ))
     }
 
     private func applyServings(_ servings: Double, at index: Int) {
@@ -407,6 +378,7 @@ struct PhotoAnalysisView: View {
     private func saveAll() {
         let thumbnailData = image?.jpegData(compressionQuality: 0.5)
         var groupsWithPhoto: Set<UUID> = []
+        var corrections: [OpenFoodFactsService.CorrectionData] = []
 
         for food in identifiedFoods {
             // Only store photo on the first entry of each meal group to avoid duplicate blob storage
@@ -429,17 +401,48 @@ struct PhotoAnalysisView: View {
                let protPer100g = food.proteinPer100g,
                let carbsPer100g = food.carbsPer100g,
                let fatPer100g = food.fatPer100g {
-                // Has per-100g data: compute per-serving from base values
+                // Has per-100g data: check if user manually edited macros
                 let oneServingGrams = food.servingGrams ?? 100
-                let scaled = perServingFromPer100g(
+                let expectedTotalGrams = oneServingGrams * food.servings
+                let expected = perServingFromPer100g(
                     calPer100g: calPer100g, protPer100g: protPer100g,
                     carbsPer100g: carbsPer100g, fatPer100g: fatPer100g,
-                    servingGrams: oneServingGrams
+                    servingGrams: expectedTotalGrams
                 )
-                perServingCal = scaled.calories
-                perServingP = scaled.protein
-                perServingC = scaled.carbs
-                perServingF = scaled.fat
+                let calDiff = abs(food.calories - expected.calories)
+                let protDiff = abs(food.proteinGrams - expected.protein)
+                let carbsDiff = abs(food.carbsGrams - expected.carbs)
+                let fatDiff = abs(food.fatGrams - expected.fat)
+                let userEdited = calDiff > 1 || protDiff > 0.2 || carbsDiff > 0.2 || fatDiff > 0.2
+
+                if userEdited {
+                    // User manually corrected values — back-calculate per-serving from displayed totals
+                    perServingCal = food.servings > 0 ? Int((Double(food.calories) / food.servings).rounded()) : food.calories
+                    perServingP = food.servings > 0 ? food.proteinGrams / food.servings : food.proteinGrams
+                    perServingC = food.servings > 0 ? food.carbsGrams / food.servings : food.carbsGrams
+                    perServingF = food.servings > 0 ? food.fatGrams / food.servings : food.fatGrams
+
+                    if let barcode = food.barcode {
+                        corrections.append(OpenFoodFactsService.CorrectionData(
+                            barcode: barcode,
+                            caloriesPerServing: perServingCal,
+                            proteinPerServing: perServingP,
+                            carbsPerServing: perServingC,
+                            fatPerServing: perServingF
+                        ))
+                    }
+                } else {
+                    // No edits — use precise per-100g computed values
+                    let scaled = perServingFromPer100g(
+                        calPer100g: calPer100g, protPer100g: protPer100g,
+                        carbsPer100g: carbsPer100g, fatPer100g: fatPer100g,
+                        servingGrams: oneServingGrams
+                    )
+                    perServingCal = scaled.calories
+                    perServingP = scaled.protein
+                    perServingC = scaled.carbs
+                    perServingF = scaled.fat
+                }
                 savedServings = food.servings
             } else {
                 // AI-estimated: values represent the detected portion (= 1 serving)
@@ -460,11 +463,20 @@ struct PhotoAnalysisView: View {
                 mealGroupID: food.mealGroupID,
                 mealName: food.mealName,
                 iconName: foodIconName(for: food.name),
-                servings: savedServings
+                servings: savedServings,
+                servingDescription: food.portionDescription.isEmpty ? nil : food.portionDescription,
+                servingGrams: food.servingGrams,
+                barcode: food.barcode
             )
             modelContext.insert(entry)
         }
-        dismiss()
+
+        if corrections.isEmpty {
+            dismiss()
+        } else {
+            pendingCorrections = corrections
+            showCorrectionAlert = true
+        }
     }
 }
 

@@ -14,6 +14,8 @@ struct EditEntryView: View {
     @State private var lookupDescription: String?
     @State private var extractedColor: Color?
     @State private var showingBarcodeScanner = false
+    @State private var showCorrectionAlert = false
+    @State private var pendingCorrection: OpenFoodFactsService.CorrectionData?
 
     // Snapshot of original values for Cancel support
     @State private var originalName = ""
@@ -56,6 +58,19 @@ struct EditEntryView: View {
         isEditing && entry.name != originalName && !entry.name.isEmpty
     }
 
+    private var servingSizeLabel: String? {
+        let desc = entry.servingDescription
+        let grams = entry.servingGrams
+        if let desc, let grams {
+            return "\(desc) (\(Int(grams))g)"
+        } else if let desc {
+            return desc
+        } else if let grams {
+            return "\(Int(grams))g"
+        }
+        return nil
+    }
+
     // MARK: - Body
 
     var body: some View {
@@ -71,7 +86,7 @@ struct EditEntryView: View {
             }
         }
         .sheet(isPresented: $showingBarcodeScanner) {
-            EditBarcodeScannerView { product in
+            EditBarcodeScannerView { product, barcode in
                 entry.name = product.name
                 entry.calories = product.calories
                 entry.proteinGrams = product.proteinGrams
@@ -80,7 +95,20 @@ struct EditEntryView: View {
                 entry.iconName = foodIconName(for: product.name)
                 entry.servings = 1.0
                 servings = 1.0
+                entry.servingDescription = product.servingSize
+                entry.servingGrams = product.portionGrams > 0 ? product.portionGrams : nil
+                entry.barcode = barcode
             }
+        }
+        .alert("Improve Nutrition Data?", isPresented: $showCorrectionAlert) {
+            Button("Submit Correction") {
+                if let correction = pendingCorrection {
+                    Task { await OpenFoodFactsService.shared.submitCorrection(correction) }
+                }
+            }
+            Button("No Thanks", role: .cancel) { }
+        } message: {
+            Text("You corrected the nutrition data for a scanned product. Submit your correction to OpenFoodFacts to help other users?")
         }
     }
 
@@ -148,6 +176,28 @@ struct EditEntryView: View {
         entry.iconName = foodIconName(for: entry.name)
         lookupError = nil
         lookupDescription = nil
+
+        // Correction detection for barcode entries
+        if let barcode = entry.barcode {
+            let calChanged = entry.calories != originalCalories
+            let protChanged = abs(entry.proteinGrams - originalProtein) > 0.01
+            let carbsChanged = abs(entry.carbsGrams - originalCarbs) > 0.01
+            let fatChanged = abs(entry.fatGrams - originalFat) > 0.01
+
+            if calChanged || protChanged || carbsChanged || fatChanged {
+                pendingCorrection = OpenFoodFactsService.CorrectionData(
+                    barcode: barcode,
+                    caloriesPerServing: entry.calories,
+                    proteinPerServing: entry.proteinGrams,
+                    carbsPerServing: entry.carbsGrams,
+                    fatPerServing: entry.fatGrams
+                )
+                withAnimation(.easeInOut(duration: 0.25)) { isEditing = false }
+                showCorrectionAlert = true
+                return
+            }
+        }
+
         withAnimation(.easeInOut(duration: 0.25)) { isEditing = false }
     }
 
@@ -192,6 +242,16 @@ struct EditEntryView: View {
                                     carbs: entry.totalCarbsGrams,
                                     fat: entry.totalFatGrams
                                 )
+                            }
+
+                            if let servingSizeText = servingSizeLabel {
+                                HStack(spacing: 4) {
+                                    Text(formatServings(entry.servings))
+                                        .fontWeight(.medium)
+                                    Text("× \(servingSizeText)")
+                                }
+                                .font(.caption)
+                                .foregroundStyle(.white.opacity(0.5))
                             }
 
                             Text(formattedTimestamp)
@@ -296,64 +356,22 @@ struct EditEntryView: View {
             }
 
             groupedSection(header: "Servings") {
-                groupedRow {
-                    Text("Servings")
-                    Spacer()
-                    Text(formatServings(servings))
-                        .foregroundStyle(.white.opacity(0.6))
-                }
-                groupedDivider
-                ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(spacing: 8) {
-                        ForEach(servingPresets, id: \.self) { preset in
-                            Button {
-                                servings = preset
-                            } label: {
-                                Text(formatServings(preset))
-                                    .font(.subheadline)
-                                    .fontWeight(servings == preset ? .bold : .regular)
-                                    .padding(.horizontal, 12)
-                                    .padding(.vertical, 6)
-                                    .background(
-                                        servings == preset
-                                            ? Color.accentColor.opacity(0.3)
-                                            : .white.opacity(0.1)
-                                    )
-                                    .foregroundStyle(
-                                        servings == preset
-                                            ? Color.accentColor
-                                            : .white.opacity(0.7)
-                                    )
-                                    .clipShape(Capsule())
-                            }
-                            .buttonStyle(.plain)
+                HStack(spacing: 0) {
+                    ServingPicker(servings: $servings)
+                        .frame(width: 100)
+
+                    VStack(alignment: .trailing, spacing: 10) {
+                        if let servingSizeText = servingSizeLabel {
+                            Text(servingSizeText)
+                                .font(.caption)
+                                .foregroundStyle(.white.opacity(0.6))
                         }
-                    }
-                    .padding(.horizontal, 16)
-                    .padding(.vertical, 8)
-                }
-                groupedDivider
-                groupedRow {
-                    Text("Custom")
-                    Spacer()
-                    TextField("Servings", value: $servings, format: .number)
-                        .keyboardType(.decimalPad)
-                        .multilineTextAlignment(.trailing)
-                        .frame(maxWidth: 80)
-                }
-                if servings != 1.0 && entry.calories > 0 {
-                    groupedDivider
-                    groupedRow {
-                        VStack(alignment: .leading, spacing: 4) {
-                            HStack {
-                                Text("Total")
-                                    .fontWeight(.medium)
-                                Spacer()
+
+                        if entry.calories > 0 {
+                            VStack(alignment: .trailing, spacing: 2) {
                                 Text("\(Int((Double(entry.calories) * servings).rounded())) cal")
-                                    .foregroundStyle(.white.opacity(0.6))
-                            }
-                            HStack {
-                                Spacer()
+                                    .font(.title3)
+                                    .fontWeight(.semibold)
                                 coloredMacroText(
                                     protein: entry.proteinGrams * servings,
                                     carbs: entry.carbsGrams * servings,
@@ -363,7 +381,10 @@ struct EditEntryView: View {
                             }
                         }
                     }
+                    .frame(maxWidth: .infinity, alignment: .trailing)
+                    .padding(.trailing, 16)
                 }
+                .padding(.vertical, 4)
             }
 
             groupedSection(header: "Date & Time") {
@@ -374,6 +395,7 @@ struct EditEntryView: View {
             }
         }
         .padding(.top, -20)
+        .environment(\.colorScheme, .dark)
     }
 
     // MARK: - Grouped Section Helpers
@@ -436,6 +458,8 @@ struct EditEntryView: View {
                     entry.proteinGrams = scaled.protein
                     entry.carbsGrams = scaled.carbs
                     entry.fatGrams = scaled.fat
+                    entry.servingDescription = result.servingDescription
+                    entry.servingGrams = result.servingGrams
                     servings = 1.0
                     // Build description for user verification
                     if let servingDesc = result.servingDescription {
@@ -459,7 +483,7 @@ struct EditEntryView: View {
 
 struct EditBarcodeScannerView: View {
     @Environment(\.dismiss) private var dismiss
-    let onProductScanned: (OpenFoodFactsService.Product) -> Void
+    let onProductScanned: (OpenFoodFactsService.Product, String) -> Void
 
     @State private var isLookingUp = false
     @State private var lookupError: String?
@@ -527,7 +551,7 @@ struct EditBarcodeScannerView: View {
         Task {
             do {
                 let product = try await OpenFoodFactsService.shared.lookup(barcode: barcode)
-                onProductScanned(product)
+                onProductScanned(product, barcode)
                 dismiss()
             } catch {
                 lookupError = error.localizedDescription

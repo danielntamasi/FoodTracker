@@ -33,6 +33,9 @@ struct SettingsView: View {
     @State private var showingKey = false
     @State private var usdaKey = ""
     @State private var showingUSDAKey = false
+    @State private var offUserID = ""
+    @State private var offPassword = ""
+    @State private var showingOFFPassword = false
     @State private var savedSuccessfully = false
     @State private var calorieTarget = DailyTarget.calories
     @State private var proteinTarget = DailyTarget.protein
@@ -119,6 +122,42 @@ struct SettingsView: View {
                 }
 
                 Section {
+                    TextField("Username", text: $offUserID)
+                        .textInputAutocapitalization(.never)
+                        .autocorrectionDisabled()
+
+                    HStack {
+                        if showingOFFPassword {
+                            TextField("Password", text: $offPassword)
+                                .textInputAutocapitalization(.never)
+                                .autocorrectionDisabled()
+                        } else {
+                            SecureField("Password", text: $offPassword)
+                                .textInputAutocapitalization(.never)
+                                .autocorrectionDisabled()
+                        }
+                        Button {
+                            showingOFFPassword.toggle()
+                        } label: {
+                            Image(systemName: showingOFFPassword ? "eye.slash" : "eye")
+                                .foregroundStyle(.secondary)
+                        }
+                        .buttonStyle(.plain)
+                    }
+
+                    Button("Save OFF Credentials") {
+                        let u = KeychainService.save(apiKey: offUserID, account: OpenFoodFactsService.keychainAccountUserID)
+                        let p = KeychainService.save(apiKey: offPassword, account: OpenFoodFactsService.keychainAccountPassword)
+                        if u && p { savedSuccessfully = true }
+                    }
+                    .disabled(offUserID.isEmpty || offPassword.isEmpty)
+                } header: {
+                    Text("OpenFoodFacts Account (Optional)")
+                } footer: {
+                    Text("When you correct nutrition data on a scanned product, the app can submit corrections to OpenFoodFacts. Register free at world.openfoodfacts.org.")
+                }
+
+                Section {
                     targetRow("Calories", value: $calorieTarget, key: DailyTarget.calorieKey)
                     targetRow("Protein (g)", value: $proteinTarget, key: DailyTarget.proteinKey)
                     targetRow("Carbs (g)", value: $carbsTarget, key: DailyTarget.carbsKey)
@@ -155,6 +194,8 @@ struct SettingsView: View {
             .onAppear {
                 loadKeyForCurrentProvider()
                 usdaKey = KeychainService.load(account: USDAService.keychainAccount) ?? ""
+                offUserID = KeychainService.load(account: OpenFoodFactsService.keychainAccountUserID) ?? ""
+                offPassword = KeychainService.load(account: OpenFoodFactsService.keychainAccountPassword) ?? ""
             }
             .alert("API Key Saved", isPresented: $savedSuccessfully) {
                 Button("OK", role: .cancel) {}

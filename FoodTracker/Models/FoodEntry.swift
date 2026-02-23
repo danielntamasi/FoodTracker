@@ -53,6 +53,9 @@ final class FoodEntry {
     var iconName: String?
     var sortOrder: Int?
     var servings: Double = 1.0
+    var servingDescription: String?
+    var servingGrams: Double?
+    var barcode: String?
 
     var totalCalories: Int { Int((Double(calories) * servings).rounded()) }
     var totalProteinGrams: Double { (proteinGrams * servings * 10).rounded() / 10 }
@@ -73,7 +76,10 @@ final class FoodEntry {
         mealName: String? = nil,
         iconName: String? = nil,
         sortOrder: Int? = nil,
-        servings: Double = 1.0
+        servings: Double = 1.0,
+        servingDescription: String? = nil,
+        servingGrams: Double? = nil,
+        barcode: String? = nil
     ) {
         self.id = id
         self.name = name
@@ -89,5 +95,8 @@ final class FoodEntry {
         self.iconName = iconName
         self.sortOrder = sortOrder
         self.servings = servings
+        self.servingDescription = servingDescription
+        self.servingGrams = servingGrams
+        self.barcode = barcode
     }
 }
