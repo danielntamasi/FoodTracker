@@ -6,8 +6,8 @@ struct BrowseFoodsView: View {
     @Environment(\.dismiss) private var dismiss
     @Query(sort: \FoodEntry.date, order: .reverse) private var allEntries: [FoodEntry]
 
-    private var frequentFoods: [(name: String, calories: Int, protein: Double, carbs: Double, fat: Double, count: Int, iconName: String?, photoData: Data?)] {
-        var groups: [String: (name: String, calories: Int, protein: Double, carbs: Double, fat: Double, count: Int, iconName: String?, photoData: Data?, latestDate: Date)] = [:]
+    private var frequentFoods: [(name: String, calories: Int, protein: Double, carbs: Double, fat: Double, count: Int, iconName: String?, photoData: Data?, servingDescription: String?, servingGrams: Double?)] {
+        var groups: [String: (name: String, calories: Int, protein: Double, carbs: Double, fat: Double, count: Int, iconName: String?, photoData: Data?, servingDescription: String?, servingGrams: Double?, latestDate: Date)] = [:]
         for entry in allEntries {
             let key = entry.name.lowercased().trimmingCharacters(in: .whitespaces)
             if key.isEmpty { continue }
@@ -16,10 +16,12 @@ struct BrowseFoodsView: View {
                 if entry.date > existing.latestDate {
                     existing.latestDate = entry.date
                     if entry.photoData != nil { existing.photoData = entry.photoData }
+                    if entry.servingDescription != nil { existing.servingDescription = entry.servingDescription }
+                    if entry.servingGrams != nil { existing.servingGrams = entry.servingGrams }
                 }
                 groups[key] = existing
             } else {
-                groups[key] = (name: entry.name, calories: entry.totalCalories, protein: entry.totalProteinGrams, carbs: entry.totalCarbsGrams, fat: entry.totalFatGrams, count: 1, iconName: entry.iconName, photoData: entry.photoData, latestDate: entry.date)
+                groups[key] = (name: entry.name, calories: entry.totalCalories, protein: entry.totalProteinGrams, carbs: entry.totalCarbsGrams, fat: entry.totalFatGrams, count: 1, iconName: entry.iconName, photoData: entry.photoData, servingDescription: entry.servingDescription, servingGrams: entry.servingGrams, latestDate: entry.date)
             }
         }
         return Array(
@@ -29,7 +31,7 @@ struct BrowseFoodsView: View {
                     return $0.latestDate > $1.latestDate
                 }
                 .prefix(5)
-                .map { ($0.name, $0.calories, $0.protein, $0.carbs, $0.fat, $0.count, $0.iconName, $0.photoData) }
+                .map { ($0.name, $0.calories, $0.protein, $0.carbs, $0.fat, $0.count, $0.iconName, $0.photoData, $0.servingDescription, $0.servingGrams) }
         )
     }
 
@@ -56,7 +58,7 @@ struct BrowseFoodsView: View {
                     Section("Frequent") {
                         ForEach(Array(frequentFoods.enumerated()), id: \.offset) { _, food in
                             Button {
-                                addFood(name: food.name, calories: food.calories, protein: food.protein, carbs: food.carbs, fat: food.fat, iconName: food.iconName, photoData: food.photoData)
+                                addFood(name: food.name, calories: food.calories, protein: food.protein, carbs: food.carbs, fat: food.fat, iconName: food.iconName, photoData: food.photoData, servingDescription: food.servingDescription, servingGrams: food.servingGrams)
                             } label: {
                                 HStack {
                                     Image(systemName: food.iconName ?? "fork.knife")
@@ -90,7 +92,7 @@ struct BrowseFoodsView: View {
                     Section("Recent") {
                         ForEach(recentFoods) { entry in
                             Button {
-                                addFood(name: entry.name, calories: entry.totalCalories, protein: entry.totalProteinGrams, carbs: entry.totalCarbsGrams, fat: entry.totalFatGrams, iconName: entry.iconName, photoData: entry.photoData)
+                                addFood(name: entry.name, calories: entry.totalCalories, protein: entry.totalProteinGrams, carbs: entry.totalCarbsGrams, fat: entry.totalFatGrams, iconName: entry.iconName, photoData: entry.photoData, servingDescription: entry.servingDescription, servingGrams: entry.servingGrams)
                             } label: {
                                 HStack {
                                     Image(systemName: entry.iconName ?? "fork.knife")
@@ -133,7 +135,7 @@ struct BrowseFoodsView: View {
         }
     }
 
-    private func addFood(name: String, calories: Int, protein: Double, carbs: Double, fat: Double, iconName: String?, photoData: Data? = nil) {
+    private func addFood(name: String, calories: Int, protein: Double, carbs: Double, fat: Double, iconName: String?, photoData: Data? = nil, servingDescription: String? = nil, servingGrams: Double? = nil) {
         let entry = FoodEntry(
             name: name,
             calories: calories,
@@ -142,7 +144,9 @@ struct BrowseFoodsView: View {
             fatGrams: fat,
             photoData: photoData,
             iconName: iconName ?? foodIconName(for: name),
-            servings: 1.0
+            servings: 1.0,
+            servingDescription: servingDescription,
+            servingGrams: servingGrams
         )
         modelContext.insert(entry)
         dismiss()

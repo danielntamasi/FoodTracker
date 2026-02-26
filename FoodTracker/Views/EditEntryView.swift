@@ -11,7 +11,10 @@ struct EditEntryView: View {
     @State private var isEditing = false
     @State private var isLookingUp = false
     @State private var lookupError: String?
-    @State private var lookupDescription: String?
+    @State private var lookupResults: [USDAService.USDALookupResult] = []
+    @State private var selectedResultIndex: Int?
+    @State private var isEstimating = false
+    @State private var aiEstimate: USDAService.USDALookupResult?
     @State private var extractedColor: Color?
     @State private var showingBarcodeScanner = false
     @State private var showCorrectionAlert = false
@@ -166,7 +169,9 @@ struct EditEntryView: View {
         entry.servings = originalServings
         servings = originalServings
         lookupError = nil
-        lookupDescription = nil
+        lookupResults = []
+        selectedResultIndex = nil
+        aiEstimate = nil
         withAnimation(.easeInOut(duration: 0.25)) { isEditing = false }
     }
 
@@ -174,8 +179,14 @@ struct EditEntryView: View {
         entry.servings = servings
         entry.name = entry.name.titleCased()
         entry.iconName = foodIconName(for: entry.name)
+        // Round macro values to 1 decimal to clean up any unrounded stored data
+        entry.proteinGrams = (entry.proteinGrams * 10).rounded() / 10
+        entry.carbsGrams = (entry.carbsGrams * 10).rounded() / 10
+        entry.fatGrams = (entry.fatGrams * 10).rounded() / 10
         lookupError = nil
-        lookupDescription = nil
+        lookupResults = []
+        selectedResultIndex = nil
+        aiEstimate = nil
 
         // Correction detection for barcode entries
         if let barcode = entry.barcode {
@@ -222,10 +233,10 @@ struct EditEntryView: View {
                         title: entry.name,
                         iconName: entry.iconName ?? foodIconName(for: entry.name),
                         bgColor: bgColor,
-                        totalCalories: entry.totalCalories,
-                        totalProtein: entry.totalProteinGrams,
-                        totalCarbs: entry.totalCarbsGrams,
-                        totalFat: entry.totalFatGrams,
+                        totalCalories: isEditing ? Int((Double(entry.calories) * servings).rounded()) : entry.totalCalories,
+                        totalProtein: isEditing ? (entry.proteinGrams * servings * 10).rounded() / 10 : entry.totalProteinGrams,
+                        totalCarbs: isEditing ? (entry.carbsGrams * servings * 10).rounded() / 10 : entry.totalCarbsGrams,
+                        totalFat: isEditing ? (entry.fatGrams * servings * 10).rounded() / 10 : entry.totalFatGrams,
                         geoWidth: fullGeo.size.width,
                         geoHeight: fullGeo.size.height
                     )
@@ -311,14 +322,6 @@ struct EditEntryView: View {
                             .foregroundStyle(.red)
                     }
                 }
-                if let desc = lookupDescription {
-                    groupedDivider
-                    groupedRow {
-                        Text(desc)
-                            .font(.caption)
-                            .foregroundStyle(.green)
-                    }
-                }
                 groupedDivider
                 groupedRow {
                     Text("Calories")
@@ -329,11 +332,55 @@ struct EditEntryView: View {
                 }
             }
 
+            if !lookupResults.isEmpty {
+                groupedSection(header: "USDA Results") {
+                    groupedRow {
+                        USDAResultsList(results: lookupResults, selectedIndex: $selectedResultIndex)
+                            .onChange(of: selectedResultIndex) { _, newIndex in
+                                if let index = newIndex {
+                                    applyLookupResult(lookupResults[index])
+                                }
+                            }
+                    }
+                }
+            }
+
+            if let estimate = aiEstimate {
+                groupedSection(header: "AI Estimate") {
+                    groupedRow {
+                        USDAResultCard(result: estimate, isSelected: true) {
+                            applyLookupResult(estimate)
+                        }
+                    }
+                }
+            }
+
+            if nameChanged && !isLookingUp && !isEstimating && aiEstimate == nil {
+                groupedSection {
+                    groupedRow {
+                        Button { runAIEstimate() } label: {
+                            HStack {
+                                Label("AI Estimate", systemImage: "brain")
+                                    .foregroundStyle(.white.opacity(0.7))
+                                Spacer()
+                                if isEstimating {
+                                    ProgressView()
+                                        .controlSize(.small)
+                                        .tint(.white)
+                                }
+                            }
+                        }
+                        .buttonStyle(.plain)
+                        .disabled(isEstimating)
+                    }
+                }
+            }
+
             groupedSection(header: "Macros (grams)") {
                 groupedRow {
                     Text("Protein")
                     Spacer()
-                    TextField("Protein", value: $entry.proteinGrams, format: .number)
+                    TextField("Protein", value: $entry.proteinGrams, format: .number.precision(.fractionLength(0...1)))
                         .keyboardType(.decimalPad)
                         .multilineTextAlignment(.trailing)
                 }
@@ -341,7 +388,7 @@ struct EditEntryView: View {
                 groupedRow {
                     Text("Carbs")
                     Spacer()
-                    TextField("Carbs", value: $entry.carbsGrams, format: .number)
+                    TextField("Carbs", value: $entry.carbsGrams, format: .number.precision(.fractionLength(0...1)))
                         .keyboardType(.decimalPad)
                         .multilineTextAlignment(.trailing)
                 }
@@ -349,7 +396,7 @@ struct EditEntryView: View {
                 groupedRow {
                     Text("Fat")
                     Spacer()
-                    TextField("Fat", value: $entry.fatGrams, format: .number)
+                    TextField("Fat", value: $entry.fatGrams, format: .number.precision(.fractionLength(0...1)))
                         .keyboardType(.decimalPad)
                         .multilineTextAlignment(.trailing)
                 }
@@ -446,35 +493,53 @@ struct EditEntryView: View {
     private func lookupNutrition() {
         isLookingUp = true
         lookupError = nil
-        lookupDescription = nil
+        lookupResults = []
+        selectedResultIndex = nil
+        aiEstimate = nil
 
         Task {
             do {
-                let result = try await USDAService.shared.lookupFood(for: entry.name)
-                let per100g = result.nutrientsPer100g
-                if per100g.calories > 0 || per100g.protein > 0 || per100g.carbs > 0 || per100g.fat > 0 {
-                    let scaled = result.perServing
-                    entry.calories = Int(scaled.calories)
-                    entry.proteinGrams = scaled.protein
-                    entry.carbsGrams = scaled.carbs
-                    entry.fatGrams = scaled.fat
-                    entry.servingDescription = result.servingDescription
-                    entry.servingGrams = result.servingGrams
-                    servings = 1.0
-                    // Build description for user verification
-                    if let servingDesc = result.servingDescription {
-                        let gramsNote = result.servingGrams.map { " (\(Int($0))g)" } ?? ""
-                        lookupDescription = "\(result.description.titleCased()) — \(servingDesc)\(gramsNote)"
+                let results = try await USDAService.shared.lookupFoodOptions(for: entry.name)
+                withAnimation {
+                    if results.isEmpty {
+                        lookupError = "No nutrition data found for \"\(entry.name)\"."
                     } else {
-                        lookupDescription = "\(result.description.titleCased()) — per 100g"
+                        lookupResults = results
                     }
-                } else {
-                    lookupError = "No nutrition data found for \"\(entry.name)\"."
                 }
             } catch {
                 lookupError = error.localizedDescription
             }
             isLookingUp = false
+        }
+    }
+
+    private func applyLookupResult(_ result: USDAService.USDALookupResult) {
+        let scaled = result.perServing
+        entry.calories = Int(scaled.calories)
+        entry.proteinGrams = scaled.protein
+        entry.carbsGrams = scaled.carbs
+        entry.fatGrams = scaled.fat
+        entry.servingDescription = result.servingDescription
+        entry.servingGrams = result.servingGrams
+        servings = 1.0
+    }
+
+    private func runAIEstimate() {
+        isEstimating = true
+        lookupError = nil
+
+        Task {
+            do {
+                let result = try await FoodAnalysisPipeline.estimateNutrition(for: entry.name)
+                withAnimation {
+                    aiEstimate = result
+                    applyLookupResult(result)
+                }
+            } catch {
+                lookupError = error.localizedDescription
+            }
+            isEstimating = false
         }
     }
 }

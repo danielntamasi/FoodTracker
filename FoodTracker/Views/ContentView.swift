@@ -5,7 +5,7 @@ enum AppTab {
 }
 
 enum QuickAddAction {
-    case photo, barcode, manual, browse, uploadPhoto
+    case photo, barcode, search, browse, uploadPhoto
 }
 
 struct ContentView: View {
@@ -16,12 +16,13 @@ struct ContentView: View {
     @State private var showingPhotoUpload = false
     @State private var showingBarcodeScanner = false
     @State private var showingBrowse = false
+    @State private var showingSearch = false
     @State private var layoutHeight: CGFloat = 700
     @State private var layoutWidth: CGFloat = 393
 
     private let radialItems: [(icon: String, label: String, action: QuickAddAction)] = [
         ("clock.arrow.circlepath", "Recent", .browse),
-        ("pencil", "Manual", .manual),
+        ("magnifyingglass", "Search", .search),
         ("camera", "Photo", .photo),
         ("photo.on.rectangle", "Upload", .uploadPhoto),
         ("barcode.viewfinder", "Barcode", .barcode),
@@ -83,6 +84,9 @@ struct ContentView: View {
         }
         .sheet(isPresented: $showingBrowse) {
             BrowseFoodsView()
+        }
+        .sheet(isPresented: $showingSearch) {
+            SearchFoodView()
         }
     }
 
@@ -149,7 +153,7 @@ struct ContentView: View {
         switch action {
         case .photo: showingPhotoCapture = true
         case .barcode: showingBarcodeScanner = true
-        case .manual: showingAddEntry = true
+        case .search: showingSearch = true
         case .browse: showingBrowse = true
         case .uploadPhoto: showingPhotoUpload = true
         }

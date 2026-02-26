@@ -22,6 +22,63 @@ Return ONLY valid JSON with no additional text, in this exact format:
 ]}
 """
 
+// MARK: - Text-based nutrition estimation prompt
+
+private let nutritionEstimatePrompt = """
+Estimate the nutrition for this food item. Provide your best estimate for a single standard serving.
+
+Return ONLY valid JSON with no additional text, in this exact format:
+{"name": "Chicken Fajita", "serving_description": "1 fajita", "serving_grams": 220, "calories": 350, "protein_grams": 28, "carbs_grams": 26, "fat_grams": 14}
+
+Rules:
+- Use a realistic standard serving size
+- For prepared/cooked dishes, estimate the complete dish nutrition (all ingredients combined)
+- Include a human-readable serving_description (e.g. "1 bowl", "1 plate", "1 sandwich", "1 cup")
+- Include serving_grams as the approximate weight of that serving in grams
+- Be accurate — users depend on these values for dietary tracking
+
+The food to estimate:
+"""
+
+// MARK: - AI Nutrition Estimate Result
+
+struct AIEstimateResult {
+    let name: String
+    let servingDescription: String?
+    let servingGrams: Double?
+    let calories: Int
+    let proteinGrams: Double
+    let carbsGrams: Double
+    let fatGrams: Double
+}
+
+private func decodeEstimateResponse(from text: String) throws -> AIEstimateResult {
+    let jsonString = extractJSON(from: text)
+
+    guard let data = jsonString.data(using: .utf8),
+          let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+        throw FoodAnalysisError.apiError("Could not parse AI nutrition estimate.")
+    }
+
+    let name = json["name"] as? String ?? ""
+    let servingDesc = json["serving_description"] as? String
+    let servingGrams = json["serving_grams"] as? Double
+    let calories = json["calories"] as? Double ?? 0
+    let protein = json["protein_grams"] as? Double ?? 0
+    let carbs = json["carbs_grams"] as? Double ?? 0
+    let fat = json["fat_grams"] as? Double ?? 0
+
+    return AIEstimateResult(
+        name: name,
+        servingDescription: servingDesc,
+        servingGrams: servingGrams,
+        calories: Int(calories),
+        proteinGrams: protein,
+        carbsGrams: carbs,
+        fatGrams: fat
+    )
+}
+
 // MARK: - Image Preparation
 
 /// Resizes and compresses an image to stay under the API size limit (~4MB JPEG).
@@ -121,6 +178,47 @@ actor ClaudeAPIService {
         return try decodeVisionResponse(from: text)
     }
 
+    func estimateNutrition(for foodName: String) async throws -> AIEstimateResult {
+        guard let apiKey = KeychainService.load(account: VisionProvider.claude.keychainAccount),
+              !apiKey.isEmpty else {
+            throw FoodAnalysisError.noAPIKey
+        }
+
+        let requestBody: [String: Any] = [
+            "model": model,
+            "max_tokens": 512,
+            "system": "You are a nutrition estimation assistant. Always respond with valid JSON only.",
+            "messages": [
+                [
+                    "role": "user",
+                    "content": nutritionEstimatePrompt + foodName
+                ]
+            ]
+        ]
+
+        var request = URLRequest(url: endpoint)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.setValue(apiKey, forHTTPHeaderField: "x-api-key")
+        request.setValue("2023-06-01", forHTTPHeaderField: "anthropic-version")
+        request.httpBody = try JSONSerialization.data(withJSONObject: requestBody)
+
+        let (data, response) = try await performRequest(request)
+
+        guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
+            throw FoodAnalysisError.apiError("AI estimation failed. Please try again.")
+        }
+
+        guard let responseJSON = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let content = responseJSON["content"] as? [[String: Any]],
+              let firstBlock = content.first,
+              let text = firstBlock["text"] as? String else {
+            throw FoodAnalysisError.invalidResponse
+        }
+
+        return try decodeEstimateResponse(from: text)
+    }
+
     private func performRequest(_ request: URLRequest) async throws -> (Data, URLResponse) {
         do {
             return try await URLSession.shared.data(for: request)
@@ -201,6 +299,53 @@ actor GeminiAPIService {
 
         return try decodeVisionResponse(from: text)
     }
+    func estimateNutrition(for foodName: String) async throws -> AIEstimateResult {
+        guard let apiKey = KeychainService.load(account: VisionProvider.gemini.keychainAccount),
+              !apiKey.isEmpty else {
+            throw FoodAnalysisError.noAPIKey
+        }
+
+        let endpoint = URL(string: "https://generativelanguage.googleapis.com/v1beta/models/\(model):generateContent")!
+
+        let requestBody: [String: Any] = [
+            "contents": [
+                [
+                    "parts": [
+                        ["text": nutritionEstimatePrompt + foodName]
+                    ]
+                ]
+            ]
+        ]
+
+        var request = URLRequest(url: endpoint)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.setValue(apiKey, forHTTPHeaderField: "x-goog-api-key")
+        request.httpBody = try JSONSerialization.data(withJSONObject: requestBody)
+
+        let (data, response): (Data, URLResponse)
+        do {
+            (data, response) = try await URLSession.shared.data(for: request)
+        } catch {
+            throw FoodAnalysisError.networkError(error)
+        }
+
+        guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
+            throw FoodAnalysisError.apiError("AI estimation failed. Please try again.")
+        }
+
+        guard let responseJSON = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let candidates = responseJSON["candidates"] as? [[String: Any]],
+              let firstCandidate = candidates.first,
+              let content = firstCandidate["content"] as? [String: Any],
+              let parts = content["parts"] as? [[String: Any]],
+              let firstPart = parts.first,
+              let text = firstPart["text"] as? String else {
+            throw FoodAnalysisError.invalidResponse
+        }
+
+        return try decodeEstimateResponse(from: text)
+    }
 }
 
 // MARK: - Shared JSON Parsing
@@ -249,6 +394,44 @@ private func extractJSON(from text: String) -> String {
 // MARK: - Combined Analysis Pipeline
 
 enum FoodAnalysisPipeline {
+    /// Text-based nutrition estimation using the selected AI provider.
+    /// Returns a USDALookupResult-compatible result for use in search/add flows.
+    static func estimateNutrition(for foodName: String) async throws -> USDAService.USDALookupResult {
+        let estimate: AIEstimateResult
+        switch VisionProvider.selected {
+        case .claude:
+            estimate = try await ClaudeAPIService.shared.estimateNutrition(for: foodName)
+        case .gemini:
+            estimate = try await GeminiAPIService.shared.estimateNutrition(for: foodName)
+        }
+
+        // Convert to per-100g values if serving grams is known, otherwise store as-is
+        let per100g: USDAService.NutrientsPer100g
+        if let grams = estimate.servingGrams, grams > 0 {
+            let scale = 100.0 / grams
+            per100g = USDAService.NutrientsPer100g(
+                calories: Double(estimate.calories) * scale,
+                protein: estimate.proteinGrams * scale,
+                carbs: estimate.carbsGrams * scale,
+                fat: estimate.fatGrams * scale
+            )
+        } else {
+            per100g = USDAService.NutrientsPer100g(
+                calories: Double(estimate.calories),
+                protein: estimate.proteinGrams,
+                carbs: estimate.carbsGrams,
+                fat: estimate.fatGrams
+            )
+        }
+
+        return USDAService.USDALookupResult(
+            description: estimate.name.isEmpty ? foodName : estimate.name,
+            nutrientsPer100g: per100g,
+            servingDescription: estimate.servingDescription,
+            servingGrams: estimate.servingGrams
+        )
+    }
+
     /// Vision provider identifies foods → USDA looks up macros → returns combined results
     static func analyzeImage(_ image: UIImage) async throws -> [IdentifiedFood] {
         // Step 1: Identify foods using selected vision provider

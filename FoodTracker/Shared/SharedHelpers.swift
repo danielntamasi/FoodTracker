@@ -23,10 +23,6 @@ func formatServings(_ value: Double) -> String {
     return "\(whole)"
 }
 
-// MARK: - Serving Presets
-
-let servingPresets: [Double] = stride(from: 0.25, through: 3.0, by: 0.25).map { $0 }
-
 // MARK: - Macro Calorie Calculations
 
 /// Protein calories (4 cal/g)
@@ -123,7 +119,9 @@ func quickAddEntry(_ entry: FoodEntry, into modelContext: ModelContext) {
         fatGrams: entry.fatGrams,
         photoData: entry.photoData,
         iconName: entry.iconName ?? foodIconName(for: entry.name),
-        servings: entry.servings
+        servings: entry.servings,
+        servingDescription: entry.servingDescription,
+        servingGrams: entry.servingGrams
     )
     modelContext.insert(newEntry)
 }
@@ -141,7 +139,9 @@ func quickAddMealGroup(_ entries: [FoodEntry], mealName: String?, into modelCont
             mealGroupID: newGroupID,
             mealName: mealName,
             iconName: entry.iconName ?? foodIconName(for: entry.name),
-            servings: entry.servings
+            servings: entry.servings,
+            servingDescription: entry.servingDescription,
+            servingGrams: entry.servingGrams
         )
         modelContext.insert(newEntry)
     }

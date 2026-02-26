@@ -150,6 +150,129 @@ struct DailyGoalBarsView: View {
     }
 }
 
+// MARK: - Serving Picker
+
+struct ServingPicker: View {
+    @Binding var servings: Double
+
+    private let values: [Double]
+
+    init(servings: Binding<Double>) {
+        self._servings = servings
+        let maxValue = max(20.0, (servings.wrappedValue * 4).rounded(.up) / 4 * 4)
+        let count = Int(maxValue / 0.25)
+        values = (1...count).map { Double($0) * 0.25 }
+    }
+
+    var body: some View {
+        Picker("Servings", selection: $servings) {
+            ForEach(values, id: \.self) { value in
+                Text(formatServings(value)).tag(value)
+            }
+        }
+        .pickerStyle(.wheel)
+        .frame(height: 120)
+    }
+}
+
+// MARK: - USDA Result Card
+
+struct USDAResultCard: View {
+    let result: USDAService.USDALookupResult
+    let isSelected: Bool
+    let onTap: () -> Void
+
+    private var servingLabel: String {
+        if let desc = result.servingDescription {
+            let gramsNote = result.servingGrams.map { " (\(Int($0))g)" } ?? ""
+            return "\(desc)\(gramsNote)"
+        } else if let grams = result.servingGrams {
+            return "\(Int(grams))g"
+        }
+        return "per 100g"
+    }
+
+    var body: some View {
+        Button(action: onTap) {
+            HStack(spacing: 12) {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(result.description.titleCased())
+                        .font(.subheadline)
+                        .fontWeight(.medium)
+                        .foregroundStyle(.primary)
+                        .lineLimit(2)
+                    Text(servingLabel)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+
+                Spacer()
+
+                VStack(alignment: .trailing, spacing: 4) {
+                    let scaled = result.perServing
+                    Text("\(Int(scaled.calories)) cal")
+                        .font(.subheadline)
+                        .fontWeight(.semibold)
+                        .foregroundStyle(.secondary)
+                    coloredMacroText(protein: scaled.protein, carbs: scaled.carbs, fat: scaled.fat)
+                        .font(.caption)
+                }
+
+                if isSelected {
+                    Image(systemName: "checkmark.circle.fill")
+                        .foregroundStyle(.green)
+                        .imageScale(.large)
+                }
+            }
+            .padding(12)
+            .background(
+                RoundedRectangle(cornerRadius: 10)
+                    .fill(Color(.secondarySystemGroupedBackground))
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 10)
+                    .stroke(isSelected ? Color.green : Color.clear, lineWidth: 2)
+            )
+        }
+        .buttonStyle(.plain)
+    }
+}
+
+// MARK: - USDA Results List
+
+struct USDAResultsList: View {
+    let results: [USDAService.USDALookupResult]
+    @Binding var selectedIndex: Int?
+
+    var body: some View {
+        if results.isEmpty {
+            HStack {
+                Image(systemName: "magnifyingglass")
+                    .foregroundStyle(.secondary)
+                Text("No results found")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+            }
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 8)
+        } else {
+            VStack(spacing: 8) {
+                ForEach(Array(results.enumerated()), id: \.offset) { index, result in
+                    USDAResultCard(
+                        result: result,
+                        isSelected: selectedIndex == index
+                    ) {
+                        withAnimation(.easeInOut(duration: 0.2)) {
+                            selectedIndex = selectedIndex == index ? nil : index
+                        }
+                    }
+                    .transition(.opacity.combined(with: .move(edge: .top)))
+                }
+            }
+        }
+    }
+}
+
 // MARK: - Cached Thumbnail Image
 
 struct CachedThumbnailImage: View {

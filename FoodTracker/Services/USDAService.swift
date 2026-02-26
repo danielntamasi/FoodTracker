@@ -38,8 +38,17 @@ actor USDAService {
         }
     }
 
-    /// Looks up a food with better matching (prefers raw, penalizes dried/canned) and extracts serving info.
+    /// Looks up a food and returns the single best result.
     func lookupFood(for foodName: String) async throws -> USDALookupResult {
+        let results = try await lookupFoodOptions(for: foodName)
+        guard let first = results.first else {
+            return USDALookupResult(description: foodName, nutrientsPer100g: NutrientsPer100g())
+        }
+        return first
+    }
+
+    /// Looks up a food and returns up to 5 scored/de-duped results with serving info.
+    func lookupFoodOptions(for foodName: String) async throws -> [USDALookupResult] {
         // Clean query: strip parenthetical content and special chars that cause USDA API errors
         let cleanedName = foodName
             .replacingOccurrences(of: "\\s*\\([^)]*\\)", with: "", options: .regularExpression)
@@ -83,18 +92,31 @@ actor USDAService {
         guard let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
               let foods = json["foods"] as? [[String: Any]],
               !foods.isEmpty else {
-            return USDALookupResult(description: foodName, nutrientsPer100g: NutrientsPer100g())
+            return []
         }
 
-        // Score each result: prefer "raw", penalize processed forms
+        let queryLower = query.lowercased()
         let penaltyKeywords = ["dried", "dehydrated", "powder", "concentrate", "canned", "juice", "frozen", "infant formula"]
-        let bestFood = foods.max { a, b in
-            scoreFood(a, penaltyKeywords: penaltyKeywords) < scoreFood(b, penaltyKeywords: penaltyKeywords)
-        } ?? foods[0]
+        let sortedFoods = foods.sorted { a, b in
+            scoreFood(a, query: queryLower, penaltyKeywords: penaltyKeywords) > scoreFood(b, query: queryLower, penaltyKeywords: penaltyKeywords)
+        }
 
-        // Extract nutrients
+        var results: [USDALookupResult] = []
+        for food in sortedFoods {
+            let result = await buildResult(from: food, fallbackName: foodName)
+            // Skip results with no nutrition data
+            let per100g = result.nutrientsPer100g
+            guard per100g.calories > 0 || per100g.protein > 0 || per100g.carbs > 0 || per100g.fat > 0 else { continue }
+            results.append(result)
+        }
+
+        return results
+    }
+
+    /// Builds a USDALookupResult from a single USDA food JSON object, extracting nutrients and serving info.
+    private func buildResult(from food: [String: Any], fallbackName: String) async -> USDALookupResult {
         var nutrients = NutrientsPer100g()
-        if let foodNutrients = bestFood["foodNutrients"] as? [[String: Any]] {
+        if let foodNutrients = food["foodNutrients"] as? [[String: Any]] {
             for nutrient in foodNutrients {
                 guard let nutrientId = nutrient["nutrientId"] as? Int,
                       let value = nutrient["value"] as? Double else { continue }
@@ -108,13 +130,11 @@ actor USDAService {
             }
         }
 
-        // Extract serving info from foodMeasures
-        let desc = bestFood["description"] as? String ?? foodName
+        let desc = food["description"] as? String ?? fallbackName
         var servingDesc: String?
         var servingGrams: Double?
 
-        if let measures = bestFood["foodMeasures"] as? [[String: Any]] {
-            // Find a reasonable household measure (skip "Quantity not specified" and empty entries)
+        if let measures = food["foodMeasures"] as? [[String: Any]] {
             for measure in measures {
                 guard let gramWeight = measure["gramWeight"] as? Double, gramWeight > 0,
                       let dissText = measure["disseminationText"] as? String,
@@ -126,16 +146,14 @@ actor USDAService {
             }
         }
 
-        // Fallback 1: use servingSize field from search results
         if servingGrams == nil,
-           let size = bestFood["servingSize"] as? Double, size > 0 {
+           let size = food["servingSize"] as? Double, size > 0 {
             servingGrams = size
-            let unit = bestFood["servingSizeUnit"] as? String ?? "g"
+            let unit = food["servingSizeUnit"] as? String ?? "g"
             servingDesc = "1 serving (\(Int(size))\(unit))"
         }
 
-        // Fallback 2: fetch detail endpoint for foodPortions
-        if servingGrams == nil, let fdcId = bestFood["fdcId"] as? Int {
+        if servingGrams == nil, let fdcId = food["fdcId"] as? Int {
             if let portion = try? await fetchServingFromDetail(fdcId: fdcId) {
                 servingDesc = portion.description
                 servingGrams = portion.grams
@@ -190,13 +208,23 @@ actor USDAService {
         return nil
     }
 
-    private func scoreFood(_ food: [String: Any], penaltyKeywords: [String]) -> Int {
+    private func scoreFood(_ food: [String: Any], query: String, penaltyKeywords: [String]) -> Int {
         let desc = (food["description"] as? String ?? "").lowercased()
         var score = 0
-        if desc.contains("raw") { score += 10 }
+
+        // Only prefer "raw" if the query itself mentions it
+        if query.contains("raw") && desc.contains("raw") { score += 5 }
+
+        // Penalize processed/specialty forms
         for keyword in penaltyKeywords {
             if desc.contains(keyword) { score -= 5 }
         }
+
+        // Bonus for exact query word match (all query words appear in description)
+        let queryWords = query.split(separator: " ").map { String($0) }
+        let allMatch = queryWords.allSatisfy { desc.contains($0) }
+        if allMatch { score += 3 }
+
         return score
     }
 

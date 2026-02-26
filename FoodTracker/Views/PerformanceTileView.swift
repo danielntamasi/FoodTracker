@@ -516,51 +516,90 @@ struct PerformanceTileView: View {
         }
     }
 
-    // MARK: - Week Bar Chart
+    // MARK: - Week Macro Bar Chart
 
-    private func barColor(for status: DotStatus) -> Color {
-        switch status {
-        case .onTarget: return .green
-        case .over(let severe), .under(let severe): return severe ? .red : .yellow
-        case .noData, .noTarget: return Color(.systemGray4)
+    private struct MacroBarEntry: Identifiable {
+        let id = UUID()
+        let xPos: Double
+        let macro: String
+        let pct: Double
+        let color: Color
+    }
+
+    private func macroColor(for macro: MacroType) -> Color {
+        switch macro {
+        case .calories: return .gray
+        case .protein: return .blue
+        case .carbs: return .orange
+        case .fat: return .purple
         }
     }
 
+    /// X offset for each macro within a day group. 4 bars spread across ~0.7 of a 1.0-wide slot.
+    private static let macroOffsets: [MacroType: Double] = [
+        .calories: -0.27, .protein: -0.09, .carbs: 0.09, .fat: 0.27
+    ]
+
     private func weekBarChart(records: [DayRecord]) -> some View {
         let calendar = Calendar.current
-        let calTarget = DailyTarget.calories
 
-        let chartData: [(label: String, calories: Int, status: DotStatus, index: Int)] = records.enumerated().map { i, record in
-            let weekday = calendar.component(.weekday, from: record.date)
-            let symbol = calendar.veryShortWeekdaySymbols[weekday - 1]
-            return (label: symbol, calories: record.calories, status: dayOverallStatus(record), index: i)
+        let dayLabels: [Int: String] = Dictionary(
+            uniqueKeysWithValues: records.enumerated().map { i, record in
+                let weekday = calendar.component(.weekday, from: record.date)
+                return (i, calendar.veryShortWeekdaySymbols[weekday - 1])
+            }
+        )
+
+        var barEntries: [MacroBarEntry] = []
+        for (i, record) in records.enumerated() {
+            for macro in MacroType.allCases {
+                let target = Double(macro.target)
+                let pct: Double
+                if target > 0 {
+                    pct = record.hasData ? (macro.value(from: record) / target) * 100 : 0
+                } else {
+                    pct = 0
+                }
+                let offset = Self.macroOffsets[macro] ?? 0
+                barEntries.append(MacroBarEntry(
+                    xPos: Double(i) + offset,
+                    macro: macro.label,
+                    pct: pct,
+                    color: macroColor(for: macro)
+                ))
+            }
         }
 
-        let maxCal = chartData.map { Double($0.calories) }.max() ?? 0
-        let yMax = max(Double(calTarget > 0 ? calTarget : 2000) * 1.4, maxCal * 1.15)
+        let maxPct = barEntries.map(\.pct).max() ?? 100
+        let yMax = max(150, maxPct * 1.1)
+        let barWidth: MarkDimension = .fixed(6)
 
         return Chart {
-            if calTarget > 0 {
-                RuleMark(y: .value("Target", calTarget))
-                    .lineStyle(StrokeStyle(lineWidth: 1, dash: [4, 3]))
-                    .foregroundStyle(.secondary.opacity(0.6))
-            }
+            RectangleMark(
+                yStart: .value("Low", 90),
+                yEnd: .value("High", 110)
+            )
+            .foregroundStyle(.green.opacity(0.08))
 
-            ForEach(chartData, id: \.index) { item in
+            RuleMark(y: .value("Target", 100))
+                .lineStyle(StrokeStyle(lineWidth: 1, dash: [4, 3]))
+                .foregroundStyle(.secondary.opacity(0.5))
+
+            ForEach(barEntries) { entry in
                 BarMark(
-                    x: .value("Day", item.index),
-                    y: .value("Calories", item.calories)
+                    x: .value("Day", entry.xPos),
+                    y: .value("% of Target", entry.pct),
+                    width: barWidth
                 )
-                .foregroundStyle(barColor(for: item.status))
-                .cornerRadius(4)
+                .foregroundStyle(entry.color)
+                .cornerRadius(1.5)
             }
         }
-        .chartYAxis(.hidden)
         .chartXAxis {
-            AxisMarks(values: chartData.map { $0.index }) { value in
-                if let idx = value.as(Int.self), idx < chartData.count {
+            AxisMarks(values: Array(0..<records.count).map { Double($0) }) { value in
+                if let dbl = value.as(Double.self), let label = dayLabels[Int(dbl)] {
                     AxisValueLabel {
-                        Text(chartData[idx].label)
+                        Text(label)
                             .font(.caption2)
                             .foregroundStyle(.secondary)
                     }
@@ -568,8 +607,35 @@ struct PerformanceTileView: View {
             }
         }
         .chartXScale(domain: -0.5...6.5)
+        .chartYAxis {
+            AxisMarks(values: [0, 50, 100, 150]) { value in
+                AxisGridLine()
+                AxisValueLabel {
+                    if let v = value.as(Int.self) {
+                        Text("\(v)%")
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+            }
+        }
         .chartYScale(domain: 0...yMax)
-        .frame(height: 120)
+        .chartLegend(position: .bottom, spacing: 4) {
+            HStack(spacing: 12) {
+                ForEach(MacroType.allCases, id: \.label) { macro in
+                    HStack(spacing: 4) {
+                        Circle().fill(macroColor(for: macro)).frame(width: 6, height: 6)
+                        Text(macro.label)
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+            }
+        }
+        .chartPlotStyle { plot in
+            plot.clipped()
+        }
+        .frame(height: 140)
     }
 
     // MARK: - Week Status Dots Row

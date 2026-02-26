@@ -14,6 +14,7 @@
 		A10001010000000000000005 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10002010000000000000005 /* ContentView.swift */; };
 		A10001010000000000000006 /* DailySummaryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10002010000000000000006 /* DailySummaryView.swift */; };
 		A10001010000000000000007 /* AddEntryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10002010000000000000007 /* AddEntryView.swift */; };
+		A1000F020000000000000001 /* SearchFoodView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1000F010000000000000001 /* SearchFoodView.swift */; };
 		A10001010000000000000008 /* PhotoCaptureView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10002010000000000000008 /* PhotoCaptureView.swift */; };
 		A10001010000000000000009 /* PhotoAnalysisView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10002010000000000000009 /* PhotoAnalysisView.swift */; };
 		A1000101000000000000000A /* HistoryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1000201000000000000000A /* HistoryView.swift */; };
@@ -71,6 +72,7 @@
 		A10002010000000000000005 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
 		A10002010000000000000006 /* DailySummaryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DailySummaryView.swift; sourceTree = "<group>"; };
 		A10002010000000000000007 /* AddEntryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AddEntryView.swift; sourceTree = "<group>"; };
+		A1000F010000000000000001 /* SearchFoodView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SearchFoodView.swift; sourceTree = "<group>"; };
 		A10002010000000000000008 /* PhotoCaptureView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhotoCaptureView.swift; sourceTree = "<group>"; };
 		A10002010000000000000009 /* PhotoAnalysisView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhotoAnalysisView.swift; sourceTree = "<group>"; };
 		A1000201000000000000000A /* HistoryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HistoryView.swift; sourceTree = "<group>"; };
@@ -167,6 +169,7 @@
 				A10002010000000000000005 /* ContentView.swift */,
 				A10002010000000000000006 /* DailySummaryView.swift */,
 				A10002010000000000000007 /* AddEntryView.swift */,
+				A1000F010000000000000001 /* SearchFoodView.swift */,
 				A10002010000000000000008 /* PhotoCaptureView.swift */,
 				A10002010000000000000009 /* PhotoAnalysisView.swift */,
 				A1000201000000000000000A /* HistoryView.swift */,
@@ -319,6 +322,7 @@
 				A10001010000000000000005 /* ContentView.swift in Sources */,
 				A10001010000000000000006 /* DailySummaryView.swift in Sources */,
 				A10001010000000000000007 /* AddEntryView.swift in Sources */,
+				A1000F020000000000000001 /* SearchFoodView.swift in Sources */,
 				A10001010000000000000008 /* PhotoCaptureView.swift in Sources */,
 				A10001010000000000000009 /* PhotoAnalysisView.swift in Sources */,
 				A1000101000000000000000A /* HistoryView.swift in Sources */,

@@ -12,18 +12,105 @@ struct AddEntryView: View {
     @State private var fatText = ""
     @State private var notes = ""
     @State private var servings: Double = 1.0
+    @State private var servingDesc: String?
+    @State private var servingWeight: Double?
     @State private var isLookingUp = false
     @State private var lookupError: String?
-    @State private var pendingNutrients: (calories: Int, protein: Double, carbs: Double, fat: Double, description: String)?
+    @State private var lookupResults: [USDAService.USDALookupResult] = []
+    @State private var selectedResultIndex: Int?
+    @State private var isEstimating = false
+    @State private var aiEstimate: USDAService.USDALookupResult?
+
+    /// Pre-fill from a USDA result (used by SearchFoodView)
+    var prefill: USDAService.USDALookupResult?
+
+    private var servingSizeLabel: String? {
+        if let desc = servingDesc, let grams = servingWeight {
+            return "\(desc) (\(Int(grams))g)"
+        } else if let desc = servingDesc {
+            return desc
+        } else if let grams = servingWeight {
+            return "\(Int(grams))g"
+        }
+        return nil
+    }
 
     var body: some View {
         NavigationStack {
             Form {
                 Section("Food") {
-                    TextField("Name", text: $name)
-                        .textInputAutocapitalization(.sentences)
+                    HStack {
+                        TextField("Name", text: $name)
+                            .textInputAutocapitalization(.sentences)
+                        if !name.isEmpty {
+                            if isLookingUp {
+                                ProgressView()
+                                    .controlSize(.small)
+                            } else {
+                                Button { lookupNutrition() } label: {
+                                    Image(systemName: "sparkles")
+                                        .foregroundStyle(.secondary)
+                                }
+                                .buttonStyle(.plain)
+                            }
+                        }
+                    }
                     TextField("Calories", text: $caloriesText)
                         .keyboardType(.numberPad)
+                }
+
+                if !lookupResults.isEmpty {
+                    Section {
+                        USDAResultsList(results: lookupResults, selectedIndex: $selectedResultIndex)
+                            .onChange(of: selectedResultIndex) { _, newIndex in
+                                if let index = newIndex {
+                                    acceptResult(lookupResults[index])
+                                }
+                            }
+                    } header: {
+                        Text("USDA Results")
+                    } footer: {
+                        Text("Tap a result to fill in nutrition data.")
+                    }
+                }
+
+                if let error = lookupError {
+                    Section {
+                        Text(error)
+                            .font(.caption)
+                            .foregroundStyle(.red)
+                    }
+                }
+
+                if let estimate = aiEstimate {
+                    Section {
+                        USDAResultCard(result: estimate, isSelected: true) {
+                            acceptResult(estimate)
+                        }
+                    } header: {
+                        Text("AI Estimate")
+                    } footer: {
+                        Text("Estimated by \(VisionProvider.selected.rawValue).")
+                    }
+                }
+
+                if !name.isEmpty && !isLookingUp && !isEstimating && aiEstimate == nil {
+                    Section {
+                        Button {
+                            runAIEstimate()
+                        } label: {
+                            HStack {
+                                Label("AI Estimate", systemImage: "brain")
+                                Spacer()
+                                if isEstimating {
+                                    ProgressView()
+                                }
+                            }
+                        }
+                        .disabled(isEstimating)
+                    } footer: {
+                        Text("Use AI to estimate nutrition for prepared or complex foods.")
+                    }
                 }
 
                 Section("Macros (grams)") {
@@ -36,49 +123,16 @@ struct AddEntryView: View {
                 }
 
                 Section("Servings") {
-                    HStack {
-                        Text("Servings")
-                        Spacer()
-                        Text(formatServings(servings))
-                            .foregroundStyle(.secondary)
-                    }
-
-                    ScrollView(.horizontal, showsIndicators: false) {
-                        HStack(spacing: 8) {
-                            ForEach(servingPresets, id: \.self) { preset in
-                                Button {
-                                    servings = preset
-                                } label: {
-                                    Text(formatServings(preset))
-                                        .font(.subheadline)
-                                        .fontWeight(servings == preset ? .bold : .regular)
-                                        .padding(.horizontal, 12)
-                                        .padding(.vertical, 6)
-                                        .background(
-                                            servings == preset
-                                                ? Color.accentColor.opacity(0.2)
-                                                : Color(.systemGray5)
-                                        )
-                                        .foregroundStyle(
-                                            servings == preset
-                                                ? Color.accentColor
-                                                : .primary
-                                        )
-                                        .clipShape(Capsule())
-                                }
-                                .buttonStyle(.plain)
-                            }
+                    if let servingSizeText = servingSizeLabel {
+                        HStack {
+                            Text("Serving Size")
+                            Spacer()
+                            Text(servingSizeText)
+                                .foregroundStyle(.secondary)
                         }
                     }
 
-                    HStack {
-                        Text("Custom")
-                        Spacer()
-                        TextField("Servings", value: $servings, format: .number)
-                            .keyboardType(.decimalPad)
-                            .multilineTextAlignment(.trailing)
-                            .frame(maxWidth: 80)
-                    }
+                    ServingPicker(servings: $servings)
 
                     if servings != 1.0, let cal = Int(caloriesText), cal > 0 {
                         let totalCal = Int((Double(cal) * servings).rounded())
@@ -106,63 +160,6 @@ struct AddEntryView: View {
                     TextField("Optional notes", text: $notes, axis: .vertical)
                         .lineLimit(3...6)
                 }
-
-                Section {
-                    Button {
-                        lookupNutrition()
-                    } label: {
-                        HStack {
-                            Label("AI Lookup", systemImage: "sparkles")
-                            Spacer()
-                            if isLookingUp {
-                                ProgressView()
-                            }
-                        }
-                    }
-                    .disabled(name.isEmpty || isLookingUp)
-
-                    if let nutrients = pendingNutrients {
-                        VStack(alignment: .leading, spacing: 6) {
-                            Text(nutrients.description)
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                            HStack {
-                                VStack(alignment: .leading, spacing: 2) {
-                                    Text("\(nutrients.calories) cal")
-                                    Text("P: \(nutrients.protein, specifier: "%.1f")g  C: \(nutrients.carbs, specifier: "%.1f")g  F: \(nutrients.fat, specifier: "%.1f")g")
-                                        .font(.caption)
-                                        .foregroundStyle(.secondary)
-                                }
-                                Spacer()
-                                Button {
-                                    acceptNutrients(nutrients)
-                                } label: {
-                                    Image(systemName: "checkmark.circle.fill")
-                                        .foregroundStyle(.green)
-                                        .imageScale(.large)
-                                }
-                                .buttonStyle(.borderless)
-                                Button {
-                                    withAnimation { pendingNutrients = nil }
-                                } label: {
-                                    Image(systemName: "xmark.circle.fill")
-                                        .foregroundStyle(.red)
-                                        .imageScale(.large)
-                                }
-                                .buttonStyle(.borderless)
-                            }
-                        }
-                        .transition(.opacity)
-                    }
-
-                    if let error = lookupError {
-                        Text(error)
-                            .font(.caption)
-                            .foregroundStyle(.red)
-                    }
-                } footer: {
-                    Text("Look up nutrition data from USDA based on the food name.")
-                }
             }
             .navigationTitle("Add Food")
             .navigationBarTitleDisplayMode(.inline)
@@ -175,39 +172,41 @@ struct AddEntryView: View {
                         .disabled(name.isEmpty || caloriesText.isEmpty)
                 }
             }
+            .onAppear {
+                if let prefill {
+                    applyPrefill(prefill)
+                }
+            }
         }
+    }
+
+    private func applyPrefill(_ result: USDAService.USDALookupResult) {
+        name = result.description.titleCased()
+        let scaled = result.perServing
+        caloriesText = "\(Int(scaled.calories))"
+        proteinText = "\(scaled.protein)"
+        carbsText = "\(scaled.carbs)"
+        fatText = "\(scaled.fat)"
+        servingDesc = result.servingDescription
+        servingWeight = result.servingGrams
     }
 
     private func lookupNutrition() {
         isLookingUp = true
         lookupError = nil
-        pendingNutrients = nil
+        lookupResults = []
+        selectedResultIndex = nil
+        aiEstimate = nil
 
         Task {
             do {
-                let result = try await USDAService.shared.lookupFood(for: name)
-                let per100g = result.nutrientsPer100g
-                if per100g.calories > 0 || per100g.protein > 0 || per100g.carbs > 0 || per100g.fat > 0 {
-                    let scaled = result.perServing
-                    // Build description: "Bananas, Raw — 1 medium (118g)" or "Bananas, Raw — per 100g"
-                    let desc: String
-                    if let servingDesc = result.servingDescription {
-                        let gramsNote = result.servingGrams.map { " (\(Int($0))g)" } ?? ""
-                        desc = "\(result.description.titleCased()) — \(servingDesc)\(gramsNote)"
+                let results = try await USDAService.shared.lookupFoodOptions(for: name)
+                withAnimation {
+                    if results.isEmpty {
+                        lookupError = "No nutrition data found for \"\(name)\"."
                     } else {
-                        desc = "\(result.description.titleCased()) — per 100g"
+                        lookupResults = results
                     }
-                    withAnimation {
-                        pendingNutrients = (
-                            calories: Int(scaled.calories),
-                            protein: scaled.protein,
-                            carbs: scaled.carbs,
-                            fat: scaled.fat,
-                            description: desc
-                        )
-                    }
-                } else {
-                    lookupError = "No nutrition data found for \"\(name)\"."
                 }
             } catch {
                 lookupError = error.localizedDescription
@@ -216,12 +215,32 @@ struct AddEntryView: View {
         }
     }
 
-    private func acceptNutrients(_ nutrients: (calories: Int, protein: Double, carbs: Double, fat: Double, description: String)) {
-        caloriesText = "\(nutrients.calories)"
-        proteinText = "\(nutrients.protein)"
-        carbsText = "\(nutrients.carbs)"
-        fatText = "\(nutrients.fat)"
-        withAnimation { pendingNutrients = nil }
+    private func runAIEstimate() {
+        isEstimating = true
+        lookupError = nil
+
+        Task {
+            do {
+                let result = try await FoodAnalysisPipeline.estimateNutrition(for: name)
+                withAnimation {
+                    aiEstimate = result
+                    acceptResult(result)
+                }
+            } catch {
+                lookupError = error.localizedDescription
+            }
+            isEstimating = false
+        }
+    }
+
+    private func acceptResult(_ result: USDAService.USDALookupResult) {
+        let scaled = result.perServing
+        caloriesText = "\(Int(scaled.calories))"
+        proteinText = "\(scaled.protein)"
+        carbsText = "\(scaled.carbs)"
+        fatText = "\(scaled.fat)"
+        servingDesc = result.servingDescription
+        servingWeight = result.servingGrams
     }
 
     private func save() {
@@ -233,7 +252,9 @@ struct AddEntryView: View {
             fatGrams: Double(fatText) ?? 0,
             notes: notes,
             iconName: foodIconName(for: name),
-            servings: servings
+            servings: servings,
+            servingDescription: servingDesc,
+            servingGrams: servingWeight
         )
         modelContext.insert(entry)
         dismiss()
