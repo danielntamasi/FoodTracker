@@ -14,15 +14,14 @@ struct AddEntryView: View {
     @State private var servings: Double = 1.0
     @State private var servingDesc: String?
     @State private var servingWeight: Double?
-    @State private var isLookingUp = false
-    @State private var lookupError: String?
-    @State private var lookupResults: [USDAService.USDALookupResult] = []
-    @State private var selectedResultIndex: Int?
-    @State private var isEstimating = false
-    @State private var aiEstimate: USDAService.USDALookupResult?
+    @State private var lookup = NutritionLookup()
 
     /// Pre-fill from a USDA result (used by SearchFoodView)
     var prefill: USDAService.USDALookupResult?
+    /// Called after a successful save (before dismiss)
+    var onSave: (() -> Void)?
+    /// When set, saves as an IngredientItem instead of a FoodEntry (used by BuildMealView)
+    var onIngredientAdded: ((IngredientItem) -> Void)?
 
     private var servingSizeLabel: String? {
         if let desc = servingDesc, let grams = servingWeight {
@@ -43,11 +42,11 @@ struct AddEntryView: View {
                         TextField("Name", text: $name)
                             .textInputAutocapitalization(.sentences)
                         if !name.isEmpty {
-                            if isLookingUp {
+                            if lookup.isLookingUp {
                                 ProgressView()
                                     .controlSize(.small)
                             } else {
-                                Button { lookupNutrition() } label: {
+                                Button { lookup.lookupNutrition(for: name) } label: {
                                     Image(systemName: "sparkles")
                                         .foregroundStyle(.secondary)
                                 }
@@ -59,12 +58,15 @@ struct AddEntryView: View {
                         .keyboardType(.numberPad)
                 }
 
-                if !lookupResults.isEmpty {
+                if !lookup.lookupResults.isEmpty {
                     Section {
-                        USDAResultsList(results: lookupResults, selectedIndex: $selectedResultIndex)
-                            .onChange(of: selectedResultIndex) { _, newIndex in
+                        USDAResultsList(results: lookup.lookupResults, selectedIndex: Binding(
+                            get: { lookup.selectedResultIndex },
+                            set: { lookup.selectedResultIndex = $0 }
+                        ))
+                            .onChange(of: lookup.selectedResultIndex) { _, newIndex in
                                 if let index = newIndex {
-                                    acceptResult(lookupResults[index])
+                                    acceptResult(lookup.lookupResults[index])
                                 }
                             }
                     } header: {
@@ -74,15 +76,15 @@ struct AddEntryView: View {
                     }
                 }
 
-                if let error = lookupError {
+                if let error = lookup.lookupError {
                     Section {
                         Text(error)
                             .font(.caption)
-                            .foregroundStyle(.red)
+                            .foregroundStyle(DS.Color.danger)
                     }
                 }
 
-                if let estimate = aiEstimate {
+                if let estimate = lookup.aiEstimate {
                     Section {
                         USDAResultCard(result: estimate, isSelected: true) {
                             acceptResult(estimate)
@@ -94,20 +96,20 @@ struct AddEntryView: View {
                     }
                 }
 
-                if !name.isEmpty && !isLookingUp && !isEstimating && aiEstimate == nil {
+                if !name.isEmpty && !lookup.isLookingUp && !lookup.isEstimating && lookup.aiEstimate == nil {
                     Section {
                         Button {
-                            runAIEstimate()
+                            lookup.runAIEstimate(for: name)
                         } label: {
                             HStack {
-                                Label("AI Estimate", systemImage: "brain")
+                                Label("AI Estimate", systemImage: "sparkles")
                                 Spacer()
-                                if isEstimating {
+                                if lookup.isEstimating {
                                     ProgressView()
                                 }
                             }
                         }
-                        .disabled(isEstimating)
+                        .disabled(lookup.isEstimating)
                     } footer: {
                         Text("Use AI to estimate nutrition for prepared or complex foods.")
                     }
@@ -145,7 +147,7 @@ struct AddEntryView: View {
                                     .fontWeight(.medium)
                                 Spacer()
                                 Text("\(totalCal) cal")
-                                    .foregroundStyle(.secondary)
+                                    .foregroundStyle(DS.Color.textSecondary)
                             }
                             HStack {
                                 Spacer()
@@ -161,7 +163,7 @@ struct AddEntryView: View {
                         .lineLimit(3...6)
                 }
             }
-            .navigationTitle("Add Food")
+            .navigationTitle(onIngredientAdded != nil ? "Add Ingredient" : "Add Food")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
@@ -175,6 +177,11 @@ struct AddEntryView: View {
             .onAppear {
                 if let prefill {
                     applyPrefill(prefill)
+                }
+            }
+            .onChange(of: lookup.aiEstimate?.description) { _, _ in
+                if let estimate = lookup.aiEstimate {
+                    acceptResult(estimate)
                 }
             }
         }
@@ -191,48 +198,6 @@ struct AddEntryView: View {
         servingWeight = result.servingGrams
     }
 
-    private func lookupNutrition() {
-        isLookingUp = true
-        lookupError = nil
-        lookupResults = []
-        selectedResultIndex = nil
-        aiEstimate = nil
-
-        Task {
-            do {
-                let results = try await USDAService.shared.lookupFoodOptions(for: name)
-                withAnimation {
-                    if results.isEmpty {
-                        lookupError = "No nutrition data found for \"\(name)\"."
-                    } else {
-                        lookupResults = results
-                    }
-                }
-            } catch {
-                lookupError = error.localizedDescription
-            }
-            isLookingUp = false
-        }
-    }
-
-    private func runAIEstimate() {
-        isEstimating = true
-        lookupError = nil
-
-        Task {
-            do {
-                let result = try await FoodAnalysisPipeline.estimateNutrition(for: name)
-                withAnimation {
-                    aiEstimate = result
-                    acceptResult(result)
-                }
-            } catch {
-                lookupError = error.localizedDescription
-            }
-            isEstimating = false
-        }
-    }
-
     private func acceptResult(_ result: USDAService.USDALookupResult) {
         let scaled = result.perServing
         caloriesText = "\(Int(scaled.calories))"
@@ -244,6 +209,21 @@ struct AddEntryView: View {
     }
 
     private func save() {
+        if let onIngredientAdded {
+            onIngredientAdded(IngredientItem(
+                name: name.titleCased(),
+                calories: Int(caloriesText) ?? 0,
+                proteinGrams: Double(proteinText) ?? 0,
+                carbsGrams: Double(carbsText) ?? 0,
+                fatGrams: Double(fatText) ?? 0,
+                servings: servings,
+                servingDescription: servingDesc,
+                servingGrams: servingWeight
+            ))
+            dismiss()
+            return
+        }
+
         let entry = FoodEntry(
             name: name.titleCased(),
             calories: Int(caloriesText) ?? 0,
@@ -257,6 +237,8 @@ struct AddEntryView: View {
             servingGrams: servingWeight
         )
         modelContext.insert(entry)
+        Task { await HealthKitService.shared.syncEntry(entry) }
+        onSave?()
         dismiss()
     }
 

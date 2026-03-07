@@ -8,14 +8,14 @@ actor OpenFoodFactsService {
     private static let writeURL = "https://world.openfoodfacts.org/cgi/product_jqm2.pl"
 
     // Keychain accounts for OFF app credentials
-    static let keychainAccountUserID = "off-user-id"
-    static let keychainAccountPassword = "off-password"
+    static let keychainAccountUserID = AppConstants.Keychain.offUserID
+    static let keychainAccountPassword = AppConstants.Keychain.offPassword
 
     private static let logger = Logger(subsystem: "com.DNT.foodtracker", category: "OpenFoodFacts")
 
     /// Stable per-device UUID for OFF moderation tracking
     private static var deviceUUID: String {
-        let key = "off-device-uuid"
+        let key = AppConstants.Defaults.offDeviceUUID
         if let existing = UserDefaults.standard.string(forKey: key) {
             return existing
         }
@@ -130,9 +130,9 @@ actor OpenFoodFactsService {
             name: displayName,
             brand: brand,
             calories: Int(calories),
-            proteinGrams: (protein * 10).rounded() / 10,
-            carbsGrams: (carbs * 10).rounded() / 10,
-            fatGrams: (fat * 10).rounded() / 10,
+            proteinGrams: protein.roundedTo(1),
+            carbsGrams: carbs.roundedTo(1),
+            fatGrams: fat.roundedTo(1),
             servingSize: servingSize,
             portionGrams: servingGrams,
             caloriesPer100g: calPer100g,
@@ -180,7 +180,11 @@ actor OpenFoodFactsService {
             let (data, response) = try await URLSession.shared.data(for: request)
             if let httpResponse = response as? HTTPURLResponse {
                 let body = String(data: data, encoding: .utf8) ?? "(no body)"
-                Self.logger.info("OFF correction for \(correction.barcode): HTTP \(httpResponse.statusCode) — \(body)")
+                if httpResponse.statusCode >= 200 && httpResponse.statusCode < 300 {
+                    Self.logger.info("OFF correction for \(correction.barcode): HTTP \(httpResponse.statusCode) — \(body)")
+                } else {
+                    Self.logger.warning("OFF correction for \(correction.barcode): HTTP \(httpResponse.statusCode) — \(body)")
+                }
             }
         } catch {
             Self.logger.error("OFF correction failed for \(correction.barcode): \(error.localizedDescription)")

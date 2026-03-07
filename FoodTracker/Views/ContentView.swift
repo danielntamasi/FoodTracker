@@ -5,7 +5,7 @@ enum AppTab {
 }
 
 enum QuickAddAction {
-    case photo, barcode, search, browse, uploadPhoto
+    case photo, barcode, search, browse, uploadPhoto, buildMeal
 }
 
 struct ContentView: View {
@@ -17,12 +17,14 @@ struct ContentView: View {
     @State private var showingBarcodeScanner = false
     @State private var showingBrowse = false
     @State private var showingSearch = false
+    @State private var showingBuildMeal = false
     @State private var layoutHeight: CGFloat = 700
     @State private var layoutWidth: CGFloat = 393
 
     private let radialItems: [(icon: String, label: String, action: QuickAddAction)] = [
         ("clock.arrow.circlepath", "Recent", .browse),
         ("magnifyingglass", "Search", .search),
+        ("square.stack.3d.up", "Build", .buildMeal),
         ("camera", "Photo", .photo),
         ("photo.on.rectangle", "Upload", .uploadPhoto),
         ("barcode.viewfinder", "Barcode", .barcode),
@@ -46,7 +48,7 @@ struct ContentView: View {
 
             // Dimming backdrop
             if showingRadialMenu {
-                Color.black.opacity(0.3)
+                Color.black.opacity(0.5)
                     .ignoresSafeArea()
                     .onTapGesture {
                         withAnimation(.spring(duration: 0.3, bounce: 0.2)) {
@@ -88,6 +90,9 @@ struct ContentView: View {
         .sheet(isPresented: $showingSearch) {
             SearchFoodView()
         }
+        .sheet(isPresented: $showingBuildMeal) {
+            BuildMealView()
+        }
     }
 
     // MARK: - Radial Menu
@@ -95,7 +100,7 @@ struct ContentView: View {
     /// Offset from the + button center for each radial item.
     /// Fixed values — no screen geometry needed. Negative Y = upward.
     private func radialOffset(for index: Int) -> CGSize {
-        let spacing: CGFloat = 65
+        let spacing: CGFloat = 56
         let archCurve: CGFloat = 20
         let riseAboveButton: CGFloat = 100
         // The + button is the 3rd of 4 items: [Today][History][+][Settings]
@@ -129,13 +134,13 @@ struct ContentView: View {
                     .fontWeight(.medium)
                     .foregroundStyle(.white)
                     .frame(width: 52, height: 52)
-                    .background(Color.accentColor)
+                    .background(DS.Color.backgroundElevated)
                     .clipShape(Circle())
-                    .shadow(color: Color.accentColor.opacity(0.3), radius: 6, y: 2)
+                    .shadow(color: DS.Color.protein.opacity(0.2), radius: 6, y: 2)
                 Text(item.label)
                     .font(.caption2)
                     .fontWeight(.medium)
-                    .foregroundStyle(.primary)
+                    .foregroundStyle(DS.Color.textPrimary)
             }
         }
         .buttonStyle(.plain)
@@ -156,6 +161,7 @@ struct ContentView: View {
         case .search: showingSearch = true
         case .browse: showingBrowse = true
         case .uploadPhoto: showingPhotoUpload = true
+        case .buildMeal: showingBuildMeal = true
         }
     }
 
@@ -163,8 +169,8 @@ struct ContentView: View {
 
     private var floatingTabBar: some View {
         HStack(spacing: 0) {
-            tabItem(icon: "fork.knife", label: "Today", tab: .today)
-            tabItem(icon: "calendar", label: "History", tab: .history)
+            tabItem(icon: "fork.knife", filledIcon: "fork.knife", label: "Today", tab: .today)
+            tabItem(icon: "calendar", filledIcon: "calendar", label: "History", tab: .history)
 
             Button {
                 withAnimation(.spring(duration: 0.4, bounce: 0.3)) {
@@ -175,10 +181,10 @@ struct ContentView: View {
                     .font(.title3)
                     .fontWeight(.semibold)
                     .foregroundStyle(.white)
-                    .frame(width: 52, height: 52)
-                    .background(Color.accentColor)
+                    .frame(width: 56, height: 56)
+                    .background(DS.Gradient.plusButton)
                     .clipShape(Circle())
-                    .shadow(color: Color.accentColor.opacity(0.3), radius: 8, y: 4)
+                    .shadow(color: DS.Color.protein.opacity(0.4), radius: 12, y: 4)
                     .rotationEffect(.degrees(showingRadialMenu ? 45 : 0))
             }
             .buttonStyle(ScaleButtonStyle())
@@ -188,32 +194,38 @@ struct ContentView: View {
                 }
             }
 
-            tabItem(icon: "gearshape", label: "Settings", tab: .settings)
+            tabItem(icon: "gearshape", filledIcon: "gearshape.fill", label: "Settings", tab: .settings)
         }
         .padding(.horizontal, 8)
         .padding(.vertical, 8)
         .background(
-            RoundedRectangle(cornerRadius: 24)
-                .fill(.ultraThinMaterial)
-                .shadow(color: .black.opacity(0.15), radius: 12, y: 4)
+            RoundedRectangle(cornerRadius: DS.Radius.l)
+                .fill(DS.Color.backgroundPrimary.opacity(0.7))
+                .background(
+                    RoundedRectangle(cornerRadius: DS.Radius.l)
+                        .fill(.ultraThinMaterial)
+                )
+                .shadow(color: .black.opacity(0.25), radius: 12, y: 4)
         )
-        .padding(.horizontal, 20)
+        .padding(.horizontal, DS.Spacing.screenEdge)
         .padding(.bottom, 8)
     }
 
-    private func tabItem(icon: String, label: String, tab: AppTab) -> some View {
-        Button {
+    private func tabItem(icon: String, filledIcon: String, label: String, tab: AppTab) -> some View {
+        let isActive = activeTab == tab
+        return Button {
             withAnimation(.easeInOut(duration: 0.2)) {
                 activeTab = tab
             }
         } label: {
             VStack(spacing: 4) {
-                Image(systemName: icon)
-                    .font(activeTab == tab ? .body : .callout)
+                Image(systemName: isActive ? filledIcon : icon)
+                    .font(.body)
+                    .symbolEffect(.bounce, value: activeTab)
                 Text(label)
                     .font(.caption2)
             }
-            .foregroundStyle(activeTab == tab ? Color.accentColor : .secondary)
+            .foregroundStyle(isActive ? DS.Color.protein : DS.Color.textTertiary)
             .frame(maxWidth: .infinity)
             .contentShape(Rectangle())
         }

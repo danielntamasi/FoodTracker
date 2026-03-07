@@ -5,6 +5,7 @@ struct PhotoCaptureView: View {
     @Environment(\.dismiss) private var dismiss
     @State private var capturedImage: UIImage?
     @State private var showingAnalysis = false
+    var onIngredientsAdded: (([IngredientItem]) -> Void)?
 
     var body: some View {
         NavigationStack {
@@ -26,7 +27,7 @@ struct PhotoCaptureView: View {
                     dismiss()
                 }) {
                     if let image = capturedImage {
-                        PhotoAnalysisView(image: image)
+                        PhotoAnalysisView(image: image, onIngredientsAdded: onIngredientsAdded)
                     }
                 }
         }
@@ -37,6 +38,7 @@ struct PhotoUploadView: View {
     @Environment(\.dismiss) private var dismiss
     @State private var selectedImage: UIImage?
     @State private var showingAnalysis = false
+    var onIngredientsAdded: (([IngredientItem]) -> Void)?
 
     var body: some View {
         NavigationStack {
@@ -58,7 +60,7 @@ struct PhotoUploadView: View {
                     dismiss()
                 }) {
                     if let image = selectedImage {
-                        PhotoAnalysisView(image: image)
+                        PhotoAnalysisView(image: image, onIngredientsAdded: onIngredientsAdded)
                     }
                 }
         }

@@ -9,7 +9,7 @@ struct DailySummaryView: View {
     @State private var editingEntry: FoodEntry?
     @State private var editingMealGroup: MealGroup?
     @State private var expandedGroups: Set<UUID> = []
-    @State private var reverseChronological = sharedDefaults.bool(forKey: "reverseChronological")
+    @State private var reverseChronological = sharedDefaults.bool(forKey: AppConstants.Defaults.reverseChronological)
 
     private var orderedPeriods: [TimeOfDay] {
         reverseChronological ? TimeOfDay.allCases.reversed() : TimeOfDay.allCases
@@ -74,11 +74,11 @@ struct DailySummaryView: View {
     }
 
     private func syncWidgetData() {
-        sharedDefaults.set(totalCalories, forKey: "widgetCalories")
-        sharedDefaults.set(totalProtein, forKey: "widgetProtein")
-        sharedDefaults.set(totalCarbs, forKey: "widgetCarbs")
-        sharedDefaults.set(totalFat, forKey: "widgetFat")
-        sharedDefaults.set(Date.now.timeIntervalSince1970, forKey: "widgetLastSync")
+        sharedDefaults.set(totalCalories, forKey: AppConstants.Defaults.widgetCalories)
+        sharedDefaults.set(totalProtein, forKey: AppConstants.Defaults.widgetProtein)
+        sharedDefaults.set(totalCarbs, forKey: AppConstants.Defaults.widgetCarbs)
+        sharedDefaults.set(totalFat, forKey: AppConstants.Defaults.widgetFat)
+        sharedDefaults.set(Date.now.timeIntervalSince1970, forKey: AppConstants.Defaults.widgetLastSync)
         WidgetCenter.shared.reloadAllTimelines()
     }
 
@@ -190,7 +190,7 @@ struct DailySummaryView: View {
             .listStyle(.plain)
             .scrollContentBackground(.hidden)
             .contentMargins(.bottom, 88, for: .scrollContent)
-            .background(Color(.systemGroupedBackground))
+            .background(DS.Color.backgroundPrimary)
             .navigationTitle("Today")
             .sheet(item: $editingEntry) { entry in
                 EditEntryView(entry: entry)
@@ -210,45 +210,42 @@ struct DailySummaryView: View {
     // MARK: - Summary Card
 
     private var summaryCard: some View {
-        Group {
-            if DailyTarget.hasTargets {
-                MacroDonutCard(
-                    calories: totalCalories,
-                    calorieTarget: DailyTarget.calories,
-                    protein: totalProtein,
-                    proteinTarget: Double(DailyTarget.protein),
-                    carbs: totalCarbs,
-                    carbsTarget: Double(DailyTarget.carbs),
-                    fat: totalFat,
-                    fatTarget: Double(DailyTarget.fat)
-                )
-            } else {
-                VStack(spacing: 12) {
-                    Text("\(totalCalories)")
-                        .font(.system(size: 48, weight: .bold, design: .rounded))
-                        .foregroundStyle(.primary)
-                        .contentTransition(.numericText())
-                        .animation(.spring(duration: 0.4), value: totalCalories)
-                    Text("calories today")
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
+        VStack(spacing: DS.Spacing.l) {
+            ZStack {
+                DS.Gradient.heroGlow
+                    .frame(width: 280, height: 280)
 
-                    HStack(spacing: 24) {
-                        MacroLabel(label: "Protein", value: totalProtein, color: .blue)
-                        MacroLabel(label: "Carbs", value: totalCarbs, color: .orange)
-                        MacroLabel(label: "Fat", value: totalFat, color: .purple)
-                    }
+                CalorieRing(
+                    consumed: totalCalories,
+                    goal: DailyTarget.calories
+                )
+            }
+            .animation(.spring(duration: 0.4), value: totalCalories)
+
+            if DailyTarget.hasTargets {
+                HStack(spacing: DS.Spacing.xl) {
+                    MacroArc(label: "Protein", current: totalProtein, goal: Double(DailyTarget.protein), color: DS.Color.protein)
+                    MacroArc(label: "Carbs", current: totalCarbs, goal: Double(DailyTarget.carbs), color: DS.Color.carbs)
+                    MacroArc(label: "Fat", current: totalFat, goal: Double(DailyTarget.fat), color: DS.Color.fat)
                 }
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 8)
+            } else {
+                HStack(spacing: DS.Spacing.l) {
+                    MacroLabel(label: "Protein", value: totalProtein, color: DS.Color.protein)
+                    MacroLabel(label: "Carbs", value: totalCarbs, color: DS.Color.carbs)
+                    MacroLabel(label: "Fat", value: totalFat, color: DS.Color.fat)
+                }
             }
         }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 12)
-        .background(Color(.secondarySystemGroupedBackground))
-        .clipShape(RoundedRectangle(cornerRadius: 16))
-        .shadow(color: .black.opacity(0.06), radius: 8, y: 2)
-        .padding(.horizontal, 16)
+        .padding(.horizontal, DS.Spacing.m)
+        .padding(.vertical, DS.Spacing.l)
+        .frame(maxWidth: .infinity)
+        .background(DS.Gradient.cardShimmer)
+        .clipShape(RoundedRectangle(cornerRadius: DS.Radius.l, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: DS.Radius.l, style: .continuous)
+                .strokeBorder(DS.Color.border, lineWidth: 1)
+        )
+        .padding(.horizontal, DS.Spacing.m)
     }
 
     // MARK: - Empty State
@@ -257,14 +254,14 @@ struct DailySummaryView: View {
         VStack(spacing: 12) {
             Image(systemName: "fork.knife")
                 .font(.system(size: 48))
-                .foregroundStyle(Color.accentColor)
+                .foregroundStyle(DS.Color.protein)
                 .symbolEffect(.pulse)
             Text("No meals logged today")
                 .font(.headline)
-                .foregroundStyle(.primary)
+                .foregroundStyle(DS.Color.textPrimary)
             Text("Tap + to add your first meal")
                 .font(.subheadline)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(DS.Color.textSecondary)
         }
         .frame(maxWidth: .infinity)
         .padding(.vertical, 40)
@@ -273,28 +270,38 @@ struct DailySummaryView: View {
     // MARK: - Section Header
 
     private func sectionHeader(period: TimeOfDay) -> some View {
-        HStack {
-            Image(systemName: period.systemImage)
-                .font(.caption)
-                .foregroundStyle(period.tintColor)
-                .frame(width: 26, height: 26)
-                .background(period.tintColor.opacity(0.15))
-                .clipShape(Circle())
+        let periodEntries = entriesByPeriod[period] ?? []
+        let sectionCals = periodEntries.reduce(0) { $0 + $1.totalCalories }
 
-            Text(period.rawValue)
-                .font(.subheadline)
-                .fontWeight(.semibold)
+        return HStack {
+            HStack(spacing: 6) {
+                Image(systemName: period.systemImage)
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundStyle(DS.Color.textSecondary)
+                Text(period.rawValue.uppercased())
+                    .font(DS.Typography.labelS)
+                    .foregroundStyle(DS.Color.textSecondary)
+                    .tracking(0.8)
+            }
 
             Spacer()
+
+            if sectionCals > 0 {
+                Text("\(sectionCals) cal")
+                    .font(DS.Typography.caption)
+                    .monospacedDigit()
+                    .foregroundStyle(DS.Color.textTertiary)
+            }
 
             if period == orderedPeriods.first(where: { p in todayEntries.contains { TimeOfDay.from($0.date) == p } }) {
                 Button {
                     withAnimation(.spring(duration: 0.4, bounce: 0.15)) {
                         reverseChronological.toggle()
-                        sharedDefaults.set(reverseChronological, forKey: "reverseChronological")
+                        sharedDefaults.set(reverseChronological, forKey: AppConstants.Defaults.reverseChronological)
                     }
                 } label: {
                     Image(systemName: reverseChronological ? "arrow.down" : "arrow.up")
+                        .foregroundStyle(DS.Color.textTertiary)
                         .contentTransition(.symbolEffect(.replace.offUp))
                 }
                 .buttonStyle(.plain)
@@ -311,12 +318,15 @@ struct DailySummaryView: View {
         case .standalone(let entry):
             FoodEntryRow(entry: entry)
                 .padding(12)
-                .background(Color(.secondarySystemGroupedBackground))
+                .background(DS.Color.backgroundSecondary)
                 .clipShape(RoundedRectangle(cornerRadius: 12))
                 .contentShape(Rectangle())
                 .onTapGesture { editingEntry = entry }
                 .swipeActions(edge: .trailing, allowsFullSwipe: false) {
                     Button(role: .destructive) {
+                        let entryID = entry.id
+                        let entryDate = entry.date
+                        Task { await HealthKitService.shared.deleteEntry(id: entryID, date: entryDate) }
                         withAnimation { modelContext.delete(entry) }
                     } label: {
                         Label("Delete", systemImage: "trash")
@@ -356,10 +366,15 @@ struct DailySummaryView: View {
                 .buttonStyle(.plain)
             }
             .padding(12)
-            .background(Color(.secondarySystemGroupedBackground))
+            .background(DS.Color.backgroundSecondary)
             .clipShape(RoundedRectangle(cornerRadius: 12))
             .swipeActions(edge: .trailing, allowsFullSwipe: false) {
                 Button(role: .destructive) {
+                    for entry in entries {
+                        let entryID = entry.id
+                        let entryDate = entry.date
+                        Task { await HealthKitService.shared.deleteEntry(id: entryID, date: entryDate) }
+                    }
                     withAnimation {
                         for entry in entries { modelContext.delete(entry) }
                     }
@@ -387,7 +402,7 @@ struct DailySummaryView: View {
         FoodEntryRow(entry: entry, groupPhotoData: groupPhotoData)
             .padding(.vertical, 8)
             .padding(.horizontal, 12)
-            .background(Color(.secondarySystemGroupedBackground).opacity(0.7))
+            .background(DS.Color.backgroundSecondary.opacity(0.7))
             .clipShape(RoundedRectangle(cornerRadius: 10))
             .contentShape(Rectangle())
             .onTapGesture { editingEntry = entry }
@@ -396,6 +411,9 @@ struct DailySummaryView: View {
             .listRowInsets(EdgeInsets(top: 2, leading: 32, bottom: 2, trailing: 16))
             .swipeActions(edge: .trailing, allowsFullSwipe: false) {
                 Button(role: .destructive) {
+                    let entryID = entry.id
+                    let entryDate = entry.date
+                    Task { await HealthKitService.shared.deleteEntry(id: entryID, date: entryDate) }
                     withAnimation { modelContext.delete(entry) }
                 } label: {
                     Label("Delete", systemImage: "trash")
@@ -518,14 +536,14 @@ func groupedDisplayItems(from entries: [FoodEntry]) -> [EntryDisplayItem] {
 // MARK: - Colored Macro Text
 
 func coloredMacroText(protein: Double, carbs: Double, fat: Double) -> Text {
-    Text(String(format: "%.0f", protein)).foregroundColor(.blue) +
-    Text("P").foregroundColor(.secondary) +
-    Text(" · ").foregroundColor(Color(uiColor: .tertiaryLabel)) +
-    Text(String(format: "%.0f", carbs)).foregroundColor(.orange) +
-    Text("C").foregroundColor(.secondary) +
-    Text(" · ").foregroundColor(Color(uiColor: .tertiaryLabel)) +
-    Text(String(format: "%.0f", fat)).foregroundColor(.purple) +
-    Text("F").foregroundColor(.secondary)
+    Text(String(format: "%.0f", protein)).foregroundColor(DS.Color.protein) +
+    Text("P").foregroundColor(DS.Color.textSecondary) +
+    Text(" · ").foregroundColor(DS.Color.textTertiary) +
+    Text(String(format: "%.0f", carbs)).foregroundColor(DS.Color.carbs) +
+    Text("C").foregroundColor(DS.Color.textSecondary) +
+    Text(" · ").foregroundColor(DS.Color.textTertiary) +
+    Text(String(format: "%.0f", fat)).foregroundColor(DS.Color.fat) +
+    Text("F").foregroundColor(DS.Color.textSecondary)
 }
 
 // MARK: - Food Icon Color
@@ -557,20 +575,20 @@ func foodIconColor(for iconName: String?) -> Color {
 
 struct FoodIconThumbnail: View {
     let iconName: String?
-    var size: CGFloat = 52
+    var size: CGFloat = 44
 
     private var iconColor: Color { foodIconColor(for: iconName) }
 
     var body: some View {
         Image(systemName: iconName ?? "fork.knife")
-            .font(.system(size: size * 0.4, weight: .medium))
+            .font(.system(size: size * 0.35, weight: .medium))
             .foregroundStyle(iconColor)
             .frame(width: size, height: size)
             .background(
-                RoundedRectangle(cornerRadius: 8)
-                    .fill(iconColor.opacity(0.12))
+                RoundedRectangle(cornerRadius: DS.Radius.s, style: .continuous)
+                    .fill(Color.white.opacity(0.05))
             )
-            .clipShape(RoundedRectangle(cornerRadius: 8))
+            .clipShape(RoundedRectangle(cornerRadius: DS.Radius.s, style: .continuous))
     }
 }
 
@@ -597,32 +615,39 @@ struct MealEntryRow: View {
     }
 
     var body: some View {
-        HStack {
+        HStack(spacing: 12) {
             if entries.first?.photoData != nil {
-                CachedThumbnailImage(photoData: entries.first?.photoData)
+                CachedThumbnailImage(photoData: entries.first?.photoData, size: 44)
             } else {
-                FoodIconThumbnail(iconName: entries.first?.iconName ?? "fork.knife")
+                FoodIconThumbnail(iconName: entries.first?.iconName ?? "fork.knife", size: 44)
             }
 
-            VStack(alignment: .leading, spacing: 2) {
-                Text(mealName)
-                    .font(.body)
-                    .fontWeight(.medium)
-                coloredMacroText(protein: totalProtein, carbs: totalCarbs, fat: totalFat)
-                    .font(.caption)
-                Text("\(entries.count) items")
-                    .font(.caption2)
-                    .foregroundStyle(.tertiary)
+            VStack(alignment: .leading, spacing: 5) {
+                HStack(spacing: 6) {
+                    Text(mealName)
+                        .font(DS.Typography.labelL)
+                        .foregroundStyle(DS.Color.textPrimary)
+                        .lineLimit(1)
+                    Text("\(entries.count) items")
+                        .font(DS.Typography.caption)
+                        .foregroundStyle(DS.Color.textTertiary)
+                }
+
+                HStack(spacing: 4) {
+                    MacroPill(value: formatMacro(totalProtein), unit: "P", color: DS.Color.protein)
+                    MacroPill(value: formatMacro(totalCarbs), unit: "C", color: DS.Color.carbs)
+                    MacroPill(value: formatMacro(totalFat), unit: "F", color: DS.Color.fat)
+                }
             }
 
             Spacer()
 
-            Text("\(totalCalories) cal")
-                .font(.subheadline)
-                .fontWeight(.semibold)
-                .foregroundStyle(.secondary)
+            Text("\(totalCalories)")
+                .font(.system(size: 15, weight: .semibold, design: .rounded))
+                .monospacedDigit()
+                .foregroundStyle(DS.Color.textPrimary)
         }
-        .padding(.vertical, 2)
+        .padding(.vertical, 4)
     }
 }
 
@@ -640,9 +665,9 @@ struct MacroDonutCard: View {
 
     private var macroSegments: [(name: String, value: Double, target: Double, color: Color)] {
         [
-            ("Protein", protein, proteinTarget, .blue),
-            ("Carbs", carbs, carbsTarget, .orange),
-            ("Fat", fat, fatTarget, .purple),
+            ("Protein", protein, proteinTarget, DS.Color.protein),
+            ("Carbs", carbs, carbsTarget, DS.Color.carbs),
+            ("Fat", fat, fatTarget, DS.Color.fat),
         ].filter { $0.target > 0 }
     }
 
@@ -761,7 +786,7 @@ struct MacroLabel: View {
                 .animation(.spring(duration: 0.4), value: value)
             Text(label)
                 .font(.caption)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(DS.Color.textSecondary)
         }
     }
 }
@@ -775,28 +800,35 @@ struct FoodEntryRow: View {
     }
 
     var body: some View {
-        HStack {
+        HStack(spacing: 12) {
+            // Icon zone
             if effectivePhotoData != nil {
-                CachedThumbnailImage(photoData: effectivePhotoData)
+                CachedThumbnailImage(photoData: effectivePhotoData, size: 44)
             } else {
-                FoodIconThumbnail(iconName: entry.iconName ?? foodIconName(for: entry.name))
+                FoodIconThumbnail(iconName: entry.iconName ?? foodIconName(for: entry.name), size: 44)
             }
 
-            VStack(alignment: .leading, spacing: 2) {
+            VStack(alignment: .leading, spacing: 5) {
                 Text(entry.name)
-                    .font(.body)
-                coloredMacroText(protein: entry.totalProteinGrams, carbs: entry.totalCarbsGrams, fat: entry.totalFatGrams)
-                    .font(.caption)
+                    .font(DS.Typography.labelL)
+                    .foregroundStyle(DS.Color.textPrimary)
+                    .lineLimit(1)
+
+                HStack(spacing: 4) {
+                    MacroPill(value: formatMacro(entry.totalProteinGrams), unit: "P", color: DS.Color.protein)
+                    MacroPill(value: formatMacro(entry.totalCarbsGrams), unit: "C", color: DS.Color.carbs)
+                    MacroPill(value: formatMacro(entry.totalFatGrams), unit: "F", color: DS.Color.fat)
+                }
             }
 
             Spacer()
 
-            Text("\(entry.totalCalories) cal")
-                .font(.subheadline)
-                .fontWeight(.semibold)
-                .foregroundStyle(.secondary)
+            Text("\(entry.totalCalories)")
+                .font(.system(size: 15, weight: .semibold, design: .rounded))
+                .monospacedDigit()
+                .foregroundStyle(DS.Color.textPrimary)
         }
-        .padding(.vertical, 2)
+        .padding(.vertical, 4)
     }
 }
 

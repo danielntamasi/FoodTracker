@@ -64,9 +64,9 @@ struct MealSummaryView: View {
                             VStack(spacing: 16) {
                                 VStack(alignment: .leading, spacing: 0) {
                                     Text("\(mealGroup.entries.count) items")
-                                        .font(.caption)
-                                        .fontWeight(.semibold)
-                                        .foregroundStyle(.white.opacity(0.6))
+                                        .font(DS.Typography.labelS)
+                                        .foregroundStyle(DS.Color.textTertiary)
+                                        .tracking(0.8)
                                         .padding(.horizontal, 24)
                                         .padding(.bottom, 8)
 
@@ -74,12 +74,12 @@ struct MealSummaryView: View {
                                         ForEach(Array(mealGroup.entries.enumerated()), id: \.element.id) { index, entry in
                                             HStack {
                                                 Text(entry.name)
-                                                    .font(.subheadline)
-                                                    .foregroundStyle(.white.opacity(0.9))
+                                                    .font(DS.Typography.labelL)
+                                                    .foregroundStyle(DS.Color.textPrimary)
                                                 Spacer()
                                                 Text("\(entry.totalCalories) cal")
-                                                    .font(.caption)
-                                                    .foregroundStyle(.white.opacity(0.5))
+                                                    .font(DS.Typography.caption)
+                                                    .foregroundStyle(DS.Color.textTertiary)
                                             }
                                             .padding(.horizontal, 16)
                                             .padding(.vertical, 10)
@@ -88,8 +88,8 @@ struct MealSummaryView: View {
                                             }
                                         }
                                     }
-                                    .background(.white.opacity(0.08))
-                                    .clipShape(RoundedRectangle(cornerRadius: 12))
+                                    .background(DS.Color.backgroundElevated)
+                                    .clipShape(RoundedRectangle(cornerRadius: DS.Radius.s))
                                     .padding(.horizontal, 20)
                                 }
 
@@ -112,7 +112,7 @@ struct MealSummaryView: View {
                         .padding(.bottom, 20)
                     }
                 }
-                .background(bgColor)
+                .background(DS.Color.backgroundSecondary)
                 .toolbar(.hidden, for: .navigationBar)
 
                 HStack {

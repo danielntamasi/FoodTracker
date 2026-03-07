@@ -6,16 +6,15 @@ struct SearchFoodView: View {
     @Environment(\.dismiss) private var dismiss
     @Query(sort: \FoodEntry.date, order: .reverse) private var allEntries: [FoodEntry]
 
+    /// When set, saves as an IngredientItem instead of a FoodEntry (used by BuildMealView)
+    var onIngredientAdded: ((IngredientItem) -> Void)?
+
     @State private var searchText = ""
-    @State private var lookupResults: [USDAService.USDALookupResult] = []
-    @State private var selectedResultIndex: Int?
-    @State private var isSearching = false
-    @State private var searchError: String?
     @State private var searchTask: Task<Void, Never>?
-    @State private var showingAddEntry = false
+    @State private var showingAddManual = false
     @State private var prefillResult: USDAService.USDALookupResult?
-    @State private var isEstimating = false
-    @State private var aiEstimate: USDAService.USDALookupResult?
+    @State private var lookup = NutritionLookup()
+    @State private var resultsVisible = false
 
     private var recentMatches: [FoodEntry] {
         let calendar = Calendar.current
@@ -38,151 +37,14 @@ struct SearchFoodView: View {
     var body: some View {
         NavigationStack {
             List {
-                if !recentMatches.isEmpty {
-                    Section("Recent Foods") {
-                        ForEach(recentMatches) { entry in
-                            Button {
-                                quickAdd(entry)
-                            } label: {
-                                HStack {
-                                    Image(systemName: entry.iconName ?? "fork.knife")
-                                        .font(.title3)
-                                        .foregroundStyle(.secondary)
-                                        .frame(width: 32)
-                                    VStack(alignment: .leading, spacing: 2) {
-                                        Text(entry.name)
-                                            .font(.body)
-                                        coloredMacroText(protein: entry.totalProteinGrams, carbs: entry.totalCarbsGrams, fat: entry.totalFatGrams)
-                                            .font(.caption)
-                                    }
-                                    Spacer()
-                                    Text("\(entry.totalCalories) cal")
-                                        .font(.subheadline)
-                                        .fontWeight(.semibold)
-                                        .foregroundStyle(.secondary)
-                                }
-                            }
-                            .tint(.primary)
-                        }
-                    }
-                }
-
-                if isSearching {
-                    Section("USDA Database") {
-                        HStack {
-                            Spacer()
-                            ProgressView()
-                            Spacer()
-                        }
-                    }
-                } else if !lookupResults.isEmpty {
-                    Section("USDA Database") {
-                        ForEach(Array(lookupResults.enumerated()), id: \.offset) { index, result in
-                            Button {
-                                prefillResult = result
-                                showingAddEntry = true
-                            } label: {
-                                HStack(spacing: 12) {
-                                    VStack(alignment: .leading, spacing: 4) {
-                                        Text(result.description.titleCased())
-                                            .font(.subheadline)
-                                            .fontWeight(.medium)
-                                            .foregroundStyle(.primary)
-                                            .lineLimit(2)
-                                        if let servingDesc = result.servingDescription {
-                                            let gramsNote = result.servingGrams.map { " (\(Int($0))g)" } ?? ""
-                                            Text("\(servingDesc)\(gramsNote)")
-                                                .font(.caption)
-                                                .foregroundStyle(.secondary)
-                                        }
-                                    }
-                                    Spacer()
-                                    VStack(alignment: .trailing, spacing: 4) {
-                                        let scaled = result.perServing
-                                        Text("\(Int(scaled.calories)) cal")
-                                            .font(.subheadline)
-                                            .fontWeight(.semibold)
-                                            .foregroundStyle(.secondary)
-                                        coloredMacroText(protein: scaled.protein, carbs: scaled.carbs, fat: scaled.fat)
-                                            .font(.caption)
-                                    }
-                                }
-                            }
-                            .tint(.primary)
-                        }
-                    }
-                } else if let error = searchError {
-                    Section("USDA Database") {
-                        Text(error)
-                            .font(.caption)
-                            .foregroundStyle(.red)
-                    }
-                }
-
-                if let estimate = aiEstimate {
-                    Section("AI Estimate") {
-                        Button {
-                            prefillResult = estimate
-                            showingAddEntry = true
-                        } label: {
-                            HStack(spacing: 12) {
-                                VStack(alignment: .leading, spacing: 4) {
-                                    Text(estimate.description.titleCased())
-                                        .font(.subheadline)
-                                        .fontWeight(.medium)
-                                        .foregroundStyle(.primary)
-                                    if let servingDesc = estimate.servingDescription {
-                                        let gramsNote = estimate.servingGrams.map { " (\(Int($0))g)" } ?? ""
-                                        Text("\(servingDesc)\(gramsNote)")
-                                            .font(.caption)
-                                            .foregroundStyle(.secondary)
-                                    }
-                                }
-                                Spacer()
-                                VStack(alignment: .trailing, spacing: 4) {
-                                    let scaled = estimate.perServing
-                                    Text("\(Int(scaled.calories)) cal")
-                                        .font(.subheadline)
-                                        .fontWeight(.semibold)
-                                        .foregroundStyle(.secondary)
-                                    coloredMacroText(protein: scaled.protein, carbs: scaled.carbs, fat: scaled.fat)
-                                        .font(.caption)
-                                }
-                                Image(systemName: "checkmark.circle.fill")
-                                    .foregroundStyle(.green)
-                                    .imageScale(.large)
-                            }
-                        }
-                        .tint(.primary)
-                    }
-                } else if !searchText.trimmingCharacters(in: .whitespaces).isEmpty && !isSearching && !isEstimating {
-                    Section {
-                        Button {
-                            runAIEstimate()
-                        } label: {
-                            HStack {
-                                Label("AI Estimate", systemImage: "brain")
-                                Spacer()
-                                if isEstimating {
-                                    ProgressView()
-                                }
-                            }
-                        }
-                        .disabled(isEstimating)
-                    } footer: {
-                        Text("Use AI to estimate nutrition for prepared or complex foods.")
-                    }
-                }
-
-                Section {
-                    Button {
-                        prefillResult = nil
-                        showingAddEntry = true
-                    } label: {
-                        Label("Add manually", systemImage: "pencil")
-                    }
-                }
+                recentFoodsSection
+                usdaSection
+                aiEstimateSection
+                manualEntrySection
             }
+            .listStyle(.plain)
+            .scrollContentBackground(.hidden)
+            .background(DS.Color.backgroundPrimary)
             .searchable(text: $searchText, prompt: "Search foods")
             .onChange(of: searchText) { _, newValue in
                 debouncedSearch(query: newValue)
@@ -194,13 +56,148 @@ struct SearchFoodView: View {
                     Button("Cancel") { dismiss() }
                 }
             }
-            .sheet(isPresented: $showingAddEntry) {
-                AddEntryView(prefill: prefillResult)
+            .sheet(item: $prefillResult) { result in
+                AddEntryView(prefill: result, onSave: { dismiss() }, onIngredientAdded: onIngredientAdded.map { callback in
+                    { item in callback(item); dismiss() }
+                })
+            }
+            .sheet(isPresented: $showingAddManual) {
+                AddEntryView(onSave: { dismiss() }, onIngredientAdded: onIngredientAdded.map { callback in
+                    { item in callback(item); dismiss() }
+                })
             }
         }
     }
 
+    // MARK: - Recent Foods
+
+    @ViewBuilder
+    private var recentFoodsSection: some View {
+        if !recentMatches.isEmpty {
+            Section("Recent Foods") {
+                ForEach(recentMatches) { entry in
+                    Button {
+                        quickAdd(entry)
+                    } label: {
+                        HStack(spacing: 12) {
+                            FoodIconThumbnail(iconName: entry.iconName ?? "fork.knife", size: 36)
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(entry.name)
+                                    .font(.body)
+                                if let desc = entry.servingDescription {
+                                    Text(desc)
+                                        .font(.caption2)
+                                        .foregroundStyle(DS.Color.textTertiary)
+                                }
+                                coloredMacroText(protein: entry.totalProteinGrams, carbs: entry.totalCarbsGrams, fat: entry.totalFatGrams)
+                                    .font(.caption)
+                            }
+                            Spacer()
+                            Text("\(entry.totalCalories) cal")
+                                .font(.subheadline)
+                                .fontWeight(.semibold)
+                                .foregroundStyle(DS.Color.textSecondary)
+                        }
+                    }
+                    .tint(.primary)
+                }
+            }
+        }
+    }
+
+    // MARK: - USDA Section
+
+    @ViewBuilder
+    private var usdaSection: some View {
+        if lookup.isLookingUp {
+            Section("USDA Database") {
+                SearchSkeletonRows()
+            }
+        } else if !lookup.lookupResults.isEmpty {
+            Section("USDA Database") {
+                ForEach(Array(lookup.lookupResults.enumerated()), id: \.offset) { index, result in
+                    USDAResultButton(result: result, index: index, resultsVisible: resultsVisible) {
+                        prefillResult = result
+                    }
+                }
+            }
+        } else if lookup.lookupError != nil {
+            Section("USDA Database") {
+                SearchEmptyState()
+            }
+        }
+    }
+
+    // MARK: - AI Estimate
+
+    @ViewBuilder
+    private var aiEstimateSection: some View {
+        if let estimate = lookup.aiEstimate {
+            Section("AI Estimate") {
+                AIEstimateCard(estimate: estimate) {
+                    prefillResult = estimate
+                }
+            }
+        } else if !searchText.trimmingCharacters(in: .whitespaces).isEmpty && !lookup.isLookingUp && !lookup.isEstimating {
+            Section {
+                Button {
+                    lookup.runAIEstimate(for: searchText.trimmingCharacters(in: .whitespaces))
+                } label: {
+                    HStack {
+                        Label("AI Estimate", systemImage: "sparkles")
+                            .foregroundStyle(DS.Color.fat)
+                        Spacer()
+                        if lookup.isEstimating {
+                            ProgressView()
+                        }
+                    }
+                }
+                .disabled(lookup.isEstimating)
+            } footer: {
+                Text("Use AI to estimate nutrition for prepared or complex foods.")
+            }
+        }
+    }
+
+    // MARK: - Manual Entry
+
+    private var manualEntrySection: some View {
+        Section {
+            Button {
+                showingAddManual = true
+            } label: {
+                HStack(spacing: 12) {
+                    Image(systemName: "pencil")
+                        .font(.body)
+                        .foregroundStyle(DS.Color.textSecondary)
+                        .frame(width: 32)
+                    Text("Add manually")
+                    Spacer()
+                    Image(systemName: "chevron.right")
+                        .font(.caption)
+                        .foregroundStyle(DS.Color.textTertiary)
+                }
+            }
+        }
+    }
+
+    // MARK: - Actions
+
     private func quickAdd(_ entry: FoodEntry) {
+        if let onIngredientAdded {
+            onIngredientAdded(IngredientItem(
+                name: entry.name,
+                calories: entry.calories,
+                proteinGrams: entry.proteinGrams,
+                carbsGrams: entry.carbsGrams,
+                fatGrams: entry.fatGrams,
+                servings: 1.0,
+                servingDescription: entry.servingDescription,
+                servingGrams: entry.servingGrams
+            ))
+            dismiss()
+            return
+        }
         let newEntry = FoodEntry(
             name: entry.name,
             calories: entry.calories,
@@ -214,17 +211,18 @@ struct SearchFoodView: View {
             servingGrams: entry.servingGrams
         )
         modelContext.insert(newEntry)
+        Task { await HealthKitService.shared.syncEntry(newEntry) }
         dismiss()
     }
 
     private func debouncedSearch(query: String) {
         searchTask?.cancel()
-        aiEstimate = nil
+        lookup.aiEstimate = nil
         let trimmed = query.trimmingCharacters(in: .whitespaces)
         guard trimmed.count >= 2 else {
-            lookupResults = []
-            searchError = nil
-            isSearching = false
+            lookup.lookupResults = []
+            lookup.lookupError = nil
+            lookup.isLookingUp = false
             return
         }
 
@@ -232,36 +230,163 @@ struct SearchFoodView: View {
             try? await Task.sleep(for: .milliseconds(500))
             guard !Task.isCancelled else { return }
 
-            isSearching = true
+            lookup.isLookingUp = true
             do {
                 let results = try await USDAService.shared.lookupFoodOptions(for: trimmed)
                 guard !Task.isCancelled else { return }
-                lookupResults = results
-                searchError = results.isEmpty ? "No USDA results for \"\(trimmed)\"." : nil
-            } catch {
-                guard !Task.isCancelled else { return }
-                searchError = error.localizedDescription
-                lookupResults = []
-            }
-            isSearching = false
-        }
-    }
-
-    private func runAIEstimate() {
-        let query = searchText.trimmingCharacters(in: .whitespaces)
-        guard !query.isEmpty else { return }
-        isEstimating = true
-
-        Task {
-            do {
-                let result = try await FoodAnalysisPipeline.estimateNutrition(for: query)
-                withAnimation {
-                    aiEstimate = result
+                lookup.lookupResults = results
+                lookup.lookupError = results.isEmpty ? "No USDA results for \"\(trimmed)\"." : nil
+                if !results.isEmpty {
+                    resultsVisible = false
+                    withAnimation { resultsVisible = true }
                 }
             } catch {
-                searchError = error.localizedDescription
+                guard !Task.isCancelled else { return }
+                lookup.lookupError = error.localizedDescription
+                lookup.lookupResults = []
             }
-            isEstimating = false
+            lookup.isLookingUp = false
         }
+    }
+}
+
+// MARK: - Extracted Subviews
+
+private struct SearchSkeletonRows: View {
+    var body: some View {
+        ForEach(0..<3, id: \.self) { _ in
+            HStack(spacing: 12) {
+                VStack(alignment: .leading, spacing: 6) {
+                    RoundedRectangle(cornerRadius: 4)
+                        .fill(DS.Color.backgroundSubtle)
+                        .frame(width: 140, height: 14)
+                    RoundedRectangle(cornerRadius: 3)
+                        .fill(DS.Color.backgroundElevated)
+                        .frame(width: 80, height: 10)
+                }
+                Spacer()
+                VStack(alignment: .trailing, spacing: 6) {
+                    RoundedRectangle(cornerRadius: 4)
+                        .fill(DS.Color.backgroundSubtle)
+                        .frame(width: 60, height: 14)
+                    RoundedRectangle(cornerRadius: 3)
+                        .fill(DS.Color.backgroundElevated)
+                        .frame(width: 90, height: 10)
+                }
+            }
+            .redacted(reason: .placeholder)
+        }
+        .phaseAnimator([false, true]) { content, phase in
+            content.opacity(phase ? 0.4 : 1.0)
+        } animation: { _ in
+            .easeInOut(duration: 0.8)
+        }
+    }
+}
+
+private struct USDAResultButton: View {
+    let result: USDAService.USDALookupResult
+    let index: Int
+    let resultsVisible: Bool
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 12) {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(result.description.titleCased())
+                        .font(.subheadline)
+                        .fontWeight(.medium)
+                        .foregroundStyle(.primary)
+                        .lineLimit(2)
+                    if let servingDesc = result.servingDescription {
+                        let gramsNote = result.servingGrams.map { " (\(Int($0))g)" } ?? ""
+                        Text("\(servingDesc)\(gramsNote)")
+                            .font(.caption)
+                            .foregroundStyle(DS.Color.textTertiary)
+                    }
+                }
+                Spacer()
+                VStack(alignment: .trailing, spacing: 4) {
+                    let scaled = result.perServing
+                    Text("\(Int(scaled.calories)) cal")
+                        .font(.subheadline)
+                        .fontWeight(.semibold)
+                        .foregroundStyle(DS.Color.textSecondary)
+                    coloredMacroText(protein: scaled.protein, carbs: scaled.carbs, fat: scaled.fat)
+                        .font(.caption)
+                }
+            }
+        }
+        .tint(.primary)
+        .opacity(resultsVisible ? 1 : 0)
+        .offset(y: resultsVisible ? 0 : 10)
+        .animation(
+            .spring(duration: 0.35, bounce: 0.15).delay(Double(index) * 0.05),
+            value: resultsVisible
+        )
+    }
+}
+
+private struct AIEstimateCard: View {
+    let estimate: USDAService.USDALookupResult
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 12) {
+                VStack(alignment: .leading, spacing: 4) {
+                    HStack(spacing: 4) {
+                        Image(systemName: "sparkles")
+                            .font(.caption)
+                            .foregroundStyle(DS.Color.fat)
+                        Text(estimate.description.titleCased())
+                            .font(.subheadline)
+                            .fontWeight(.medium)
+                            .foregroundStyle(DS.Color.textPrimary)
+                    }
+                    if let servingDesc = estimate.servingDescription {
+                        let gramsNote = estimate.servingGrams.map { " (\(Int($0))g)" } ?? ""
+                        Text("\(servingDesc)\(gramsNote)")
+                            .font(.caption)
+                            .foregroundStyle(DS.Color.textTertiary)
+                    }
+                }
+                Spacer()
+                VStack(alignment: .trailing, spacing: 4) {
+                    let scaled = estimate.perServing
+                    Text("\(Int(scaled.calories)) cal")
+                        .font(.subheadline)
+                        .fontWeight(.semibold)
+                        .foregroundStyle(DS.Color.fat)
+                    coloredMacroText(protein: scaled.protein, carbs: scaled.carbs, fat: scaled.fat)
+                        .font(.caption)
+                }
+                Image(systemName: "checkmark.circle.fill")
+                    .foregroundStyle(DS.Color.fat)
+                    .imageScale(.large)
+            }
+        }
+        .tint(.primary)
+    }
+}
+
+private struct SearchEmptyState: View {
+    var body: some View {
+        HStack(spacing: 12) {
+            Image(systemName: "magnifyingglass")
+                .font(.title2)
+                .foregroundStyle(DS.Color.textSecondary)
+                .symbolEffect(.pulse)
+            VStack(alignment: .leading, spacing: 2) {
+                Text("No results found")
+                    .font(.subheadline)
+                    .fontWeight(.medium)
+                Text("Try a different search term or use AI Estimate below.")
+                    .font(.caption)
+                    .foregroundStyle(DS.Color.textSecondary)
+            }
+        }
+        .padding(.vertical, 4)
     }
 }

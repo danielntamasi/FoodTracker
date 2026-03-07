@@ -124,6 +124,7 @@ func quickAddEntry(_ entry: FoodEntry, into modelContext: ModelContext) {
         servingGrams: entry.servingGrams
     )
     modelContext.insert(newEntry)
+    Task { await HealthKitService.shared.syncEntry(newEntry) }
 }
 
 func quickAddMealGroup(_ entries: [FoodEntry], mealName: String?, into modelContext: ModelContext) {
@@ -144,6 +145,7 @@ func quickAddMealGroup(_ entries: [FoodEntry], mealName: String?, into modelCont
             servingGrams: entry.servingGrams
         )
         modelContext.insert(newEntry)
+        Task { await HealthKitService.shared.syncEntry(newEntry) }
     }
 }
 
@@ -152,6 +154,18 @@ func quickAddMealGroup(_ entries: [FoodEntry], mealName: String?, into modelCont
 extension DailyTarget {
     static var hasTargets: Bool {
         calories > 0 || protein > 0 || carbs > 0 || fat > 0
+    }
+}
+
+// MARK: - Title Case Helper
+
+extension String {
+    /// Capitalizes the first letter of each word (e.g. "white rice" → "White Rice")
+    func titleCased() -> String {
+        self.lowercased()
+            .split(separator: " ")
+            .map { $0.prefix(1).uppercased() + $0.dropFirst() }
+            .joined(separator: " ")
     }
 }
 
@@ -166,8 +180,8 @@ func perServingFromPer100g(
     let scale = servingGrams / 100.0
     return (
         calories: Int((calPer100g * scale).rounded()),
-        protein: (protPer100g * scale * 10).rounded() / 10,
-        carbs: (carbsPer100g * scale * 10).rounded() / 10,
-        fat: (fatPer100g * scale * 10).rounded() / 10
+        protein: (protPer100g * scale).roundedTo(1),
+        carbs: (carbsPer100g * scale).roundedTo(1),
+        fat: (fatPer100g * scale).roundedTo(1)
     )
 }

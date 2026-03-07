@@ -6,6 +6,8 @@ struct FoodTrackerApp: App {
     var body: some Scene {
         WindowGroup {
             ContentView()
+                .preferredColorScheme(.dark)
+                .tint(DS.Color.protein)
                 .onAppear { migrateEntryNames() }
         }
         .modelContainer(sharedModelContainer)
@@ -13,7 +15,7 @@ struct FoodTrackerApp: App {
 
     /// One-time migration: title-case all existing food entry names for consistent capitalization.
     private func migrateEntryNames() {
-        let key = "didMigrateEntryNameCasing"
+        let key = AppConstants.Defaults.didMigrateNameCasing
         guard !UserDefaults.standard.bool(forKey: key) else { return }
         UserDefaults.standard.set(true, forKey: key)
 

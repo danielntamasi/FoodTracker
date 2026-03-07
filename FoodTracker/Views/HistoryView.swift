@@ -55,6 +55,9 @@ struct HistoryView: View {
                                             .onTapGesture { editingEntry = entry }
                                             .swipeActions(edge: .trailing, allowsFullSwipe: false) {
                                                 Button(role: .destructive) {
+                                                    let entryID = entry.id
+                                                    let entryDate = entry.date
+                                                    Task { await HealthKitService.shared.deleteEntry(id: entryID, date: entryDate) }
                                                     withAnimation { modelContext.delete(entry) }
                                                 } label: {
                                                     Label("Delete", systemImage: "trash")
@@ -87,7 +90,7 @@ struct HistoryView: View {
                                             } label: {
                                                 Image(systemName: expandedGroups.contains(groupID) ? "chevron.up" : "chevron.down")
                                                     .font(.caption)
-                                                    .foregroundStyle(.secondary)
+                                                    .foregroundStyle(DS.Color.textTertiary)
                                                     .frame(width: 32, height: 32)
                                                     .contentShape(Rectangle())
                                             }
@@ -95,6 +98,11 @@ struct HistoryView: View {
                                         }
                                         .swipeActions(edge: .trailing, allowsFullSwipe: false) {
                                             Button(role: .destructive) {
+                                                for entry in entries {
+                                                    let entryID = entry.id
+                                                    let entryDate = entry.date
+                                                    Task { await HealthKitService.shared.deleteEntry(id: entryID, date: entryDate) }
+                                                }
                                                 withAnimation {
                                                     for entry in entries { modelContext.delete(entry) }
                                                 }
@@ -122,6 +130,9 @@ struct HistoryView: View {
                                                     .padding(.leading, 16)
                                                     .swipeActions(edge: .trailing, allowsFullSwipe: false) {
                                                         Button(role: .destructive) {
+                                                            let entryID = entry.id
+                                                            let entryDate = entry.date
+                                                            Task { await HealthKitService.shared.deleteEntry(id: entryID, date: entryDate) }
                                                             withAnimation { modelContext.delete(entry) }
                                                         } label: {
                                                             Label("Delete", systemImage: "trash")
@@ -153,16 +164,19 @@ struct HistoryView: View {
                                 HStack {
                                     Image(systemName: expandedDays.contains(dateString) ? "chevron.down" : "chevron.right")
                                         .font(.caption2)
-                                        .foregroundStyle(.secondary)
+                                        .foregroundStyle(DS.Color.textTertiary)
                                         .frame(width: 12)
                                     Text(dateString)
+                                        .font(DS.Typography.labelS)
+                                        .foregroundStyle(DS.Color.textSecondary)
                                     Spacer()
                                     let dayCals = dayEntries.reduce(0) { $0 + $1.totalCalories }
                                     let dayP = dayEntries.reduce(0.0) { $0 + $1.totalProteinGrams }
                                     let dayC = dayEntries.reduce(0.0) { $0 + $1.totalCarbsGrams }
                                     let dayF = dayEntries.reduce(0.0) { $0 + $1.totalFatGrams }
                                     Text("\(dayCals) cal")
-                                        .foregroundStyle(.secondary)
+                                        .font(DS.Typography.caption)
+                                        .foregroundStyle(DS.Color.textSecondary)
                                     coloredMacroText(protein: dayP, carbs: dayC, fat: dayF)
                                         .font(.caption2)
                                 }
@@ -173,6 +187,9 @@ struct HistoryView: View {
                 }
             }
             .contentMargins(.bottom, 88, for: .scrollContent)
+            .listStyle(.plain)
+            .scrollContentBackground(.hidden)
+            .background(DS.Color.backgroundPrimary)
             .navigationTitle("History")
             .sheet(item: $editingEntry) { entry in
                 EditEntryView(entry: entry)

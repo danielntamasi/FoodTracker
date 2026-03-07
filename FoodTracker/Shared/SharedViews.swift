@@ -16,7 +16,7 @@ struct MetricPill: View {
         .foregroundStyle(color)
         .padding(.horizontal, 10)
         .padding(.vertical, 6)
-        .background(color.opacity(0.15))
+        .background(color.opacity(0.12))
         .clipShape(Capsule())
     }
 }
@@ -34,9 +34,9 @@ struct HeroMacroDonut: View {
 
     var body: some View {
         let segments: [(name: String, cals: Double, color: Color)] = [
-            ("Protein", proteinCals, .blue),
-            ("Carbs", carbsCals, .orange),
-            ("Fat", fatCals, .purple),
+            ("Protein", proteinCals, DS.Color.protein),
+            ("Carbs", carbsCals, DS.Color.carbs),
+            ("Fat", fatCals, DS.Color.fat),
         ].filter { $0.cals > 0 }
 
         HStack(spacing: 12) {
@@ -65,7 +65,7 @@ struct HeroMacroDonut: View {
             Text("\(pct)% \(name)")
                 .font(.caption2)
                 .fontWeight(.medium)
-                .foregroundStyle(.white.opacity(0.8))
+                .foregroundStyle(DS.Color.textSecondary)
         }
     }
 }
@@ -99,50 +99,50 @@ struct DailyGoalBarsView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text("% of Daily Goal")
-                .font(.caption)
-                .fontWeight(.semibold)
-                .foregroundStyle(.white.opacity(0.6))
+            Text("% OF DAILY GOAL")
+                .font(DS.Typography.labelS)
+                .foregroundStyle(DS.Color.textTertiary)
+                .tracking(0.8)
 
             VStack(spacing: 8) {
                 if calorieTarget > 0 {
                     goalBar(label: "Cal", value: calories, target: Double(calorieTarget), color: .gray)
                 }
                 if proteinTarget > 0 {
-                    goalBar(label: "Protein", value: protein, target: Double(proteinTarget), color: .blue)
+                    goalBar(label: "Protein", value: protein, target: Double(proteinTarget), color: DS.Color.protein)
                 }
                 if carbsTarget > 0 {
-                    goalBar(label: "Carbs", value: carbs, target: Double(carbsTarget), color: .orange)
+                    goalBar(label: "Carbs", value: carbs, target: Double(carbsTarget), color: DS.Color.carbs)
                 }
                 if fatTarget > 0 {
-                    goalBar(label: "Fat", value: fat, target: Double(fatTarget), color: .purple)
+                    goalBar(label: "Fat", value: fat, target: Double(fatTarget), color: DS.Color.fat)
                 }
             }
         }
         .padding(.horizontal, 24)
         .padding(.vertical, 12)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(.white.opacity(0.08))
-        .clipShape(RoundedRectangle(cornerRadius: 12))
-        .padding(.horizontal, 20)
+        .background(Color.white.opacity(0.08))
+        .clipShape(RoundedRectangle(cornerRadius: DS.Radius.s))
+        .padding(.horizontal, DS.Spacing.screenEdge)
     }
 
     private func goalBar(label: String, value: Double, target: Double, color: Color) -> some View {
         let pct = target > 0 ? Int((value / target * 100).rounded()) : 0
         return HStack(spacing: 8) {
             Text(label)
-                .font(.caption)
-                .foregroundStyle(.white.opacity(0.6))
+                .font(DS.Typography.caption)
+                .foregroundStyle(DS.Color.textSecondary)
                 .frame(width: 48, alignment: .leading)
             GeometryReader { geo in
                 ZStack(alignment: .leading) {
-                    Capsule().fill(.white.opacity(0.1)).frame(height: 6)
+                    Capsule().fill(Color.white.opacity(0.08)).frame(height: 6)
                     Capsule().fill(color).frame(width: geo.size.width * min(value / max(target, 1), 1.0), height: 6)
                 }
             }
             .frame(height: 6)
             Text("\(pct)%")
-                .font(.caption)
+                .font(DS.Typography.caption)
                 .fontWeight(.medium)
                 .foregroundStyle(color)
                 .frame(width: 36, alignment: .trailing)
@@ -220,18 +220,18 @@ struct USDAResultCard: View {
 
                 if isSelected {
                     Image(systemName: "checkmark.circle.fill")
-                        .foregroundStyle(.green)
+                        .foregroundStyle(DS.Color.success)
                         .imageScale(.large)
                 }
             }
             .padding(12)
             .background(
-                RoundedRectangle(cornerRadius: 10)
-                    .fill(Color(.secondarySystemGroupedBackground))
+                RoundedRectangle(cornerRadius: DS.Radius.s)
+                    .fill(DS.Color.backgroundSubtle)
             )
             .overlay(
-                RoundedRectangle(cornerRadius: 10)
-                    .stroke(isSelected ? Color.green : Color.clear, lineWidth: 2)
+                RoundedRectangle(cornerRadius: DS.Radius.s)
+                    .stroke(isSelected ? DS.Color.success : Color.clear, lineWidth: 2)
             )
         }
         .buttonStyle(.plain)
@@ -288,7 +288,7 @@ struct CachedThumbnailImage: View {
                     .resizable()
                     .scaledToFill()
             } else {
-                Rectangle().fill(Color(.systemGray5))
+                Rectangle().fill(DS.Color.backgroundSubtle)
             }
         }
         .frame(width: size, height: size)

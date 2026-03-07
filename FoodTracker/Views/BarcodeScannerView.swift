@@ -3,6 +3,7 @@ import AVFoundation
 
 struct BarcodeScannerView: View {
     @Environment(\.dismiss) private var dismiss
+    var onIngredientsAdded: (([IngredientItem]) -> Void)?
 
     @State private var scannedBarcode: String?
     @State private var isLookingUp = false
@@ -63,7 +64,7 @@ struct BarcodeScannerView: View {
             .sheet(isPresented: $showingResults, onDismiss: {
                 dismiss()
             }) {
-                PhotoAnalysisView(foods: scannedFoods)
+                PhotoAnalysisView(foods: scannedFoods, onIngredientsAdded: onIngredientsAdded)
             }
         }
     }

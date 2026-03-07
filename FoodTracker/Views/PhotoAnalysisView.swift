@@ -6,6 +6,8 @@ struct PhotoAnalysisView: View {
     @Environment(\.dismiss) private var dismiss
 
     let image: UIImage?
+    /// When set, saves as IngredientItems instead of FoodEntries (used by BuildMealView)
+    var onIngredientsAdded: (([IngredientItem]) -> Void)?
 
     @State private var identifiedFoods: [IdentifiedFood] = []
     @State private var isLoading: Bool
@@ -15,14 +17,16 @@ struct PhotoAnalysisView: View {
     @State private var pendingCorrections: [OpenFoodFactsService.CorrectionData] = []
 
     // Standard init for photo analysis
-    init(image: UIImage) {
+    init(image: UIImage, onIngredientsAdded: (([IngredientItem]) -> Void)? = nil) {
         self.image = image
+        self.onIngredientsAdded = onIngredientsAdded
         self._isLoading = State(initialValue: true)
     }
 
     // Init for barcode/pre-resolved results (no photo)
-    init(foods: [IdentifiedFood]) {
+    init(foods: [IdentifiedFood], onIngredientsAdded: (([IngredientItem]) -> Void)? = nil) {
         self.image = nil
+        self.onIngredientsAdded = onIngredientsAdded
         self._identifiedFoods = State(initialValue: foods)
         self._isLoading = State(initialValue: false)
     }
@@ -346,7 +350,7 @@ struct PhotoAnalysisView: View {
         )
 
         identifiedFoods[index].servings = servings
-        identifiedFoods[index].portionGrams = (totalGrams * 10).rounded() / 10
+        identifiedFoods[index].portionGrams = totalGrams.roundedTo(1)
         identifiedFoods[index].calories = scaled.calories
         identifiedFoods[index].proteinGrams = scaled.protein
         identifiedFoods[index].carbsGrams = scaled.carbs
@@ -376,6 +380,25 @@ struct PhotoAnalysisView: View {
     }
 
     private func saveAll() {
+        // Ingredient mode: return IngredientItems instead of saving to SwiftData
+        if let onIngredientsAdded {
+            let items = identifiedFoods.map { food in
+                IngredientItem(
+                    name: food.name.titleCased(),
+                    calories: food.calories,
+                    proteinGrams: food.proteinGrams,
+                    carbsGrams: food.carbsGrams,
+                    fatGrams: food.fatGrams,
+                    servings: food.servings,
+                    servingDescription: food.portionDescription.isEmpty ? nil : food.portionDescription,
+                    servingGrams: food.servingGrams
+                )
+            }
+            onIngredientsAdded(items)
+            dismiss()
+            return
+        }
+
         let thumbnailData = image?.jpegData(compressionQuality: 0.5)
         var groupsWithPhoto: Set<UUID> = []
         var corrections: [OpenFoodFactsService.CorrectionData] = []
@@ -469,6 +492,7 @@ struct PhotoAnalysisView: View {
                 barcode: food.barcode
             )
             modelContext.insert(entry)
+            Task { await HealthKitService.shared.syncEntry(entry) }
         }
 
         if corrections.isEmpty {
@@ -487,9 +511,9 @@ struct SourceBadge: View {
 
     private var color: Color {
         switch source {
-        case .label: return .green
-        case .estimate: return .orange
-        case .barcode: return .blue
+        case .label: return DS.Color.success
+        case .estimate: return DS.Color.carbs
+        case .barcode: return DS.Color.protein
         }
     }
 

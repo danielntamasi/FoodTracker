@@ -64,11 +64,11 @@ enum DotStatus {
 
     var color: Color {
         switch self {
-        case .noData: return Color(.systemGray4)
-        case .noTarget: return Color.accentColor.opacity(0.3)
-        case .onTarget: return .green
+        case .noData: return DS.Color.textTertiary
+        case .noTarget: return DS.Color.protein.opacity(0.3)
+        case .onTarget: return DS.Color.success
         case .over(let severe), .under(let severe):
-            return severe ? .red : .yellow
+            return severe ? DS.Color.danger : DS.Color.carbs
         }
     }
 
@@ -81,341 +81,20 @@ enum DotStatus {
     }
 }
 
-// MARK: - Trend Direction
-
-private enum TrendDirection {
-    case improving, declining, steady
-
-    var label: String {
-        switch self {
-        case .improving: return "▲ Improving vs last month"
-        case .declining: return "▼ Declining vs last month"
-        case .steady: return "▸ Steady vs last month"
-        }
-    }
-
-    var color: Color {
-        switch self {
-        case .improving: return .green
-        case .declining: return .red
-        case .steady: return .secondary
-        }
-    }
-}
-
-// MARK: - Performance Thresholds
-
-private enum PerformanceThresholds {
-    /// Ratio bounds for "on target" (±10%)
-    static let onTargetLow = 0.9
-    static let onTargetHigh = 1.1
-    /// Ratio bounds for "slightly off" (10-20% off)
-    static let severeOverThreshold = 1.2
-    static let severeUnderThreshold = 0.8
-    /// Monthly dot adherence thresholds
-    static let monthDotGood = 0.7
-    static let monthDotFair = 0.5
-    /// Overall adherence color thresholds (percentage)
-    static let adherenceGood = 70
-    static let adherenceFair = 50
-    /// Trend sensitivity (5% difference)
-    static let trendSensitivity = 0.05
-}
-
 // MARK: - Performance Tile
 
 struct PerformanceTileView: View {
     let entries: [FoodEntry]
     @State private var selectedPeriod: PerformancePeriod = .week
-
-    private var activeMacroTypes: [MacroType] {
-        MacroType.allCases.filter { $0.target > 0 }
-    }
-
-    private var hasTargets: Bool { !activeMacroTypes.isEmpty }
-
-    // MARK: - Data Builders
-
-    private func buildDailyRecords(days: Int) -> [DayRecord] {
-        let calendar = Calendar.current
-        let now = Date()
-
-        // Pre-bucket entries by day for O(n + d) instead of O(n * d)
-        let startDate = calendar.startOfDay(for: calendar.date(byAdding: .day, value: -(days - 1), to: now)!)
-        var buckets: [Int: [FoodEntry]] = [:]
-        for entry in entries {
-            let dayStart = calendar.startOfDay(for: entry.date)
-            let offset = calendar.dateComponents([.day], from: startDate, to: dayStart).day ?? -1
-            guard offset >= 0 && offset < days else { continue }
-            buckets[offset, default: []].append(entry)
-        }
-
-        var records: [DayRecord] = []
-        records.reserveCapacity(days)
-        for offset in 0..<days {
-            guard let date = calendar.date(byAdding: .day, value: offset, to: startDate) else { continue }
-            let dayEntries = buckets[offset] ?? []
-            records.append(DayRecord(
-                date: date,
-                calories: dayEntries.reduce(0) { $0 + $1.totalCalories },
-                protein: dayEntries.reduce(0) { $0 + $1.totalProteinGrams },
-                carbs: dayEntries.reduce(0) { $0 + $1.totalCarbsGrams },
-                fat: dayEntries.reduce(0) { $0 + $1.totalFatGrams },
-                hasData: !dayEntries.isEmpty
-            ))
-        }
-        return records
-    }
-
-    private var yearDayCount: Int {
-        let calendar = Calendar.current
-        let now = Date()
-        guard let yearStart = calendar.date(from: calendar.dateComponents([.year], from: now)) else { return 1 }
-        return (calendar.dateComponents([.day], from: yearStart, to: now).day ?? 0) + 1
-    }
-
-    private var dailyRecords: [DayRecord] {
-        switch selectedPeriod {
-        case .week: return buildDailyRecords(days: 7)
-        case .month: return buildDailyRecords(days: 28)
-        case .year: return buildDailyRecords(days: yearDayCount)
-        }
-    }
-
-    // MARK: - Dot Status
-
-    private func dotStatus(for macro: MacroType, record: DayRecord) -> DotStatus {
-        guard record.hasData else { return .noData }
-        let tgt = Double(macro.target)
-        guard tgt > 0 else { return .noTarget }
-        let val = macro.value(from: record)
-        let pct = val / tgt
-        if pct >= PerformanceThresholds.onTargetLow && pct <= PerformanceThresholds.onTargetHigh { return .onTarget }
-        if pct > PerformanceThresholds.onTargetHigh { return pct > PerformanceThresholds.severeOverThreshold ? .over(severe: true) : .over(severe: false) }
-        return pct < PerformanceThresholds.severeUnderThreshold ? .under(severe: true) : .under(severe: false)
-    }
-
-    // MARK: - All-Macro Adherence
-
-    private func isDayFullyOnTarget(_ record: DayRecord) -> Bool {
-        guard record.hasData else { return false }
-        let macros = activeMacroTypes
-        guard !macros.isEmpty else { return false }
-        return macros.allSatisfy { macro in
-            let val = macro.value(from: record)
-            let tgt = Double(macro.target)
-            guard tgt > 0 else { return true }
-            let pct = val / tgt
-            return pct >= PerformanceThresholds.onTargetLow && pct <= PerformanceThresholds.onTargetHigh
-        }
-    }
-
-    private func dayOverallStatus(_ record: DayRecord) -> DotStatus {
-        guard record.hasData else { return .noData }
-        let macros = activeMacroTypes
-        guard !macros.isEmpty else { return .noTarget }
-
-        var worstSeverity = 0 // 0 = on target, 1 = slight, 2 = severe
-        var isOver = false
-
-        for macro in macros {
-            let val = macro.value(from: record)
-            let tgt = Double(macro.target)
-            guard tgt > 0 else { continue }
-            let pct = val / tgt
-            if pct >= PerformanceThresholds.onTargetLow && pct <= PerformanceThresholds.onTargetHigh {
-                continue
-            }
-            let severe = pct > PerformanceThresholds.severeOverThreshold || pct < PerformanceThresholds.severeUnderThreshold
-            let severity = severe ? 2 : 1
-            if severity > worstSeverity {
-                worstSeverity = severity
-                isOver = pct > PerformanceThresholds.onTargetHigh
-            }
-        }
-
-        switch worstSeverity {
-        case 0: return .onTarget
-        case 1: return isOver ? .over(severe: false) : .under(severe: false)
-        default: return isOver ? .over(severe: true) : .under(severe: true)
-        }
-    }
-
-    private func daysOnTarget(in records: [DayRecord]) -> Int {
-        records.filter { isDayFullyOnTarget($0) }.count
-    }
-
-    private func daysWithData(in records: [DayRecord]) -> Int {
-        records.filter { $0.hasData }.count
-    }
-
-    private func currentStreak(in records: [DayRecord]) -> Int {
-        var streak = 0
-        var started = false
-        for record in records.reversed() {
-            if isDayFullyOnTarget(record) {
-                streak += 1
-                started = true
-            } else if !record.hasData && !started {
-                continue
-            } else {
-                break
-            }
-        }
-        return streak
-    }
-
-    private func bestStreak(in records: [DayRecord]) -> Int {
-        var best = 0
-        var current = 0
-        for record in records {
-            if isDayFullyOnTarget(record) {
-                current += 1
-                best = max(best, current)
-            } else {
-                current = 0
-            }
-        }
-        return best
-    }
-
-    private func avgDelta(in records: [DayRecord]) -> Int {
-        let calTarget = DailyTarget.calories
-        guard calTarget > 0 else { return 0 }
-        let withData = records.filter { $0.hasData }
-        guard !withData.isEmpty else { return 0 }
-        return withData.reduce(0) { $0 + ($1.calories - calTarget) } / withData.count
-    }
-
-    private func avgCalories(in records: [DayRecord]) -> Int {
-        let withData = records.filter { $0.hasData }
-        guard !withData.isEmpty else { return 0 }
-        return withData.reduce(0) { $0 + $1.calories } / withData.count
-    }
-
-    // MARK: - Year Monthly Dots
-
-    private func yearMonthlyDotsFrom(_ records: [DayRecord]) -> [(label: String, hasData: Bool, adherencePct: Double?)] {
-        let calendar = Calendar.current
-        let now = Date()
-        let currentMonth = calendar.component(.month, from: now)
-
-        let grouped = Dictionary(grouping: records) { record in
-            calendar.component(.month, from: record.date)
-        }
-
-        var dots: [(label: String, hasData: Bool, adherencePct: Double?)] = []
-        for month in 1...12 {
-            let label = calendar.veryShortMonthSymbols[month - 1]
-
-            if month > currentMonth {
-                dots.append((label: label, hasData: false, adherencePct: nil))
-                continue
-            }
-
-            guard let monthRecords = grouped[month] else {
-                dots.append((label: label, hasData: false, adherencePct: nil))
-                continue
-            }
-
-            let withData = monthRecords.filter { $0.hasData }
-            if withData.isEmpty {
-                dots.append((label: label, hasData: false, adherencePct: nil))
-                continue
-            }
-
-            guard hasTargets else {
-                dots.append((label: label, hasData: true, adherencePct: nil))
-                continue
-            }
-
-            let onTarget = withData.filter { isDayFullyOnTarget($0) }.count
-            let adherence = Double(onTarget) / Double(withData.count)
-            dots.append((label: label, hasData: true, adherencePct: adherence))
-        }
-
-        return dots
-    }
-
-    private func monthDotColor(hasData: Bool, adherencePct: Double?) -> Color {
-        guard hasData else { return Color(.systemGray4) }
-        guard let adherence = adherencePct else { return .accentColor }
-        if adherence >= PerformanceThresholds.monthDotGood { return .green }
-        if adherence >= PerformanceThresholds.monthDotFair { return .yellow }
-        return .red
-    }
-
-    // MARK: - Month Weekly Dots
-
-    private func monthWeeklyDotsFrom(_ records: [DayRecord]) -> [(label: String, hasData: Bool, adherencePct: Double?)] {
-        // Split 28 days into 4 weeks (oldest first)
-        var dots: [(label: String, hasData: Bool, adherencePct: Double?)] = []
-        for week in 0..<4 {
-            let start = week * 7
-            let end = min(start + 7, records.count)
-            guard start < records.count else {
-                dots.append((label: "W\(week + 1)", hasData: false, adherencePct: nil))
-                continue
-            }
-            let weekRecords = Array(records[start..<end])
-            let withData = weekRecords.filter { $0.hasData }
-
-            if withData.isEmpty {
-                dots.append((label: "W\(week + 1)", hasData: false, adherencePct: nil))
-                continue
-            }
-
-            guard hasTargets else {
-                dots.append((label: "W\(week + 1)", hasData: true, adherencePct: nil))
-                continue
-            }
-
-            let onTarget = withData.filter { isDayFullyOnTarget($0) }.count
-            let adherence = Double(onTarget) / Double(withData.count)
-            dots.append((label: "W\(week + 1)", hasData: true, adherencePct: adherence))
-        }
-        return dots
-    }
-
-    private func weeklyDotsRow(dots: [(label: String, hasData: Bool, adherencePct: Double?)]) -> some View {
-        HStack(spacing: 0) {
-            ForEach(Array(dots.enumerated()), id: \.offset) { _, dot in
-                VStack(spacing: 4) {
-                    Circle()
-                        .fill(monthDotColor(hasData: dot.hasData, adherencePct: dot.adherencePct))
-                        .frame(width: 14, height: 14)
-                    Text(dot.label)
-                        .font(.caption2)
-                        .foregroundStyle(.secondary)
-                }
-                .frame(maxWidth: .infinity)
-            }
-        }
-    }
-
-    // MARK: - Month Trend
-
-    private var monthTrend: TrendDirection {
-        let all56 = buildDailyRecords(days: 56)
-        let previous = Array(all56.prefix(28))
-        let current = Array(all56.suffix(28))
-
-        let currentWithData = daysWithData(in: current)
-        let previousWithData = daysWithData(in: previous)
-
-        guard currentWithData > 0, previousWithData > 0 else { return .steady }
-
-        let currentPct = Double(daysOnTarget(in: current)) / Double(currentWithData)
-        let previousPct = Double(daysOnTarget(in: previous)) / Double(previousWithData)
-
-        let diff = currentPct - previousPct
-        if diff > PerformanceThresholds.trendSensitivity { return .improving }
-        if diff < -PerformanceThresholds.trendSensitivity { return .declining }
-        return .steady
-    }
-
     @State private var showingInfo = false
     @State private var useBarChart = true
+
+    private var calc: PerformanceCalculator {
+        PerformanceCalculator(
+            entries: entries,
+            activeMacroTypes: MacroType.allCases.filter { $0.target > 0 }
+        )
+    }
 
     // MARK: - Body
 
@@ -432,7 +111,7 @@ struct PerformanceTileView: View {
                         .foregroundStyle(.secondary)
                 }
                 .buttonStyle(.plain)
-                if selectedPeriod == .week && hasTargets {
+                if selectedPeriod == .week && calc.hasTargets {
                     Button {
                         withAnimation(.easeInOut(duration: 0.25)) {
                             useBarChart.toggle()
@@ -454,7 +133,7 @@ struct PerformanceTileView: View {
                 .frame(maxWidth: 200)
             }
 
-            if hasTargets {
+            if calc.hasTargets {
                 switch selectedPeriod {
                 case .week: weekContent
                 case .month: monthContent
@@ -464,32 +143,23 @@ struct PerformanceTileView: View {
                 noTargetsContent
             }
         }
-        .padding(16)
-        .background(Color(.secondarySystemGroupedBackground))
-        .clipShape(RoundedRectangle(cornerRadius: 16))
+        .padding(DS.Spacing.m)
+        .appCard()
         .sheet(isPresented: $showingInfo) {
             PerformanceInfoView()
         }
-    }
-
-    // MARK: - Adherence Color
-
-    private func adherenceColor(_ pct: Int) -> Color {
-        if pct >= PerformanceThresholds.adherenceGood { return .green }
-        if pct >= PerformanceThresholds.adherenceFair { return .yellow }
-        return .red
     }
 
     // MARK: - Week Content
 
     @ViewBuilder
     private var weekContent: some View {
-        let records = dailyRecords
-        let onTarget = daysOnTarget(in: records)
-        let withData = daysWithData(in: records)
+        let records = calc.dailyRecords(for: .week)
+        let onTarget = calc.daysOnTarget(in: records)
+        let withData = calc.daysWithData(in: records)
         let pct = withData > 0 ? Int(round(Double(onTarget) / Double(withData) * 100)) : 0
-        let streak = currentStreak(in: records)
-        let delta = avgDelta(in: records)
+        let streak = calc.globalCurrentStreak(allEntries: entries)
+        let delta = calc.avgDelta(in: records)
 
         VStack(spacing: 10) {
             heroStat(onTarget: onTarget, total: withData, pct: pct)
@@ -529,13 +199,12 @@ struct PerformanceTileView: View {
     private func macroColor(for macro: MacroType) -> Color {
         switch macro {
         case .calories: return .gray
-        case .protein: return .blue
-        case .carbs: return .orange
-        case .fat: return .purple
+        case .protein: return DS.Color.protein
+        case .carbs: return DS.Color.carbs
+        case .fat: return DS.Color.fat
         }
     }
 
-    /// X offset for each macro within a day group. 4 bars spread across ~0.7 of a 1.0-wide slot.
     private static let macroOffsets: [MacroType: Double] = [
         .calories: -0.27, .protein: -0.09, .carbs: 0.09, .fat: 0.27
     ]
@@ -643,7 +312,7 @@ struct PerformanceTileView: View {
     private func weekStatusDotsRow(records: [DayRecord]) -> some View {
         HStack(spacing: 0) {
             ForEach(Array(records.enumerated()), id: \.offset) { _, record in
-                let status = dayOverallStatus(record)
+                let status = calc.dayOverallStatus(record)
                 ZStack {
                     Circle()
                         .fill(status.color)
@@ -663,17 +332,18 @@ struct PerformanceTileView: View {
 
     @ViewBuilder
     private var monthContent: some View {
-        let records = dailyRecords
-        let onTarget = daysOnTarget(in: records)
-        let withData = daysWithData(in: records)
+        let records = calc.dailyRecords(for: .month)
+        let onTarget = calc.daysOnTarget(in: records)
+        let withData = calc.daysWithData(in: records)
         let pct = withData > 0 ? Int(round(Double(onTarget) / Double(withData) * 100)) : 0
-        let avg = avgCalories(in: records)
-        let best = bestStreak(in: records)
-        let trend = monthTrend
+        let avg = calc.avgCalories(in: records)
+        let best = calc.bestStreak(in: records)
+        let streak = calc.globalCurrentStreak(allEntries: entries)
+        let trend = calc.monthTrend()
 
         VStack(spacing: 10) {
             heroStat(onTarget: onTarget, total: withData, pct: pct)
-            weeklyDotsRow(dots: monthWeeklyDotsFrom(records))
+            weeklyDotsRow(dots: calc.monthWeeklyDotsFrom(records))
 
             HStack {
                 VStack(alignment: .leading, spacing: 4) {
@@ -692,8 +362,13 @@ struct PerformanceTileView: View {
                         .foregroundStyle(trend.color)
                 }
                 Spacer()
-                if best > 0 {
-                    streakLabel(count: best, isBest: true)
+                VStack(alignment: .trailing, spacing: 4) {
+                    if streak > 0 {
+                        streakLabel(count: streak, isBest: false)
+                    }
+                    if best > 0 {
+                        streakLabel(count: best, isBest: true)
+                    }
                 }
             }
         }
@@ -703,21 +378,25 @@ struct PerformanceTileView: View {
 
     @ViewBuilder
     private var yearContent: some View {
-        let records = dailyRecords
-        let onTarget = daysOnTarget(in: records)
-        let withData = daysWithData(in: records)
+        let records = calc.dailyRecords(for: .year)
+        let onTarget = calc.daysOnTarget(in: records)
+        let withData = calc.daysWithData(in: records)
         let pct = withData > 0 ? Int(round(Double(onTarget) / Double(withData) * 100)) : 0
-        let best = bestStreak(in: records)
-        let dots = yearMonthlyDotsFrom(records)
+        let best = calc.bestStreak(in: records)
+        let streak = calc.globalCurrentStreak(allEntries: entries)
+        let dots = calc.yearMonthlyDotsFrom(records)
 
         VStack(spacing: 10) {
             heroStat(onTarget: onTarget, total: withData, pct: pct)
             monthDotsRow(dots: dots)
 
-            if best > 0 {
-                HStack {
+            HStack {
+                if streak > 0 {
+                    streakLabel(count: streak, isBest: false)
+                }
+                Spacer()
+                if best > 0 {
                     streakLabel(count: best, isBest: true)
-                    Spacer()
                 }
             }
         }
@@ -727,9 +406,9 @@ struct PerformanceTileView: View {
 
     @ViewBuilder
     private var noTargetsContent: some View {
-        let records = dailyRecords
-        let logged = daysWithData(in: records)
-        let avg = avgCalories(in: records)
+        let records = calc.dailyRecords(for: selectedPeriod)
+        let logged = calc.daysWithData(in: records)
+        let avg = calc.avgCalories(in: records)
 
         VStack(spacing: 10) {
             HStack {
@@ -742,9 +421,9 @@ struct PerformanceTileView: View {
             if selectedPeriod == .week {
                 noTargetDayDotsRow(records: records)
             } else if selectedPeriod == .month {
-                weeklyDotsRow(dots: monthWeeklyDotsFrom(records))
+                weeklyDotsRow(dots: calc.monthWeeklyDotsFrom(records))
             } else if selectedPeriod == .year {
-                monthDotsRow(dots: yearMonthlyDotsFrom(records))
+                monthDotsRow(dots: calc.yearMonthlyDotsFrom(records))
             }
 
             HStack {
@@ -772,14 +451,13 @@ struct PerformanceTileView: View {
             Text("\(pct)%")
                 .font(.title2)
                 .fontWeight(.bold)
-                .foregroundStyle(adherenceColor(pct))
+                .foregroundStyle(calc.adherenceColor(pct))
         }
     }
 
     private func macroDotsMatrix(records: [DayRecord]) -> some View {
         let calendar = Calendar.current
         return VStack(spacing: 6) {
-            // Day letter header row
             HStack(spacing: 0) {
                 Color.clear.frame(width: 34, height: 1)
                 ForEach(Array(records.enumerated()), id: \.offset) { _, record in
@@ -792,7 +470,6 @@ struct PerformanceTileView: View {
                 }
             }
 
-            // One row per macro type (all 4, active ones get colored dots)
             ForEach(MacroType.allCases, id: \.label) { macro in
                 HStack(spacing: 0) {
                     Text(macro.label)
@@ -800,7 +477,7 @@ struct PerformanceTileView: View {
                         .foregroundStyle(macro.target > 0 ? .secondary : .quaternary)
                         .frame(width: 34, alignment: .leading)
                     ForEach(Array(records.enumerated()), id: \.offset) { _, record in
-                        matrixDot(status: dotStatus(for: macro, record: record))
+                        matrixDot(status: calc.dotStatus(for: macro, record: record))
                             .frame(maxWidth: .infinity)
                     }
                 }
@@ -829,9 +506,25 @@ struct PerformanceTileView: View {
                 let symbol = calendar.veryShortWeekdaySymbols[weekday - 1]
                 VStack(spacing: 4) {
                     Circle()
-                        .fill(record.hasData ? Color.accentColor : Color(.systemGray4))
+                        .fill(record.hasData ? DS.Color.protein : DS.Color.textTertiary)
                         .frame(width: 12, height: 12)
                     Text(symbol)
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                }
+                .frame(maxWidth: .infinity)
+            }
+        }
+    }
+
+    private func weeklyDotsRow(dots: [(label: String, hasData: Bool, adherencePct: Double?)]) -> some View {
+        HStack(spacing: 0) {
+            ForEach(Array(dots.enumerated()), id: \.offset) { _, dot in
+                VStack(spacing: 4) {
+                    Circle()
+                        .fill(calc.monthDotColor(hasData: dot.hasData, adherencePct: dot.adherencePct))
+                        .frame(width: 14, height: 14)
+                    Text(dot.label)
                         .font(.caption2)
                         .foregroundStyle(.secondary)
                 }
@@ -845,7 +538,7 @@ struct PerformanceTileView: View {
             ForEach(Array(dots.enumerated()), id: \.offset) { _, dot in
                 VStack(spacing: 4) {
                     Circle()
-                        .fill(monthDotColor(hasData: dot.hasData, adherencePct: dot.adherencePct))
+                        .fill(calc.monthDotColor(hasData: dot.hasData, adherencePct: dot.adherencePct))
                         .frame(width: 12, height: 12)
                     Text(dot.label)
                         .font(.caption2)

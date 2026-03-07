@@ -6,10 +6,19 @@ actor USDAService {
     static let shared = USDAService()
 
     private let baseURL = "https://api.nal.usda.gov/fdc/v1/foods/search"
-    static let keychainAccount = "usda-api-key"
+    static let keychainAccount = AppConstants.Keychain.usdaAPIKey
+
+    private var cachedAPIKey: String?
 
     private var apiKey: String {
-        KeychainService.load(account: Self.keychainAccount) ?? "DEMO_KEY"
+        if let cached = cachedAPIKey { return cached }
+        let key = KeychainService.load(account: Self.keychainAccount) ?? "DEMO_KEY"
+        cachedAPIKey = key
+        return key
+    }
+
+    func invalidateAPIKeyCache() {
+        cachedAPIKey = nil
     }
 
     struct NutrientsPer100g {
@@ -19,7 +28,8 @@ actor USDAService {
         var fat: Double = 0
     }
 
-    struct USDALookupResult {
+    struct USDALookupResult: Identifiable {
+        let id = UUID()
         var description: String
         var nutrientsPer100g: NutrientsPer100g
         var servingDescription: String?
@@ -30,10 +40,10 @@ actor USDAService {
             guard let grams = servingGrams, grams > 0 else { return nutrientsPer100g }
             let scale = grams / 100.0
             return NutrientsPer100g(
-                calories: (nutrientsPer100g.calories * scale * 10).rounded() / 10,
-                protein: (nutrientsPer100g.protein * scale * 10).rounded() / 10,
-                carbs: (nutrientsPer100g.carbs * scale * 10).rounded() / 10,
-                fat: (nutrientsPer100g.fat * scale * 10).rounded() / 10
+                calories: (nutrientsPer100g.calories * scale).roundedTo(1),
+                protein: (nutrientsPer100g.protein * scale).roundedTo(1),
+                carbs: (nutrientsPer100g.carbs * scale).roundedTo(1),
+                fat: (nutrientsPer100g.fat * scale).roundedTo(1)
             )
         }
     }
@@ -121,10 +131,10 @@ actor USDAService {
                 guard let nutrientId = nutrient["nutrientId"] as? Int,
                       let value = nutrient["value"] as? Double else { continue }
                 switch nutrientId {
-                case 1008: nutrients.calories = value
-                case 1003: nutrients.protein = value
-                case 1005: nutrients.carbs = value
-                case 1004: nutrients.fat = value
+                case AppConstants.USDA.energyNutrientID: nutrients.calories = value
+                case AppConstants.USDA.proteinNutrientID: nutrients.protein = value
+                case AppConstants.USDA.carbsNutrientID: nutrients.carbs = value
+                case AppConstants.USDA.fatNutrientID: nutrients.fat = value
                 default: break
                 }
             }

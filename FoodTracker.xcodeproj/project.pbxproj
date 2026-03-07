@@ -10,11 +10,10 @@
 		A10001010000000000000001 /* FoodTrackerApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10002010000000000000001 /* FoodTrackerApp.swift */; };
 		A10001010000000000000002 /* FoodEntry.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10002010000000000000002 /* FoodEntry.swift */; };
 		A10001010000000000000003 /* KeychainService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10002010000000000000003 /* KeychainService.swift */; };
-		A10001010000000000000004 /* FoodAnalysisService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10002010000000000000004 /* FoodAnalysisService.swift */; };
+		A10001010000000000000004 /* FoodAnalysisPipeline.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10002010000000000000004 /* FoodAnalysisPipeline.swift */; };
 		A10001010000000000000005 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10002010000000000000005 /* ContentView.swift */; };
 		A10001010000000000000006 /* DailySummaryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10002010000000000000006 /* DailySummaryView.swift */; };
 		A10001010000000000000007 /* AddEntryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10002010000000000000007 /* AddEntryView.swift */; };
-		A1000F020000000000000001 /* SearchFoodView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1000F010000000000000001 /* SearchFoodView.swift */; };
 		A10001010000000000000008 /* PhotoCaptureView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10002010000000000000008 /* PhotoCaptureView.swift */; };
 		A10001010000000000000009 /* PhotoAnalysisView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10002010000000000000009 /* PhotoAnalysisView.swift */; };
 		A1000101000000000000000A /* HistoryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1000201000000000000000A /* HistoryView.swift */; };
@@ -24,12 +23,13 @@
 		A1000101000000000000000E /* BarcodeScannerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1000201000000000000000F /* BarcodeScannerView.swift */; };
 		A1000101000000000000000F /* EditEntryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10002010000000000000010 /* EditEntryView.swift */; };
 		A10001010000000000000010 /* SharedConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10002010000000000000011 /* SharedConfig.swift */; };
-		A10001010000000000000030 /* SharedHelpers.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10002010000000000000030 /* SharedHelpers.swift */; };
 		A10001010000000000000020 /* FoodTrackerWidget.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10002010000000000000020 /* FoodTrackerWidget.swift */; };
 		A10001010000000000000021 /* FoodEntry.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10002010000000000000002 /* FoodEntry.swift */; };
 		A10001010000000000000022 /* SharedConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10002010000000000000011 /* SharedConfig.swift */; };
 		A10001010000000000000023 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = A10002010000000000000021 /* Assets.xcassets */; };
 		A10001010000000000000024 /* FoodTrackerWidgetExtension.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = A10003010000000000000002 /* FoodTrackerWidgetExtension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		A10001010000000000000030 /* SharedHelpers.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10002010000000000000030 /* SharedHelpers.swift */; };
+		A1000F020000000000000001 /* SearchFoodView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1000F010000000000000001 /* SearchFoodView.swift */; };
 		A2000101000000000000000A /* MealSummaryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000201000000000000000A /* MealSummaryView.swift */; };
 		B30001010000000000000001 /* PerformanceTileView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B30002010000000000000001 /* PerformanceTileView.swift */; };
 		B30001010000000000000002 /* PerformanceInfoView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B30002010000000000000002 /* PerformanceInfoView.swift */; };
@@ -38,6 +38,13 @@
 		B30001010000000000000005 /* USDAService.swift in Sources */ = {isa = PBXBuildFile; fileRef = B30002010000000000000005 /* USDAService.swift */; };
 		B30001010000000000000006 /* SharedViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = B30002010000000000000006 /* SharedViews.swift */; };
 		B30001010000000000000007 /* HeroPhotoSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = B30002010000000000000007 /* HeroPhotoSection.swift */; };
+		B30001010000000000000008 /* BuildMealView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B30002010000000000000008 /* BuildMealView.swift */; };
+		C10001010000000000000001 /* VisionAPIService.swift in Sources */ = {isa = PBXBuildFile; fileRef = C10002010000000000000001 /* VisionAPIService.swift */; };
+		C10001010000000000000002 /* AppConstants.swift in Sources */ = {isa = PBXBuildFile; fileRef = C10002010000000000000002 /* AppConstants.swift */; };
+		C10001010000000000000003 /* NutritionLookup.swift in Sources */ = {isa = PBXBuildFile; fileRef = C10002010000000000000003 /* NutritionLookup.swift */; };
+		C10001010000000000000004 /* PerformanceCalculator.swift in Sources */ = {isa = PBXBuildFile; fileRef = C10002010000000000000004 /* PerformanceCalculator.swift */; };
+		C40001010000000000000001 /* HealthKitService.swift in Sources */ = {isa = PBXBuildFile; fileRef = C40002010000000000000001 /* HealthKitService.swift */; };
+		D10001010000000000000001 /* DesignSystem.swift in Sources */ = {isa = PBXBuildFile; fileRef = D10002010000000000000001 /* DesignSystem.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -68,11 +75,10 @@
 		A10002010000000000000001 /* FoodTrackerApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FoodTrackerApp.swift; sourceTree = "<group>"; };
 		A10002010000000000000002 /* FoodEntry.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FoodEntry.swift; sourceTree = "<group>"; };
 		A10002010000000000000003 /* KeychainService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeychainService.swift; sourceTree = "<group>"; };
-		A10002010000000000000004 /* FoodAnalysisService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FoodAnalysisService.swift; sourceTree = "<group>"; };
+		A10002010000000000000004 /* FoodAnalysisPipeline.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FoodAnalysisPipeline.swift; sourceTree = "<group>"; };
 		A10002010000000000000005 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
 		A10002010000000000000006 /* DailySummaryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DailySummaryView.swift; sourceTree = "<group>"; };
 		A10002010000000000000007 /* AddEntryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AddEntryView.swift; sourceTree = "<group>"; };
-		A1000F010000000000000001 /* SearchFoodView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SearchFoodView.swift; sourceTree = "<group>"; };
 		A10002010000000000000008 /* PhotoCaptureView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhotoCaptureView.swift; sourceTree = "<group>"; };
 		A10002010000000000000009 /* PhotoAnalysisView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhotoAnalysisView.swift; sourceTree = "<group>"; };
 		A1000201000000000000000A /* HistoryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HistoryView.swift; sourceTree = "<group>"; };
@@ -83,14 +89,15 @@
 		A1000201000000000000000F /* BarcodeScannerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BarcodeScannerView.swift; sourceTree = "<group>"; };
 		A10002010000000000000010 /* EditEntryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EditEntryView.swift; sourceTree = "<group>"; };
 		A10002010000000000000011 /* SharedConfig.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SharedConfig.swift; sourceTree = "<group>"; };
-		A10002010000000000000030 /* SharedHelpers.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SharedHelpers.swift; sourceTree = "<group>"; };
 		A10002010000000000000015 /* FoodTracker.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = FoodTracker.entitlements; sourceTree = "<group>"; };
 		A10002010000000000000020 /* FoodTrackerWidget.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FoodTrackerWidget.swift; sourceTree = "<group>"; };
 		A10002010000000000000021 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		A10002010000000000000022 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		A10002010000000000000023 /* FoodTrackerWidgetExtension.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = FoodTrackerWidgetExtension.entitlements; sourceTree = "<group>"; };
+		A10002010000000000000030 /* SharedHelpers.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SharedHelpers.swift; sourceTree = "<group>"; };
 		A10003010000000000000001 /* FoodTracker.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = FoodTracker.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		A10003010000000000000002 /* FoodTrackerWidgetExtension.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = FoodTrackerWidgetExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
+		A1000F010000000000000001 /* SearchFoodView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SearchFoodView.swift; sourceTree = "<group>"; };
 		A2000201000000000000000A /* MealSummaryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MealSummaryView.swift; sourceTree = "<group>"; };
 		B30002010000000000000001 /* PerformanceTileView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PerformanceTileView.swift; sourceTree = "<group>"; };
 		B30002010000000000000002 /* PerformanceInfoView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PerformanceInfoView.swift; sourceTree = "<group>"; };
@@ -99,6 +106,13 @@
 		B30002010000000000000005 /* USDAService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = USDAService.swift; sourceTree = "<group>"; };
 		B30002010000000000000006 /* SharedViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SharedViews.swift; sourceTree = "<group>"; };
 		B30002010000000000000007 /* HeroPhotoSection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HeroPhotoSection.swift; sourceTree = "<group>"; };
+		B30002010000000000000008 /* BuildMealView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BuildMealView.swift; sourceTree = "<group>"; };
+		C10002010000000000000001 /* VisionAPIService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VisionAPIService.swift; sourceTree = "<group>"; };
+		C10002010000000000000002 /* AppConstants.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppConstants.swift; sourceTree = "<group>"; };
+		C10002010000000000000003 /* NutritionLookup.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NutritionLookup.swift; sourceTree = "<group>"; };
+		C10002010000000000000004 /* PerformanceCalculator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PerformanceCalculator.swift; sourceTree = "<group>"; };
+		C40002010000000000000001 /* HealthKitService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HealthKitService.swift; sourceTree = "<group>"; };
+		D10002010000000000000001 /* DesignSystem.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DesignSystem.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -155,10 +169,12 @@
 			isa = PBXGroup;
 			children = (
 				A10002010000000000000003 /* KeychainService.swift */,
-				A10002010000000000000004 /* FoodAnalysisService.swift */,
-				A1000201000000000000000E /* OpenFoodFactsService.swift */,
+				C10002010000000000000001 /* VisionAPIService.swift */,
+				A10002010000000000000004 /* FoodAnalysisPipeline.swift */,
 				B30002010000000000000004 /* FoodAnalysisModels.swift */,
 				B30002010000000000000005 /* USDAService.swift */,
+				A1000201000000000000000E /* OpenFoodFactsService.swift */,
+				C40002010000000000000001 /* HealthKitService.swift */,
 			);
 			path = Services;
 			sourceTree = "<group>";
@@ -180,6 +196,7 @@
 				B30002010000000000000001 /* PerformanceTileView.swift */,
 				B30002010000000000000002 /* PerformanceInfoView.swift */,
 				B30002010000000000000003 /* BrowseFoodsView.swift */,
+				B30002010000000000000008 /* BuildMealView.swift */,
 			);
 			path = Views;
 			sourceTree = "<group>";
@@ -211,6 +228,10 @@
 				A10002010000000000000030 /* SharedHelpers.swift */,
 				B30002010000000000000006 /* SharedViews.swift */,
 				B30002010000000000000007 /* HeroPhotoSection.swift */,
+				C10002010000000000000002 /* AppConstants.swift */,
+				C10002010000000000000003 /* NutritionLookup.swift */,
+				C10002010000000000000004 /* PerformanceCalculator.swift */,
+			D10002010000000000000001 /* DesignSystem.swift */,
 			);
 			path = Shared;
 			sourceTree = "<group>";
@@ -318,7 +339,11 @@
 				A10001010000000000000001 /* FoodTrackerApp.swift in Sources */,
 				A10001010000000000000002 /* FoodEntry.swift in Sources */,
 				A10001010000000000000003 /* KeychainService.swift in Sources */,
-				A10001010000000000000004 /* FoodAnalysisService.swift in Sources */,
+				A10001010000000000000004 /* FoodAnalysisPipeline.swift in Sources */,
+				C10001010000000000000001 /* VisionAPIService.swift in Sources */,
+				C10001010000000000000002 /* AppConstants.swift in Sources */,
+				C10001010000000000000003 /* NutritionLookup.swift in Sources */,
+				C10001010000000000000004 /* PerformanceCalculator.swift in Sources */,
 				A10001010000000000000005 /* ContentView.swift in Sources */,
 				A10001010000000000000006 /* DailySummaryView.swift in Sources */,
 				A10001010000000000000007 /* AddEntryView.swift in Sources */,
@@ -340,6 +365,9 @@
 				B30001010000000000000005 /* USDAService.swift in Sources */,
 				B30001010000000000000006 /* SharedViews.swift in Sources */,
 				B30001010000000000000007 /* HeroPhotoSection.swift in Sources */,
+				B30001010000000000000008 /* BuildMealView.swift in Sources */,
+				C40001010000000000000001 /* HealthKitService.swift in Sources */,
+			D10001010000000000000001 /* DesignSystem.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -497,12 +525,13 @@
 				INFOPLIST_FILE = FoodTracker/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = FoodTracker;
 				INFOPLIST_KEY_NSCameraUsageDescription = "FoodTracker needs camera access to take photos of your food for nutritional analysis.";
+				INFOPLIST_KEY_NSHealthUpdateUsageDescription = "FoodTracker writes your food entries to Health to track daily nutrition.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
 				INFOPLIST_KEY_UIRequiresFullScreen = YES;
-				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait";
-				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait";
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = UIInterfaceOrientationPortrait;
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = UIInterfaceOrientationPortrait;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
@@ -532,12 +561,13 @@
 				INFOPLIST_FILE = FoodTracker/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = FoodTracker;
 				INFOPLIST_KEY_NSCameraUsageDescription = "FoodTracker needs camera access to take photos of your food for nutritional analysis.";
+				INFOPLIST_KEY_NSHealthUpdateUsageDescription = "FoodTracker writes your food entries to Health to track daily nutrition.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
 				INFOPLIST_KEY_UIRequiresFullScreen = YES;
-				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait";
-				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait";
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = UIInterfaceOrientationPortrait;
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = UIInterfaceOrientationPortrait;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",

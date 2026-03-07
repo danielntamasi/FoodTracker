@@ -51,9 +51,9 @@ struct HeroPhotoSection: View {
             LinearGradient(
                 stops: [
                     .init(color: .clear, location: 0.0),
-                    .init(color: bgColor.opacity(0.3), location: 0.3),
-                    .init(color: bgColor.opacity(0.85), location: 0.7),
-                    .init(color: bgColor, location: 1.0)
+                    .init(color: DS.Color.backgroundSecondary.opacity(0.3), location: 0.3),
+                    .init(color: DS.Color.backgroundSecondary.opacity(0.85), location: 0.7),
+                    .init(color: DS.Color.backgroundSecondary, location: 1.0)
                 ],
                 startPoint: .top,
                 endPoint: .bottom
@@ -128,9 +128,9 @@ struct HeroPhotoSection: View {
 
             HStack(spacing: 12) {
                 MetricPill(value: "\(totalCalories)", label: "cal", color: .white)
-                MetricPill(value: formatMacro(totalProtein), label: "P", color: .blue)
-                MetricPill(value: formatMacro(totalCarbs), label: "C", color: .orange)
-                MetricPill(value: formatMacro(totalFat), label: "F", color: .purple)
+                MetricPill(value: formatMacro(totalProtein), label: "P", color: DS.Color.protein)
+                MetricPill(value: formatMacro(totalCarbs), label: "C", color: DS.Color.carbs)
+                MetricPill(value: formatMacro(totalFat), label: "F", color: DS.Color.fat)
             }
 
             if totalMacroCals > 0 {

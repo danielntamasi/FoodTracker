@@ -61,8 +61,8 @@ enum VisionProvider: String, CaseIterable, Identifiable {
 
     var keychainAccount: String {
         switch self {
-        case .claude: return "claude-api-key"
-        case .gemini: return "gemini-api-key"
+        case .claude: return AppConstants.Keychain.claudeAPIKey
+        case .gemini: return AppConstants.Keychain.geminiAPIKey
         }
     }
 
@@ -75,14 +75,14 @@ enum VisionProvider: String, CaseIterable, Identifiable {
 
     static var selected: VisionProvider {
         get {
-            if let raw = UserDefaults.standard.string(forKey: "visionProvider"),
+            if let raw = UserDefaults.standard.string(forKey: AppConstants.Defaults.visionProvider),
                let provider = VisionProvider(rawValue: raw) {
                 return provider
             }
             return .gemini
         }
         set {
-            UserDefaults.standard.set(newValue.rawValue, forKey: "visionProvider")
+            UserDefaults.standard.set(newValue.rawValue, forKey: AppConstants.Defaults.visionProvider)
         }
     }
 }
@@ -169,14 +169,3 @@ enum FoodAnalysisError: LocalizedError {
     }
 }
 
-// MARK: - Title Case Helper
-
-extension String {
-    /// Capitalizes the first letter of each word (e.g. "white rice" → "White Rice")
-    func titleCased() -> String {
-        self.lowercased()
-            .split(separator: " ")
-            .map { $0.prefix(1).uppercased() + $0.dropFirst() }
-            .joined(separator: " ")
-    }
-}

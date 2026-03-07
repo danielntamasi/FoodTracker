@@ -58,9 +58,9 @@ final class FoodEntry {
     var barcode: String?
 
     var totalCalories: Int { Int((Double(calories) * servings).rounded()) }
-    var totalProteinGrams: Double { (proteinGrams * servings * 10).rounded() / 10 }
-    var totalCarbsGrams: Double { (carbsGrams * servings * 10).rounded() / 10 }
-    var totalFatGrams: Double { (fatGrams * servings * 10).rounded() / 10 }
+    var totalProteinGrams: Double { (proteinGrams * servings).roundedTo(1) }
+    var totalCarbsGrams: Double { (carbsGrams * servings).roundedTo(1) }
+    var totalFatGrams: Double { (fatGrams * servings).roundedTo(1) }
 
     init(
         id: UUID = UUID(),

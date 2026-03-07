@@ -4,6 +4,16 @@ import os
 
 let appGroupID = "group.com.DNT.foodtracker"
 
+// MARK: - Rounding Helper
+
+extension Double {
+    /// Rounds to the specified number of decimal places.
+    func roundedTo(_ places: Int) -> Double {
+        let multiplier = pow(10.0, Double(places))
+        return (self * multiplier).rounded() / multiplier
+    }
+}
+
 private let logger = Logger(subsystem: "com.DNT.FoodTracker", category: "storage")
 
 /// Main app ModelContainer — uses the default location (Application Support).

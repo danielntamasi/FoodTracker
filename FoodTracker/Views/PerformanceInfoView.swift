@@ -13,7 +13,7 @@ struct PerformanceInfoView: View {
                 }
                 .padding(16)
             }
-            .background(Color(.systemGroupedBackground))
+            .background(DS.Color.backgroundPrimary)
             .navigationTitle("How to Read Performance")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -45,7 +45,7 @@ struct PerformanceInfoView: View {
                 dotLegendRow(status: .noData, label: "No data", description: "nothing logged")
             }
             .padding(12)
-            .background(Color(.secondarySystemGroupedBackground))
+            .background(DS.Color.backgroundSecondary)
             .clipShape(RoundedRectangle(cornerRadius: 12))
         }
     }
@@ -93,7 +93,7 @@ struct PerformanceInfoView: View {
                     .padding(.horizontal, 12)
                     .padding(.bottom, 12)
             }
-            .background(Color(.secondarySystemGroupedBackground))
+            .background(DS.Color.backgroundSecondary)
             .clipShape(RoundedRectangle(cornerRadius: 12))
         }
     }
@@ -170,7 +170,7 @@ struct PerformanceInfoView: View {
                     isFirst: false
                 )
             }
-            .background(Color(.secondarySystemGroupedBackground))
+            .background(DS.Color.backgroundSecondary)
             .clipShape(RoundedRectangle(cornerRadius: 12))
         }
     }
