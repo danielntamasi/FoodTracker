@@ -451,7 +451,9 @@ struct PhotoAnalysisView: View {
                             caloriesPerServing: perServingCal,
                             proteinPerServing: perServingP,
                             carbsPerServing: perServingC,
-                            fatPerServing: perServingF
+                            fatPerServing: perServingF,
+                            servingDescription: food.portionDescription.isEmpty ? nil : food.portionDescription,
+                            servingGrams: food.servingGrams
                         ))
                     }
                 } else {

@@ -211,15 +211,10 @@ struct DailySummaryView: View {
 
     private var summaryCard: some View {
         VStack(spacing: DS.Spacing.l) {
-            ZStack {
-                DS.Gradient.heroGlow
-                    .frame(width: 280, height: 280)
-
-                CalorieRing(
-                    consumed: totalCalories,
-                    goal: DailyTarget.calories
-                )
-            }
+            CalorieRing(
+                consumed: totalCalories,
+                goal: DailyTarget.calories
+            )
             .animation(.spring(duration: 0.4), value: totalCalories)
 
             if DailyTarget.hasTargets {

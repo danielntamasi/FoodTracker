@@ -229,7 +229,9 @@ struct EditEntryView: View {
                     caloriesPerServing: entry.calories,
                     proteinPerServing: entry.proteinGrams,
                     carbsPerServing: entry.carbsGrams,
-                    fatPerServing: entry.fatGrams
+                    fatPerServing: entry.fatGrams,
+                    servingDescription: entry.servingDescription,
+                    servingGrams: entry.servingGrams
                 )
                 withAnimation(.easeInOut(duration: 0.25)) { isEditing = false }
                 showCorrectionAlert = true

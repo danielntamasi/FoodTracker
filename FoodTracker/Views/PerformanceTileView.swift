@@ -326,6 +326,8 @@ struct PerformanceTileView: View {
                 .frame(maxWidth: .infinity)
             }
         }
+        // Align with chart plot area (offset for Y-axis labels on trailing edge)
+        .padding(.trailing, 38)
     }
 
     // MARK: - Month Content

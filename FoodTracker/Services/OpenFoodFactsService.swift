@@ -30,6 +30,8 @@ actor OpenFoodFactsService {
         let proteinPerServing: Double
         let carbsPerServing: Double
         let fatPerServing: Double
+        let servingDescription: String?
+        let servingGrams: Double?
     }
 
     struct Product {
@@ -155,20 +157,48 @@ actor OpenFoodFactsService {
 
         guard let url = URL(string: Self.writeURL) else { return }
 
-        var bodyComponents = URLComponents()
-        bodyComponents.queryItems = [
+        // Compute per-100g values from per-serving + serving weight for OFF
+        // OFF works best with per-100g data since it can derive per-serving from serving_quantity
+        let sendPer100g = correction.servingGrams != nil && correction.servingGrams! > 0
+        let nutritionPer = sendPer100g ? "100g" : "serving"
+
+        var queryItems = [
             URLQueryItem(name: "code", value: correction.barcode),
             URLQueryItem(name: "user_id", value: userID),
             URLQueryItem(name: "password", value: password),
-            URLQueryItem(name: "nutrition_data_per", value: "serving"),
-            URLQueryItem(name: "nutriment_energy-kcal", value: "\(correction.caloriesPerServing)"),
-            URLQueryItem(name: "nutriment_proteins", value: String(format: "%.1f", correction.proteinPerServing)),
-            URLQueryItem(name: "nutriment_carbohydrates", value: String(format: "%.1f", correction.carbsPerServing)),
-            URLQueryItem(name: "nutriment_fat", value: String(format: "%.1f", correction.fatPerServing)),
+            URLQueryItem(name: "nutrition_data_per", value: nutritionPer),
             URLQueryItem(name: "app_name", value: "FoodTracker"),
             URLQueryItem(name: "app_version", value: Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.0"),
             URLQueryItem(name: "app_uuid", value: Self.deviceUUID),
         ]
+
+        if sendPer100g, let grams = correction.servingGrams {
+            let scale = 100.0 / grams
+            queryItems.append(contentsOf: [
+                URLQueryItem(name: "nutriment_energy-kcal", value: String(format: "%.1f", Double(correction.caloriesPerServing) * scale)),
+                URLQueryItem(name: "nutriment_proteins", value: String(format: "%.1f", correction.proteinPerServing * scale)),
+                URLQueryItem(name: "nutriment_carbohydrates", value: String(format: "%.1f", correction.carbsPerServing * scale)),
+                URLQueryItem(name: "nutriment_fat", value: String(format: "%.1f", correction.fatPerServing * scale)),
+            ])
+        } else {
+            queryItems.append(contentsOf: [
+                URLQueryItem(name: "nutriment_energy-kcal", value: "\(correction.caloriesPerServing)"),
+                URLQueryItem(name: "nutriment_proteins", value: String(format: "%.1f", correction.proteinPerServing)),
+                URLQueryItem(name: "nutriment_carbohydrates", value: String(format: "%.1f", correction.carbsPerServing)),
+                URLQueryItem(name: "nutriment_fat", value: String(format: "%.1f", correction.fatPerServing)),
+            ])
+        }
+
+        // Always send serving info so OFF can properly associate serving data
+        if let servingDesc = correction.servingDescription, !servingDesc.isEmpty {
+            queryItems.append(URLQueryItem(name: "serving_size", value: servingDesc))
+        }
+        if let grams = correction.servingGrams, grams > 0 {
+            queryItems.append(URLQueryItem(name: "serving_quantity", value: String(format: "%.0f", grams)))
+        }
+
+        var bodyComponents = URLComponents()
+        bodyComponents.queryItems = queryItems
 
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
