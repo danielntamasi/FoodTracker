@@ -185,3 +185,34 @@ func perServingFromPer100g(
         fat: (fatPer100g * scale).roundedTo(1)
     )
 }
+
+// MARK: - Favorite Foods
+
+enum FavoriteFoods {
+    private static let key = AppConstants.Defaults.favoriteFoodNames
+
+    private static var names: Set<String> {
+        get { Set(sharedDefaults.stringArray(forKey: key) ?? []) }
+        set { sharedDefaults.set(Array(newValue), forKey: key) }
+    }
+
+    static func isFavorite(_ name: String) -> Bool {
+        names.contains(name.lowercased().trimmingCharacters(in: .whitespaces))
+    }
+
+    @discardableResult
+    static func toggle(_ name: String) -> Bool {
+        let canonical = name.lowercased().trimmingCharacters(in: .whitespaces)
+        guard !canonical.isEmpty else { return false }
+        var current = names
+        if current.contains(canonical) {
+            current.remove(canonical)
+            names = current
+            return false
+        } else {
+            current.insert(canonical)
+            names = current
+            return true
+        }
+    }
+}

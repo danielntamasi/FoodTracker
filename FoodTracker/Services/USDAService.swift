@@ -63,7 +63,12 @@ actor USDAService {
         let cleanedName = foodName
             .replacingOccurrences(of: "\\s*\\([^)]*\\)", with: "", options: .regularExpression)
             .trimmingCharacters(in: .whitespaces)
-        let query = cleanedName.isEmpty ? foodName : cleanedName
+        let afterParens = cleanedName.isEmpty ? foodName : cleanedName
+
+        // Strip cooking methods for better USDA matching
+        let words = afterParens.split(separator: " ").map { String($0) }
+        let stripped = words.filter { !Self.cookingMethods.contains($0.lowercased()) }
+        let query = stripped.isEmpty ? afterParens : stripped.joined(separator: " ")
 
         var components = URLComponents(string: baseURL)!
         components.queryItems = [
@@ -138,6 +143,11 @@ actor USDAService {
                 default: break
                 }
             }
+        }
+
+        // Derive calories from macros if USDA entry is missing energy nutrient
+        if nutrients.calories == 0 && (nutrients.protein > 0 || nutrients.carbs > 0 || nutrients.fat > 0) {
+            nutrients.calories = (nutrients.protein * 4 + nutrients.carbs * 4 + nutrients.fat * 9).roundedTo(1)
         }
 
         let desc = food["description"] as? String ?? fallbackName
@@ -218,6 +228,15 @@ actor USDAService {
         return nil
     }
 
+    private static let cookingMethods: Set<String> = [
+        "sauteed", "sautéed", "grilled", "roasted", "baked", "fried",
+        "steamed", "boiled", "braised", "broiled", "poached", "smoked",
+        "pan-fried", "stir-fried", "deep-fried", "air-fried",
+        "diced", "chopped", "sliced", "minced", "mashed", "pureed",
+        "blanched", "charred", "toasted", "seasoned", "marinated",
+        "glazed", "caramelized", "crispy", "creamy"
+    ]
+
     private func scoreFood(_ food: [String: Any], query: String, penaltyKeywords: [String]) -> Int {
         let desc = (food["description"] as? String ?? "").lowercased()
         var score = 0
@@ -234,6 +253,12 @@ actor USDAService {
         let queryWords = query.split(separator: " ").map { String($0) }
         let allMatch = queryWords.allSatisfy { desc.contains($0) }
         if allMatch { score += 3 }
+
+        // Prefer entries that include energy data
+        if let foodNutrients = food["foodNutrients"] as? [[String: Any]] {
+            let hasEnergy = foodNutrients.contains { ($0["nutrientId"] as? Int) == AppConstants.USDA.energyNutrientID }
+            if hasEnergy { score += 2 }
+        }
 
         return score
     }

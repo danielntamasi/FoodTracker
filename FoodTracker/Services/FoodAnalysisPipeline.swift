@@ -133,10 +133,10 @@ enum FoodAnalysisPipeline {
                     } else {
                         let result = try? await USDAService.shared.lookupFood(for: item.name)
 
-                        let calories: Int
-                        let protein: Double
-                        let carbs: Double
-                        let fat: Double
+                        var calories: Int
+                        var protein: Double
+                        var carbs: Double
+                        var fat: Double
                         var detectedServings: Double = 1.0
                         var calPer100g: Double?
                         var protPer100g: Double?
@@ -147,6 +147,7 @@ enum FoodAnalysisPipeline {
 
                         if let nutrients = result?.nutrientsPer100g,
                            nutrients.calories > 0 || nutrients.protein > 0 || nutrients.carbs > 0 || nutrients.fat > 0 {
+                            usedSource = .usda
                             calPer100g = nutrients.calories
                             protPer100g = nutrients.protein
                             carbPer100g = nutrients.carbs
@@ -155,11 +156,11 @@ enum FoodAnalysisPipeline {
                             if let servingGrams = result?.servingGrams, servingGrams > 0 {
                                 srvGrams = servingGrams
                                 detectedServings = (item.portion_grams / servingGrams).roundedTo(2)
-                                let servingScale = servingGrams / 100.0
-                                calories = Int((nutrients.calories * servingScale).rounded())
-                                protein = (nutrients.protein * servingScale).roundedTo(1)
-                                carbs = (nutrients.carbs * servingScale).roundedTo(1)
-                                fat = (nutrients.fat * servingScale).roundedTo(1)
+                                let portionScale = item.portion_grams / 100.0
+                                calories = Int((nutrients.calories * portionScale).rounded())
+                                protein = (nutrients.protein * portionScale).roundedTo(1)
+                                carbs = (nutrients.carbs * portionScale).roundedTo(1)
+                                fat = (nutrients.fat * portionScale).roundedTo(1)
                             } else {
                                 let scale = item.portion_grams / 100.0
                                 calories = Int(nutrients.calories * scale)
@@ -171,17 +172,23 @@ enum FoodAnalysisPipeline {
                             // USDA had no data — use focused text-based AI estimation
                             // instead of the vision model's inline estimates (which are unreliable)
                             if let aiResult = try? await VisionAPIService.shared.estimateNutrition(for: item.name) {
-                                calories = aiResult.calories
-                                protein = aiResult.proteinGrams
-                                carbs = aiResult.carbsGrams
-                                fat = aiResult.fatGrams
                                 if let sg = aiResult.servingGrams, sg > 0 {
                                     srvGrams = sg
                                     calPer100g = Double(aiResult.calories) * (100.0 / sg)
                                     protPer100g = aiResult.proteinGrams * (100.0 / sg)
                                     carbPer100g = aiResult.carbsGrams * (100.0 / sg)
                                     fatPer100g = aiResult.fatGrams * (100.0 / sg)
-                                    detectedServings = (item.portion_grams / sg).roundedTo(2)
+                                    let portionScale = item.portion_grams / sg
+                                    detectedServings = portionScale.roundedTo(2)
+                                    calories = Int((Double(aiResult.calories) * portionScale).rounded())
+                                    protein = (aiResult.proteinGrams * portionScale).roundedTo(1)
+                                    carbs = (aiResult.carbsGrams * portionScale).roundedTo(1)
+                                    fat = (aiResult.fatGrams * portionScale).roundedTo(1)
+                                } else {
+                                    calories = aiResult.calories
+                                    protein = aiResult.proteinGrams
+                                    carbs = aiResult.carbsGrams
+                                    fat = aiResult.fatGrams
                                 }
                             } else {
                                 // Last resort: use vision inline estimates with sanity clamp
@@ -197,6 +204,11 @@ enum FoodAnalysisPipeline {
                                 fat = rawF
                             }
                             usedSource = .estimate
+                        }
+
+                        // Sanity check: derive calories from macros if zero
+                        if calories == 0 && (protein > 0 || carbs > 0 || fat > 0) {
+                            calories = Int((protein * 4 + carbs * 4 + fat * 9).rounded())
                         }
 
                         return IdentifiedFood(

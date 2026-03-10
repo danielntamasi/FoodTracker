@@ -25,6 +25,7 @@ struct EditEntryView: View {
     @State private var originalServings: Double = 1.0
     @State private var originalPhotoData: Data?
     @State private var servings: Double = 1.0
+    @State private var isFavorite = false
 
     private var entryImage: UIImage? {
         guard let data = entry.photoData else { return nil }
@@ -103,12 +104,31 @@ struct EditEntryView: View {
             ZStack(alignment: .top) {
                 mainBody
                 floatingButtons
+                if !isEditing {
+                    VStack {
+                        Button {
+                            isFavorite = FavoriteFoods.toggle(entry.name)
+                        } label: {
+                            Image(systemName: isFavorite ? "star.fill" : "star")
+                                .font(.body.weight(.semibold))
+                                .foregroundStyle(isFavorite ? DS.Color.carbs : .white)
+                                .frame(height: 20)
+                                .padding(.horizontal, 14)
+                                .padding(.vertical, 8)
+                                .background(.ultraThinMaterial.opacity(0.6))
+                                .clipShape(Capsule())
+                        }
+                        .padding(.top, 12)
+                        Spacer()
+                    }
+                }
             }
         }
         .onAppear {
             if let uiImage = entryImage {
                 extractedColor = dominantColor(from: uiImage, colorScheme: colorScheme)
             }
+            isFavorite = FavoriteFoods.isFavorite(entry.name)
         }
         .onChange(of: lookup.aiEstimate?.description) { _, _ in
             if let estimate = lookup.aiEstimate {

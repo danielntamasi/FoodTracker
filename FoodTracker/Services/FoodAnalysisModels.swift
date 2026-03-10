@@ -6,12 +6,14 @@ enum NutritionSource: String, Codable {
     case label
     case estimate
     case barcode
+    case usda
 
     var displayLabel: String {
         switch self {
         case .label: return "From Label"
         case .estimate: return "AI Estimate"
         case .barcode: return "Barcode"
+        case .usda: return "USDA"
         }
     }
 
@@ -20,6 +22,7 @@ enum NutritionSource: String, Codable {
         case .label: return "green"
         case .estimate: return "orange"
         case .barcode: return "blue"
+        case .usda: return "teal"
         }
     }
 }

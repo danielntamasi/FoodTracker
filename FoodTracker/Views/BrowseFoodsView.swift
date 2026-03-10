@@ -83,9 +83,147 @@ struct BrowseFoodsView: View {
         return result
     }
 
+    private enum FavoriteItem {
+        case food(name: String, calories: Int, protein: Double, carbs: Double, fat: Double, iconName: String?, photoData: Data?, servingDescription: String?, servingGrams: Double?)
+        case meal(name: String, entries: [FoodEntry], totalCalories: Int, totalProtein: Double, totalCarbs: Double, totalFat: Double)
+
+        var displayName: String {
+            switch self {
+            case .food(let name, _, _, _, _, _, _, _, _): return name
+            case .meal(let name, _, _, _, _, _): return name
+            }
+        }
+    }
+
+    private var favoriteItems: [FavoriteItem] {
+        var items: [FavoriteItem] = []
+        var seenKeys: Set<String> = []
+
+        // Favorite individual foods (non-meal entries)
+        var latestByName: [String: FoodEntry] = [:]
+        for entry in allEntries {
+            if entry.mealGroupID != nil { continue }
+            let key = entry.name.lowercased().trimmingCharacters(in: .whitespaces)
+            if key.isEmpty { continue }
+            guard FavoriteFoods.isFavorite(key) else { continue }
+            if let existing = latestByName[key] {
+                if entry.date > existing.date { latestByName[key] = entry }
+            } else {
+                latestByName[key] = entry
+            }
+        }
+        for entry in latestByName.values.sorted(by: { $0.name.lowercased() < $1.name.lowercased() }) {
+            let key = entry.name.lowercased().trimmingCharacters(in: .whitespaces)
+            seenKeys.insert(key)
+            items.append(.food(name: entry.name, calories: entry.totalCalories, protein: entry.totalProteinGrams, carbs: entry.totalCarbsGrams, fat: entry.totalFatGrams, iconName: entry.iconName, photoData: entry.photoData, servingDescription: entry.servingDescription, servingGrams: entry.servingGrams))
+        }
+
+        // Favorite meals
+        var mealsByID: [UUID: (name: String, entries: [FoodEntry], latestDate: Date)] = [:]
+        for entry in allEntries {
+            guard let groupID = entry.mealGroupID, let mealName = entry.mealName else { continue }
+            if var existing = mealsByID[groupID] {
+                existing.entries.append(entry)
+                if entry.date > existing.latestDate { existing.latestDate = entry.date }
+                mealsByID[groupID] = existing
+            } else {
+                mealsByID[groupID] = (name: mealName, entries: [entry], latestDate: entry.date)
+            }
+        }
+        var seenMealNames: Set<String> = []
+        for group in mealsByID.values.sorted(by: { $0.name.lowercased() < $1.name.lowercased() }) {
+            let key = group.name.lowercased().trimmingCharacters(in: .whitespaces)
+            if key.isEmpty || seenKeys.contains(key) || seenMealNames.contains(key) { continue }
+            guard FavoriteFoods.isFavorite(key) else { continue }
+            seenMealNames.insert(key)
+            let totalCal = group.entries.reduce(0) { $0 + $1.totalCalories }
+            let totalP = group.entries.reduce(0.0) { $0 + $1.totalProteinGrams }
+            let totalC = group.entries.reduce(0.0) { $0 + $1.totalCarbsGrams }
+            let totalF = group.entries.reduce(0.0) { $0 + $1.totalFatGrams }
+            items.append(.meal(name: group.name, entries: group.entries, totalCalories: totalCal, totalProtein: totalP, totalCarbs: totalC, totalFat: totalF))
+        }
+
+        return items
+    }
+
     var body: some View {
         NavigationStack {
             List {
+                if !favoriteItems.isEmpty {
+                    Section("Favorites") {
+                        ForEach(Array(favoriteItems.enumerated()), id: \.offset) { _, item in
+                            switch item {
+                            case .food(let name, let calories, let protein, let carbs, let fat, let iconName, let photoData, let servingDescription, let servingGrams):
+                                Button {
+                                    addFood(name: name, calories: calories, protein: protein, carbs: carbs, fat: fat, iconName: iconName, photoData: photoData, servingDescription: servingDescription, servingGrams: servingGrams)
+                                } label: {
+                                    HStack {
+                                        Image(systemName: "star.fill")
+                                            .font(.title3)
+                                            .foregroundStyle(DS.Color.carbs)
+                                            .frame(width: 32)
+                                        VStack(alignment: .leading, spacing: 2) {
+                                            Text(name)
+                                                .font(.body)
+                                            coloredMacroText(protein: protein, carbs: carbs, fat: fat)
+                                                .font(.caption)
+                                        }
+                                        Spacer()
+                                        Text("\(calories) cal")
+                                            .font(.subheadline)
+                                            .fontWeight(.semibold)
+                                            .foregroundStyle(DS.Color.textSecondary)
+                                    }
+                                }
+                                .tint(.primary)
+                            case .meal(let name, let entries, let totalCalories, let totalProtein, let totalCarbs, let totalFat):
+                                Button {
+                                    if let onIngredientAdded {
+                                        for entry in entries {
+                                            onIngredientAdded(IngredientItem(
+                                                name: entry.name,
+                                                calories: entry.calories,
+                                                proteinGrams: entry.proteinGrams,
+                                                carbsGrams: entry.carbsGrams,
+                                                fatGrams: entry.fatGrams,
+                                                servings: entry.servings,
+                                                servingDescription: entry.servingDescription,
+                                                servingGrams: entry.servingGrams
+                                            ))
+                                        }
+                                        dismiss()
+                                    } else {
+                                        quickAddMealGroup(entries, mealName: name, into: modelContext)
+                                        dismiss()
+                                    }
+                                } label: {
+                                    HStack {
+                                        Image(systemName: "star.fill")
+                                            .font(.title3)
+                                            .foregroundStyle(DS.Color.carbs)
+                                            .frame(width: 32)
+                                        VStack(alignment: .leading, spacing: 2) {
+                                            Text(name)
+                                                .font(.body)
+                                            Text("\(entries.count) ingredient\(entries.count == 1 ? "" : "s")")
+                                                .font(.caption)
+                                                .foregroundStyle(DS.Color.textTertiary)
+                                            coloredMacroText(protein: totalProtein, carbs: totalCarbs, fat: totalFat)
+                                                .font(.caption)
+                                        }
+                                        Spacer()
+                                        Text("\(totalCalories) cal")
+                                            .font(.subheadline)
+                                            .fontWeight(.semibold)
+                                            .foregroundStyle(DS.Color.textSecondary)
+                                    }
+                                }
+                                .tint(.primary)
+                            }
+                        }
+                    }
+                }
+
                 if !frequentFoods.isEmpty {
                     Section("Frequent") {
                         ForEach(Array(frequentFoods.enumerated()), id: \.offset) { _, food in
@@ -198,7 +336,7 @@ struct BrowseFoodsView: View {
                     }
                 }
 
-                if frequentFoods.isEmpty && recentMeals.isEmpty && recentFoods.isEmpty {
+                if favoriteItems.isEmpty && frequentFoods.isEmpty && recentMeals.isEmpty && recentFoods.isEmpty {
                     ContentUnavailableView(
                         "No Foods Yet",
                         systemImage: "fork.knife",

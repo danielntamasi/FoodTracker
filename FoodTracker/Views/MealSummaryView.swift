@@ -6,6 +6,7 @@ struct MealSummaryView: View {
     let mealGroup: MealGroup
 
     @State private var extractedColor: Color?
+    @State private var isFavorite = false
 
     private var totalCalories: Int { mealGroup.entries.reduce(0) { $0 + $1.totalCalories } }
     private var totalProtein: Double { mealGroup.entries.reduce(0) { $0 + $1.totalProteinGrams } }
@@ -116,6 +117,18 @@ struct MealSummaryView: View {
                 .toolbar(.hidden, for: .navigationBar)
 
                 HStack {
+                    Button {
+                        isFavorite = FavoriteFoods.toggle(mealGroup.name)
+                    } label: {
+                        Image(systemName: isFavorite ? "star.fill" : "star")
+                            .font(.body.weight(.semibold))
+                            .foregroundStyle(isFavorite ? DS.Color.carbs : .white)
+                            .frame(height: 20)
+                            .padding(.horizontal, 14)
+                            .padding(.vertical, 8)
+                            .background(.ultraThinMaterial.opacity(0.6))
+                            .clipShape(Capsule())
+                    }
                     Spacer()
                     Button { dismiss() } label: {
                         Text("Done")
@@ -135,6 +148,7 @@ struct MealSummaryView: View {
             if let uiImage = mealImage {
                 extractedColor = dominantColor(from: uiImage, colorScheme: colorScheme)
             }
+            isFavorite = FavoriteFoods.isFavorite(mealGroup.name)
         }
     }
 }

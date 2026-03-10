@@ -516,6 +516,7 @@ struct SourceBadge: View {
         case .label: return DS.Color.success
         case .estimate: return DS.Color.carbs
         case .barcode: return DS.Color.protein
+        case .usda: return .teal
         }
     }
 

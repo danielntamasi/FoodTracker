@@ -17,16 +17,17 @@ struct SearchFoodView: View {
     @State private var resultsVisible = false
 
     private var recentMatches: [FoodEntry] {
-        let calendar = Calendar.current
         let query = searchText.lowercased().trimmingCharacters(in: .whitespaces)
+        guard !query.isEmpty else { return [] }
+        let queryWords = query.split(separator: " ").map(String.init)
         var seen: Set<String> = []
         var result: [FoodEntry] = []
         for entry in allEntries {
-            if calendar.isDateInToday(entry.date) { continue }
             let key = entry.name.lowercased().trimmingCharacters(in: .whitespaces)
             if key.isEmpty { continue }
             if seen.contains(key) { continue }
-            if !query.isEmpty && !key.contains(query) { continue }
+            let matches = queryWords.allSatisfy { key.contains($0) }
+            if !matches { continue }
             seen.insert(key)
             result.append(entry)
             if result.count >= 10 { break }
@@ -74,7 +75,7 @@ struct SearchFoodView: View {
     @ViewBuilder
     private var recentFoodsSection: some View {
         if !recentMatches.isEmpty {
-            Section("Recent Foods") {
+            Section("Your Foods") {
                 ForEach(recentMatches) { entry in
                     Button {
                         quickAdd(entry)

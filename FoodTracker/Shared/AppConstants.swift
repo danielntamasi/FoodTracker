@@ -33,5 +33,6 @@ enum AppConstants {
         static let widgetCarbs = "widgetCarbs"
         static let widgetFat = "widgetFat"
         static let widgetLastSync = "widgetLastSync"
+        static let favoriteFoodNames = "favoriteFoodNames"
     }
 }

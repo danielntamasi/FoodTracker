@@ -242,7 +242,7 @@ Analyze every food item in this photo. For each item, determine which mode appli
 
 MODE 1 – NUTRITION LABEL VISIBLE: If you can see a nutrition facts label or printed nutritional information for an item, READ the exact values from the label. Use the brand/product name as-is (e.g. "David Protein Bar", not "protein bar"). Set "source": "label" and include the numeric values you read.
 
-MODE 2 – NO LABEL: If there is no nutrition label visible for an item, identify it using common USDA-compatible names (e.g. "white rice" not "steamed jasmine rice"). Estimate portion size. Set "source": "estimate". Include your best estimate for "calories", "protein_grams", "carbs_grams", and "fat_grams" based on the identified portion.
+MODE 2 – NO LABEL: If there is no nutrition label visible for an item, identify it using simple, generic USDA database names. Drop cooking methods from names: use "garlic" not "sauteed garlic", "mushrooms" not "sauteed mushrooms", "beef tenderloin" not "pan-seared filet mignon", "asparagus" not "roasted asparagus". Estimate portion size. Set "source": "estimate". Include your best estimate for "calories", "protein_grams", "carbs_grams", and "fat_grams" but food name accuracy and portion size matter most.
 
 GROUPING: If there are multiple food items in the photo, ALWAYS group them under a single "meal_name" with an "ingredients" array. The meal_name should be a natural description of the whole plate or meal (e.g. "Steak with Sides", "Chicken and Vegetables", "Lunch Plate"). Only return a standalone item (without meal_name/ingredients) if there is literally one single food item in the entire photo.
 
