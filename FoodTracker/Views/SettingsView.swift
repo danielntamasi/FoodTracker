@@ -44,10 +44,27 @@ struct SettingsView: View {
     @State private var carbsTarget = DailyTarget.carbs
     @State private var fatTarget = DailyTarget.fat
     @State private var healthSyncEnabled = HealthKitService.isEnabled
+    @State private var imagePlaygroundEnabled = ImagePlaygroundService.isEnabled
+    @AppStorage(AppConstants.Defaults.appearanceMode, store: sharedDefaults)
+    private var appearanceMode: String = "system"
 
     var body: some View {
         NavigationStack {
             Form {
+                Section {
+                    Picker("Appearance", selection: $appearanceMode) {
+                        ForEach(AppearanceMode.allCases) { mode in
+                            Text(mode.label).tag(mode.rawValue)
+                        }
+                    }
+                    .pickerStyle(.segmented)
+                } header: {
+                    Text("APPEARANCE")
+                        .font(DS.Typography.labelS)
+                        .foregroundStyle(DS.Color.textTertiary)
+                        .tracking(0.8)
+                }
+
                 Section {
                     Picker("Provider", selection: $selectedProvider) {
                         ForEach(VisionProvider.allCases) { provider in
@@ -228,6 +245,26 @@ struct SettingsView: View {
                         .foregroundStyle(DS.Color.textTertiary)
                 }
 
+                if ImagePlaygroundService.isAvailable {
+                    Section {
+                        Toggle("Generate food images", isOn: $imagePlaygroundEnabled)
+                            .onChange(of: imagePlaygroundEnabled) { _, newValue in
+                                ImagePlaygroundService.isEnabled = newValue
+                            }
+                    } header: {
+                        Text("IMAGE PLAYGROUND")
+                            .font(DS.Typography.labelS)
+                            .foregroundStyle(DS.Color.textTertiary)
+                            .tracking(0.8)
+                    } footer: {
+                        Text("Automatically generate food images for entries without photos using Apple Intelligence.")
+                            .font(DS.Typography.caption)
+                            .foregroundStyle(DS.Color.textTertiary)
+                    }
+                }
+
+                accuracySection
+
                 Section {
                     HStack {
                         Text("Version")
@@ -238,7 +275,7 @@ struct SettingsView: View {
                     HStack {
                         Text("Nutrition Data")
                         Spacer()
-                        Text("USDA FoodData Central")
+                        Text("USDA FoodData Central + FNDDS")
                             .foregroundStyle(DS.Color.textSecondary)
                     }
                 } header: {
@@ -248,6 +285,7 @@ struct SettingsView: View {
                         .tracking(0.8)
                 }
             }
+            .contentMargins(.bottom, 88, for: .scrollContent)
             .scrollContentBackground(.hidden)
             .background(DS.Color.backgroundPrimary)
             .scrollDismissesKeyboard(.interactively)
@@ -278,6 +316,33 @@ struct SettingsView: View {
     }
 
     @ViewBuilder
+    private var accuracySection: some View {
+        Section {
+            NavigationLink {
+                AccuracyDetailView()
+            } label: {
+                HStack {
+                    Label("Estimation Accuracy", systemImage: "chart.line.uptrend.xyaxis")
+                    Spacer()
+                    Text(accuracySummaryText)
+                        .font(.caption)
+                        .foregroundStyle(DS.Color.textSecondary)
+                }
+            }
+        } header: {
+            Text("ACCURACY")
+                .font(DS.Typography.labelS)
+                .foregroundStyle(DS.Color.textTertiary)
+                .tracking(0.8)
+        }
+    }
+
+    private var accuracySummaryText: String {
+        // Synchronous placeholder — actual data loaded in detail view
+        "View Details"
+    }
+
+    @ViewBuilder
     private func targetRow(_ label: String, value: Binding<Int>, key: String) -> some View {
         HStack {
             Text(label)
@@ -290,6 +355,132 @@ struct SettingsView: View {
                 .onChange(of: value.wrappedValue) { _, newValue in
                     sharedDefaults.set(newValue, forKey: key)
                 }
+        }
+    }
+}
+
+// MARK: - Accuracy Detail View
+
+struct AccuracyDetailView: View {
+    @State private var summary: AccuracyTracker.AccuracySummary?
+    @State private var recentCorrections: [AccuracyTracker.CorrectionRecord] = []
+    @State private var showClearAlert = false
+
+    var body: some View {
+        List {
+            if let summary, summary.totalCorrections > 0 {
+                Section {
+                    HStack {
+                        Text("Total Corrections")
+                        Spacer()
+                        Text("\(summary.totalCorrections)")
+                            .foregroundStyle(DS.Color.textSecondary)
+                    }
+                    HStack {
+                        Text("Avg Calorie Error")
+                        Spacer()
+                        Text(String(format: "%+.0f cal (%.0f%%)", summary.averageCalorieError, summary.averageCalorieErrorPercent))
+                            .foregroundStyle(abs(summary.averageCalorieErrorPercent) > 15 ? DS.Color.danger : DS.Color.textSecondary)
+                    }
+                    HStack {
+                        Text("Systematic Bias")
+                        Spacer()
+                        Text(summary.systematicBias.capitalized)
+                            .foregroundStyle(summary.systematicBias == "balanced" ? DS.Color.success : DS.Color.carbs)
+                    }
+                } header: {
+                    Text("OVERVIEW")
+                        .font(DS.Typography.labelS)
+                        .foregroundStyle(DS.Color.textTertiary)
+                        .tracking(0.8)
+                }
+
+                if !summary.mostCorrectedFoods.isEmpty {
+                    Section {
+                        ForEach(summary.mostCorrectedFoods, id: \.name) { food in
+                            HStack {
+                                Text(food.name.capitalized)
+                                Spacer()
+                                Text("\(food.count) corrections")
+                                    .font(.caption)
+                                    .foregroundStyle(DS.Color.textSecondary)
+                            }
+                        }
+                    } header: {
+                        Text("MOST CORRECTED FOODS")
+                            .font(DS.Typography.labelS)
+                            .foregroundStyle(DS.Color.textTertiary)
+                            .tracking(0.8)
+                    }
+                }
+
+                if !recentCorrections.isEmpty {
+                    Section {
+                        ForEach(recentCorrections) { record in
+                            VStack(alignment: .leading, spacing: 4) {
+                                HStack {
+                                    Text(record.foodName.capitalized)
+                                        .font(.subheadline)
+                                        .fontWeight(.medium)
+                                    Spacer()
+                                    Text(record.date, style: .date)
+                                        .font(.caption2)
+                                        .foregroundStyle(DS.Color.textTertiary)
+                                }
+                                HStack(spacing: 12) {
+                                    Text("\(record.originalCalories) → \(record.correctedCalories) cal")
+                                        .font(.caption)
+                                        .foregroundStyle(record.calorieDelta > 0 ? DS.Color.danger : DS.Color.protein)
+                                    Text(String(format: "%+.0f%%", record.calorieErrorPercent))
+                                        .font(.caption)
+                                        .fontWeight(.semibold)
+                                        .foregroundStyle(abs(record.calorieErrorPercent) > 20 ? DS.Color.danger : DS.Color.textSecondary)
+                                }
+                            }
+                            .padding(.vertical, 2)
+                        }
+                    } header: {
+                        Text("RECENT CORRECTIONS")
+                            .font(DS.Typography.labelS)
+                            .foregroundStyle(DS.Color.textTertiary)
+                            .tracking(0.8)
+                    }
+                }
+
+                Section {
+                    Button(role: .destructive) {
+                        showClearAlert = true
+                    } label: {
+                        Text("Clear Correction History")
+                    }
+                }
+            } else {
+                ContentUnavailableView {
+                    Label("No Corrections Yet", systemImage: "checkmark.circle")
+                } description: {
+                    Text("When you edit AI-estimated nutrition values, corrections are tracked here to help identify accuracy patterns.")
+                }
+            }
+        }
+        .scrollContentBackground(.hidden)
+        .background(DS.Color.backgroundPrimary)
+        .navigationTitle("Estimation Accuracy")
+        .navigationBarTitleDisplayMode(.inline)
+        .task {
+            summary = await AccuracyTracker.shared.summary()
+            recentCorrections = await AccuracyTracker.shared.recentCorrections()
+        }
+        .alert("Clear History?", isPresented: $showClearAlert) {
+            Button("Clear", role: .destructive) {
+                Task {
+                    await AccuracyTracker.shared.clearHistory()
+                    summary = await AccuracyTracker.shared.summary()
+                    recentCorrections = []
+                }
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("This will delete all correction history. This action cannot be undone.")
         }
     }
 }

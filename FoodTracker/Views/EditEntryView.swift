@@ -26,6 +26,20 @@ struct EditEntryView: View {
     @State private var originalPhotoData: Data?
     @State private var servings: Double = 1.0
     @State private var isFavorite = false
+    @State private var isGeneratingImage = false
+    @State private var originalIsGeneratedImage = false
+
+    private var hasUnsavedChanges: Bool {
+        guard isEditing else { return false }
+        return entry.name != originalName
+            || entry.calories != originalCalories
+            || entry.proteinGrams != originalProtein
+            || entry.carbsGrams != originalCarbs
+            || entry.fatGrams != originalFat
+            || entry.date != originalDate
+            || servings != originalServings
+            || entry.photoData != originalPhotoData
+    }
 
     private var entryImage: UIImage? {
         guard let data = entry.photoData else { return nil }
@@ -38,7 +52,7 @@ struct EditEntryView: View {
     }
 
     private var iconDerivedBgColor: Color {
-        iconDarkColor(for: entry.iconName ?? foodIconName(for: entry.name))
+        iconHeroColor(for: entry.iconName ?? foodIconName(for: entry.name))
     }
 
     private var formattedTimestamp: String {
@@ -111,24 +125,41 @@ struct EditEntryView: View {
                         } label: {
                             Image(systemName: isFavorite ? "star.fill" : "star")
                                 .font(.body.weight(.semibold))
-                                .foregroundStyle(isFavorite ? DS.Color.carbs : .white)
+                                .foregroundStyle(isFavorite ? DS.Color.carbs : DS.Color.overlayText)
                                 .frame(height: 20)
                                 .padding(.horizontal, 14)
                                 .padding(.vertical, 8)
                                 .background(.ultraThinMaterial.opacity(0.6))
                                 .clipShape(Capsule())
                         }
+                        .accessibilityLabel(isFavorite ? "Remove from favorites" : "Add to favorites")
                         .padding(.top, 12)
                         Spacer()
                     }
                 }
             }
         }
+        .interactiveDismissDisabled(hasUnsavedChanges)
         .onAppear {
             if let uiImage = entryImage {
                 extractedColor = dominantColor(from: uiImage, colorScheme: colorScheme)
             }
             isFavorite = FavoriteFoods.isFavorite(entry.name)
+        }
+        .task(id: entry.id) {
+            guard entry.photoData == nil,
+                  ImagePlaygroundService.isAvailable,
+                  ImagePlaygroundService.isEnabled else { return }
+            isGeneratingImage = true
+            if let imageData = await ImagePlaygroundService.shared.generateImage(for: entry.name) {
+                guard !Task.isCancelled else { return }
+                entry.photoData = imageData
+                entry.isGeneratedImage = true
+                if let uiImage = UIImage(data: imageData) {
+                    extractedColor = dominantColor(from: uiImage, colorScheme: colorScheme)
+                }
+            }
+            if !Task.isCancelled { isGeneratingImage = false }
         }
         .onChange(of: lookup.aiEstimate?.description) { _, _ in
             if let estimate = lookup.aiEstimate {
@@ -203,6 +234,7 @@ struct EditEntryView: View {
         originalDate = entry.date
         originalServings = entry.servings
         originalPhotoData = entry.photoData
+        originalIsGeneratedImage = entry.isGeneratedImage
         servings = entry.servings
         withAnimation(.easeInOut(duration: 0.25)) { isEditing = true }
     }
@@ -214,6 +246,7 @@ struct EditEntryView: View {
         entry.carbsGrams = originalCarbs
         entry.fatGrams = originalFat
         entry.date = originalDate
+        entry.isGeneratedImage = originalIsGeneratedImage
         entry.servings = originalServings
         entry.photoData = originalPhotoData
         servings = originalServings
@@ -234,6 +267,12 @@ struct EditEntryView: View {
         entry.proteinGrams = entry.proteinGrams.roundedTo(1)
         entry.carbsGrams = entry.carbsGrams.roundedTo(1)
         entry.fatGrams = entry.fatGrams.roundedTo(1)
+        // Clear generated image if name changed so a new one can be created
+        if entry.isGeneratedImage && entry.name != originalName {
+            entry.photoData = nil
+            entry.isGeneratedImage = false
+            extractedColor = nil
+        }
         lookup.reset()
 
         // Correction detection for barcode entries
@@ -253,9 +292,32 @@ struct EditEntryView: View {
                     servingDescription: entry.servingDescription,
                     servingGrams: entry.servingGrams
                 )
+                Task { await HealthKitService.shared.updateEntry(entry) }
                 withAnimation(.easeInOut(duration: 0.25)) { isEditing = false }
                 showCorrectionAlert = true
                 return
+            }
+        }
+
+        // Track correction for accuracy analysis
+        let calChanged = entry.calories != originalCalories
+        let protChanged = abs(entry.proteinGrams - originalProtein) > 0.01
+        let carbsChanged = abs(entry.carbsGrams - originalCarbs) > 0.01
+        let fatChanged = abs(entry.fatGrams - originalFat) > 0.01
+        if calChanged || protChanged || carbsChanged || fatChanged {
+            Task {
+                await AccuracyTracker.shared.recordCorrection(
+                    foodName: entry.name,
+                    source: entry.barcode != nil ? .barcode : .estimate,
+                    originalCalories: originalCalories,
+                    originalProtein: originalProtein,
+                    originalCarbs: originalCarbs,
+                    originalFat: originalFat,
+                    correctedCalories: entry.calories,
+                    correctedProtein: entry.proteinGrams,
+                    correctedCarbs: entry.carbsGrams,
+                    correctedFat: entry.fatGrams
+                )
             }
         }
 
@@ -266,7 +328,7 @@ struct EditEntryView: View {
     private func floatingButtonLabel(_ title: String) -> some View {
         Text(title)
             .fontWeight(.semibold)
-            .foregroundStyle(.white)
+            .foregroundStyle(DS.Color.overlayText)
             .padding(.horizontal, 16)
             .padding(.vertical, 8)
             .background(.ultraThinMaterial.opacity(0.6))
@@ -289,8 +351,10 @@ struct EditEntryView: View {
                         totalCarbs: isEditing ? (entry.carbsGrams * servings).roundedTo(1) : entry.totalCarbsGrams,
                         totalFat: isEditing ? (entry.fatGrams * servings).roundedTo(1) : entry.totalFatGrams,
                         geoWidth: fullGeo.size.width,
-                        geoHeight: fullGeo.size.height
+                        geoHeight: fullGeo.size.height,
+                        isGeneratingImage: isGeneratingImage
                     )
+                    .animation(.easeInOut(duration: 0.4), value: entryImage != nil)
 
                     if isEditing {
                         editContent
@@ -313,12 +377,12 @@ struct EditEntryView: View {
                                     Text("× \(servingSizeText)")
                                 }
                                 .font(.caption)
-                                .foregroundStyle(.white.opacity(0.5))
+                                .foregroundStyle(DS.Color.textSecondary)
                             }
 
                             Text(formattedTimestamp)
                                 .font(.caption)
-                                .foregroundStyle(.white.opacity(0.5))
+                                .foregroundStyle(DS.Color.textSecondary)
                                 .padding(.top, 4)
                         }
                         .padding(.top, 12)
@@ -348,18 +412,22 @@ struct EditEntryView: View {
                             if lookup.isLookingUp {
                                 ProgressView()
                                     .controlSize(.small)
-                                    .tint(.white)
+                                    .tint(DS.Color.overlayText)
                             } else {
                                 Button { lookup.lookupNutrition(for: entry.name) } label: {
                                     Image(systemName: "sparkles")
-                                        .foregroundStyle(.white.opacity(0.7))
+                                        .foregroundStyle(DS.Color.overlayText.opacity(0.7))
+                                        .frame(minWidth: 44, minHeight: 44)
                                 }
+                                .accessibilityLabel("Look up nutrition")
                                 .buttonStyle(.plain)
                             }
                             Button { showingBarcodeScanner = true } label: {
                                 Image(systemName: "barcode.viewfinder")
-                                    .foregroundStyle(.white.opacity(0.7))
+                                    .foregroundStyle(DS.Color.overlayText.opacity(0.7))
+                                    .frame(minWidth: 44, minHeight: 44)
                             }
+                            .accessibilityLabel("Scan barcode")
                             .buttonStyle(.plain)
                         }
                     }
@@ -415,12 +483,12 @@ struct EditEntryView: View {
                         Button { lookup.runAIEstimate(for: entry.name) } label: {
                             HStack {
                                 Label("AI Estimate", systemImage: "sparkles")
-                                    .foregroundStyle(.white.opacity(0.7))
+                                    .foregroundStyle(DS.Color.overlayText.opacity(0.7))
                                 Spacer()
                                 if lookup.isEstimating {
                                     ProgressView()
                                         .controlSize(.small)
-                                        .tint(.white)
+                                        .tint(DS.Color.overlayText)
                                 }
                             }
                         }
@@ -462,7 +530,7 @@ struct EditEntryView: View {
                         Text("Serving Size")
                         Spacer()
                         Text(servingSizeText)
-                            .foregroundStyle(.white.opacity(0.6))
+                            .foregroundStyle(DS.Color.textSecondary)
                     }
                     groupedDivider
                 }
@@ -482,11 +550,12 @@ struct EditEntryView: View {
                 groupedSection {
                     Button(role: .destructive) {
                         entry.photoData = nil
+                        entry.isGeneratedImage = false
                         extractedColor = nil
                     } label: {
                         groupedRow {
                             Spacer()
-                            Label("Remove Photo", systemImage: "trash")
+                            Label(entry.isGeneratedImage ? "Remove Generated Image" : "Remove Photo", systemImage: "trash")
                                 .foregroundStyle(.red)
                             Spacer()
                         }
@@ -495,8 +564,7 @@ struct EditEntryView: View {
                 }
             }
         }
-        .padding(.top, -20)
-        .environment(\.colorScheme, .dark)
+        .padding(.top, -DS.Spacing.screenEdge)
     }
 
     // MARK: - Grouped Section Helpers
@@ -513,19 +581,19 @@ struct EditEntryView: View {
                     .font(DS.Typography.labelS)
                     .foregroundStyle(DS.Color.textTertiary)
                     .tracking(0.8)
-                    .padding(.horizontal, 36)
+                    .padding(.horizontal, DS.Spacing.screenEdge + DS.Spacing.m)
             }
             VStack(spacing: 0) {
                 content()
             }
             .background(DS.Color.backgroundElevated)
             .clipShape(RoundedRectangle(cornerRadius: DS.Radius.s))
-            .padding(.horizontal, 20)
+            .padding(.horizontal, DS.Spacing.screenEdge)
             if let footer {
                 Text(footer)
                     .font(DS.Typography.caption)
                     .foregroundStyle(DS.Color.textTertiary)
-                    .padding(.horizontal, 36)
+                    .padding(.horizontal, DS.Spacing.screenEdge + DS.Spacing.m)
             }
         }
     }
@@ -612,7 +680,7 @@ struct EditBarcodeScannerView: View {
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel") { dismiss() }
-                        .tint(.white)
+                        .tint(DS.Color.overlayText)
                 }
             }
         }

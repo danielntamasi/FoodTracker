@@ -52,9 +52,9 @@ struct HeroMacroDonut: View {
             .frame(width: size, height: size)
 
             VStack(alignment: .leading, spacing: 4) {
-                donutLabel(pct: proteinPct, name: "P", color: .blue)
-                donutLabel(pct: carbsPct, name: "C", color: .orange)
-                donutLabel(pct: fatPct, name: "F", color: .purple)
+                donutLabel(pct: proteinPct, name: "P", color: DS.Color.protein)
+                donutLabel(pct: carbsPct, name: "C", color: DS.Color.carbs)
+                donutLabel(pct: fatPct, name: "F", color: DS.Color.fat)
             }
         }
     }
@@ -122,7 +122,7 @@ struct DailyGoalBarsView: View {
         .padding(.horizontal, 24)
         .padding(.vertical, 12)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color.white.opacity(0.08))
+        .background(DS.Color.backgroundSubtle)
         .clipShape(RoundedRectangle(cornerRadius: DS.Radius.s))
         .padding(.horizontal, DS.Spacing.screenEdge)
     }
@@ -136,7 +136,7 @@ struct DailyGoalBarsView: View {
                 .frame(width: 48, alignment: .leading)
             GeometryReader { geo in
                 ZStack(alignment: .leading) {
-                    Capsule().fill(Color.white.opacity(0.08)).frame(height: 6)
+                    Capsule().fill(DS.Color.ringTrack).frame(height: 6)
                     Capsule().fill(color).frame(width: geo.size.width * min(value / max(target, 1), 1.0), height: 6)
                 }
             }

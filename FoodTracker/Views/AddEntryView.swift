@@ -16,6 +16,10 @@ struct AddEntryView: View {
     @State private var servingWeight: Double?
     @State private var lookup = NutritionLookup()
 
+    private var hasContent: Bool {
+        !name.isEmpty || !caloriesText.isEmpty || !proteinText.isEmpty || !carbsText.isEmpty || !fatText.isEmpty
+    }
+
     /// Pre-fill from a USDA result (used by SearchFoodView)
     var prefill: USDAService.USDALookupResult?
     /// Called after a successful save (before dismiss)
@@ -49,7 +53,9 @@ struct AddEntryView: View {
                                 Button { lookup.lookupNutrition(for: name) } label: {
                                     Image(systemName: "sparkles")
                                         .foregroundStyle(.secondary)
+                                        .frame(minWidth: 44, minHeight: 44)
                                 }
+                                .accessibilityLabel("Look up nutrition")
                                 .buttonStyle(.plain)
                             }
                         }
@@ -174,6 +180,7 @@ struct AddEntryView: View {
                         .disabled(name.isEmpty || caloriesText.isEmpty)
                 }
             }
+            .interactiveDismissDisabled(hasContent)
             .onAppear {
                 if let prefill {
                     applyPrefill(prefill)

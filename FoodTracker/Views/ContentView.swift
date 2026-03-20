@@ -5,7 +5,7 @@ enum AppTab {
 }
 
 enum QuickAddAction {
-    case photo, barcode, search, browse, uploadPhoto, buildMeal
+    case photo, barcode, search, browse, uploadPhoto, buildMeal, precisionPhoto
 }
 
 struct ContentView: View {
@@ -18,6 +18,8 @@ struct ContentView: View {
     @State private var showingBrowse = false
     @State private var showingSearch = false
     @State private var showingBuildMeal = false
+    @State private var showingPrecisionPhoto = false
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var layoutHeight: CGFloat = 700
     @State private var layoutWidth: CGFloat = 393
 
@@ -26,6 +28,7 @@ struct ContentView: View {
         ("magnifyingglass", "Search", .search),
         ("square.stack.3d.up", "Build", .buildMeal),
         ("camera", "Photo", .photo),
+        ("camera.metering.multispot", "Precision", .precisionPhoto),
         ("photo.on.rectangle", "Upload", .uploadPhoto),
         ("barcode.viewfinder", "Barcode", .barcode),
     ]
@@ -48,7 +51,7 @@ struct ContentView: View {
 
             // Dimming backdrop
             if showingRadialMenu {
-                Color.black.opacity(0.5)
+                DS.Color.dimming
                     .ignoresSafeArea()
                     .onTapGesture {
                         withAnimation(.spring(duration: 0.3, bounce: 0.2)) {
@@ -93,6 +96,33 @@ struct ContentView: View {
         .sheet(isPresented: $showingBuildMeal) {
             BuildMealView()
         }
+        .sheet(isPresented: $showingPrecisionPhoto) {
+            PrecisionPhotoCaptureView()
+        }
+        .onOpenURL { url in
+            handleDeepLink(url)
+        }
+    }
+
+    // MARK: - Deep Link
+
+    private func handleDeepLink(_ url: URL) {
+        guard url.scheme == "foodtracker", url.host == "add" else { return }
+        activeTab = .today
+        showingAddEntry = false
+        showingPhotoCapture = false
+        showingPhotoUpload = false
+        showingBarcodeScanner = false
+        showingBrowse = false
+        showingSearch = false
+        showingBuildMeal = false
+        showingPrecisionPhoto = false
+        showingRadialMenu = false
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) {
+            withAnimation(.spring(duration: 0.4, bounce: 0.3)) {
+                showingRadialMenu = true
+            }
+        }
     }
 
     // MARK: - Radial Menu
@@ -132,7 +162,7 @@ struct ContentView: View {
                 Image(systemName: item.icon)
                     .font(.title3)
                     .fontWeight(.medium)
-                    .foregroundStyle(.white)
+                    .foregroundStyle(DS.Color.overlayText)
                     .frame(width: 52, height: 52)
                     .background(DS.Color.backgroundElevated)
                     .clipShape(Circle())
@@ -143,13 +173,14 @@ struct ContentView: View {
                     .foregroundStyle(DS.Color.textPrimary)
             }
         }
+        .accessibilityLabel(item.label)
         .buttonStyle(.plain)
         .offset(x: showingRadialMenu ? offset.width : 0,
                 y: showingRadialMenu ? offset.height : 0)
         .scaleEffect(showingRadialMenu ? 1 : 0.01)
         .opacity(showingRadialMenu ? 1 : 0)
         .animation(
-            .spring(duration: 0.45, bounce: 0.35).delay(Double(index) * 0.03),
+            reduceMotion ? .easeOut(duration: 0.15) : .spring(duration: 0.45, bounce: 0.35).delay(Double(index) * 0.03),
             value: showingRadialMenu
         )
     }
@@ -162,6 +193,7 @@ struct ContentView: View {
         case .browse: showingBrowse = true
         case .uploadPhoto: showingPhotoUpload = true
         case .buildMeal: showingBuildMeal = true
+        case .precisionPhoto: showingPrecisionPhoto = true
         }
     }
 
@@ -187,6 +219,7 @@ struct ContentView: View {
                     .shadow(color: DS.Color.protein.opacity(0.4), radius: 12, y: 4)
                     .rotationEffect(.degrees(showingRadialMenu ? 45 : 0))
             }
+            .accessibilityLabel(showingRadialMenu ? "Close menu" : "Add food")
             .buttonStyle(ScaleButtonStyle())
             .overlay {
                 ForEach(Array(radialItems.enumerated()), id: \.offset) { index, item in
@@ -205,7 +238,7 @@ struct ContentView: View {
                     RoundedRectangle(cornerRadius: DS.Radius.l)
                         .fill(.ultraThinMaterial)
                 )
-                .shadow(color: .black.opacity(0.25), radius: 12, y: 4)
+                .shadow(color: DS.Color.shadowColor, radius: 12, y: 4)
         )
         .padding(.horizontal, DS.Spacing.screenEdge)
         .padding(.bottom, 8)
@@ -229,6 +262,8 @@ struct ContentView: View {
             .frame(maxWidth: .infinity)
             .contentShape(Rectangle())
         }
+        .accessibilityLabel(label)
+        .accessibilityAddTraits(isActive ? .isSelected : [])
         .buttonStyle(.plain)
     }
 }

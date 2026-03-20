@@ -58,7 +58,7 @@ struct BarcodeScannerView: View {
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel") { dismiss() }
-                        .tint(.white)
+                        .tint(DS.Color.overlayText)
                 }
             }
             .sheet(isPresented: $showingResults, onDismiss: {

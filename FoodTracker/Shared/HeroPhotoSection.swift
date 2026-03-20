@@ -20,6 +20,8 @@ struct HeroPhotoSection: View {
     var photoHeightRatio: CGFloat = 0.65
     /// Height ratio for icon hero (0.55 for EditEntryView, nil for MealSummaryView — uses auto)
     var iconHeightRatio: CGFloat? = 0.55
+    /// Whether an image is currently being generated (shows shimmer on icon hero)
+    var isGeneratingImage: Bool = false
 
     private var proteinCals: Double { proteinCalories(totalProtein) }
     private var carbsCals: Double { carbCalories(totalCarbs) }
@@ -96,12 +98,13 @@ struct HeroPhotoSection: View {
                         )
                         .frame(width: 180, height: 180)
 
-                    Image(systemName: iconName)
+                    Image(systemName: isGeneratingImage ? "sparkles" : iconName)
                         .font(.system(size: 44, weight: .light))
                         .foregroundStyle(iconClr)
                         .frame(width: 88, height: 88)
                         .background(iconClr.opacity(0.12))
                         .clipShape(Circle())
+                        .symbolEffect(.variableColor.iterative, isActive: isGeneratingImage)
                 }
 
                 heroContent
@@ -122,12 +125,12 @@ struct HeroPhotoSection: View {
             Text(title)
                 .font(.title)
                 .fontWeight(.bold)
-                .foregroundStyle(.white)
+                .foregroundStyle(DS.Color.overlayText)
                 .multilineTextAlignment(.center)
-                .shadow(color: .black.opacity(0.3), radius: 6, y: 2)
+                .shadow(color: DS.Color.heroTextShadow, radius: 6, y: 2)
 
             HStack(spacing: 12) {
-                MetricPill(value: "\(totalCalories)", label: "cal", color: .white)
+                MetricPill(value: "\(totalCalories)", label: "cal", color: DS.Color.overlayText)
                 MetricPill(value: formatMacro(totalProtein), label: "P", color: DS.Color.protein)
                 MetricPill(value: formatMacro(totalCarbs), label: "C", color: DS.Color.carbs)
                 MetricPill(value: formatMacro(totalFat), label: "F", color: DS.Color.fat)

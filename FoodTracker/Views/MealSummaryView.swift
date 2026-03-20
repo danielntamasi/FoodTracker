@@ -7,6 +7,7 @@ struct MealSummaryView: View {
 
     @State private var extractedColor: Color?
     @State private var isFavorite = false
+    @State private var isGeneratingImage = false
 
     private var totalCalories: Int { mealGroup.entries.reduce(0) { $0 + $1.totalCalories } }
     private var totalProtein: Double { mealGroup.entries.reduce(0) { $0 + $1.totalProteinGrams } }
@@ -25,7 +26,7 @@ struct MealSummaryView: View {
     private var bgColor: Color {
         if let extracted = extractedColor { return extracted }
         let iconName = mealGroup.entries.first?.iconName ?? foodIconName(for: mealGroup.name)
-        return iconDarkColor(for: iconName)
+        return iconHeroColor(for: iconName)
     }
 
     private var formattedTimestamp: String {
@@ -59,7 +60,8 @@ struct MealSummaryView: View {
                                 totalFat: totalFat,
                                 geoWidth: fullGeo.size.width,
                                 geoHeight: fullGeo.size.height,
-                                iconHeightRatio: nil
+                                iconHeightRatio: nil,
+                                isGeneratingImage: isGeneratingImage
                             )
 
                             VStack(spacing: 16) {
@@ -105,7 +107,7 @@ struct MealSummaryView: View {
 
                                 Text(formattedTimestamp)
                                     .font(.caption)
-                                    .foregroundStyle(.white.opacity(0.5))
+                                    .foregroundStyle(DS.Color.textSecondary)
                                     .padding(.top, 4)
                             }
                             .padding(.top, 12)
@@ -122,18 +124,19 @@ struct MealSummaryView: View {
                     } label: {
                         Image(systemName: isFavorite ? "star.fill" : "star")
                             .font(.body.weight(.semibold))
-                            .foregroundStyle(isFavorite ? DS.Color.carbs : .white)
+                            .foregroundStyle(isFavorite ? DS.Color.carbs : DS.Color.overlayText)
                             .frame(height: 20)
                             .padding(.horizontal, 14)
                             .padding(.vertical, 8)
                             .background(.ultraThinMaterial.opacity(0.6))
                             .clipShape(Capsule())
                     }
+                    .accessibilityLabel(isFavorite ? "Remove from favorites" : "Add to favorites")
                     Spacer()
                     Button { dismiss() } label: {
                         Text("Done")
                             .fontWeight(.semibold)
-                            .foregroundStyle(.white)
+                            .foregroundStyle(DS.Color.overlayText)
                             .padding(.horizontal, 16)
                             .padding(.vertical, 8)
                             .background(.ultraThinMaterial.opacity(0.6))
@@ -149,6 +152,23 @@ struct MealSummaryView: View {
                 extractedColor = dominantColor(from: uiImage, colorScheme: colorScheme)
             }
             isFavorite = FavoriteFoods.isFavorite(mealGroup.name)
+        }
+        .task(id: mealGroup.id) {
+            guard mealImage == nil,
+                  ImagePlaygroundService.isAvailable,
+                  ImagePlaygroundService.isEnabled,
+                  let firstEntry = mealGroup.entries.first,
+                  !firstEntry.isGeneratedImage else { return }
+            isGeneratingImage = true
+            if let imageData = await ImagePlaygroundService.shared.generateImage(for: mealGroup.name) {
+                guard !Task.isCancelled else { return }
+                firstEntry.photoData = imageData
+                firstEntry.isGeneratedImage = true
+                if let uiImage = UIImage(data: imageData) {
+                    extractedColor = dominantColor(from: uiImage, colorScheme: colorScheme)
+                }
+            }
+            if !Task.isCancelled { isGeneratingImage = false }
         }
     }
 }

@@ -15,6 +15,11 @@ struct PhotoAnalysisView: View {
     @State private var errorMessage: String?
     @State private var showCorrectionAlert = false
     @State private var pendingCorrections: [OpenFoodFactsService.CorrectionData] = []
+    @State private var selectedCookingMethod: CookingMethod?
+    @State private var selectedPlateSize: PlateSize = .medium
+    @State private var isReEstimating = false
+    /// Cached vision API response so re-estimation only re-runs USDA lookups, not the vision call
+    @State private var cachedVisionResponse: VisionFoodResponse?
 
     // Standard init for photo analysis
     init(image: UIImage, onIngredientsAdded: (([IngredientItem]) -> Void)? = nil) {
@@ -26,6 +31,14 @@ struct PhotoAnalysisView: View {
     // Init for barcode/pre-resolved results (no photo)
     init(foods: [IdentifiedFood], onIngredientsAdded: (([IngredientItem]) -> Void)? = nil) {
         self.image = nil
+        self.onIngredientsAdded = onIngredientsAdded
+        self._identifiedFoods = State(initialValue: foods)
+        self._isLoading = State(initialValue: false)
+    }
+
+    // Init for multi-angle: has image for display + pre-filled results (no re-analysis needed)
+    init(image: UIImage, prefilled foods: [IdentifiedFood], onIngredientsAdded: (([IngredientItem]) -> Void)? = nil) {
+        self.image = image
         self.onIngredientsAdded = onIngredientsAdded
         self._identifiedFoods = State(initialValue: foods)
         self._isLoading = State(initialValue: false)
@@ -93,6 +106,18 @@ struct PhotoAnalysisView: View {
                             }
                         }
 
+                        // Cooking method & plate size controls (only for photo analysis)
+                        if image != nil {
+                            Section {
+                                cookingMethodPicker
+                                plateSizePicker
+                            } header: {
+                                Text("Preparation Context")
+                            } footer: {
+                                Text("Adjusting these will re-estimate nutrition using better-matched data.")
+                            }
+                        }
+
                         ForEach(displayGroups, id: \.id) { group in
                             if group.mealGroupID != nil {
                                 // Grouped meal
@@ -113,8 +138,12 @@ struct PhotoAnalysisView: View {
                 }
                 if !isLoading && errorMessage == nil {
                     ToolbarItem(placement: .confirmationAction) {
-                        Button("Save") { saveAll() }
-                            .disabled(identifiedFoods.isEmpty)
+                        if isReEstimating {
+                            ProgressView()
+                        } else {
+                            Button("Save") { saveAll() }
+                                .disabled(identifiedFoods.isEmpty)
+                        }
                     }
                 }
             }
@@ -202,11 +231,28 @@ struct PhotoAnalysisView: View {
                     .font(.subheadline)
                     .textInputAutocapitalization(.sentences)
                 Spacer()
+                confidenceBadge(score: identifiedFoods[index].confidenceScore)
                 TextField("Portion", text: $identifiedFoods[index].portionDescription)
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .multilineTextAlignment(.trailing)
                     .frame(maxWidth: 100)
+            }
+            // Hidden calories info
+            if let hiddenCals = identifiedFoods[index].hiddenCaloriesEstimate, hiddenCals > 0,
+               let source = identifiedFoods[index].hiddenCaloriesSource {
+                HStack(spacing: 4) {
+                    Image(systemName: "eye.slash")
+                        .font(.caption2)
+                        .foregroundStyle(DS.Color.carbs)
+                    Text("+\(hiddenCals) hidden")
+                        .font(.caption2)
+                        .foregroundStyle(DS.Color.carbs)
+                    Text("(\(source))")
+                        .font(.caption2)
+                        .foregroundStyle(.tertiary)
+                    Spacer()
+                }
             }
             HStack(spacing: 12) {
                 HStack(spacing: 2) {
@@ -241,6 +287,16 @@ struct PhotoAnalysisView: View {
             .font(.caption)
         }
         .padding(.vertical, 2)
+        .overlay(
+            // Low confidence visual indicator
+            identifiedFoods[index].confidenceScore.map { score in
+                RoundedRectangle(cornerRadius: 4)
+                    .strokeBorder(
+                        score <= 2 ? DS.Color.danger.opacity(0.4) : .clear,
+                        lineWidth: 1
+                    )
+            }
+        )
     }
 
     // MARK: - Standalone Food Section
@@ -252,7 +308,25 @@ struct PhotoAnalysisView: View {
                 Text(identifiedFoods[index].name)
                     .font(.headline)
                 Spacer()
+                confidenceBadge(score: identifiedFoods[index].confidenceScore)
                 SourceBadge(source: identifiedFoods[index].source)
+            }
+
+            // Hidden calories info
+            if let hiddenCals = identifiedFoods[index].hiddenCaloriesEstimate, hiddenCals > 0,
+               let source = identifiedFoods[index].hiddenCaloriesSource {
+                HStack(spacing: 6) {
+                    Image(systemName: "eye.slash")
+                        .font(.caption)
+                        .foregroundStyle(DS.Color.carbs)
+                    Text("+\(hiddenCals) hidden cal")
+                        .font(.caption)
+                        .fontWeight(.medium)
+                        .foregroundStyle(DS.Color.carbs)
+                    Text("(\(source))")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                }
             }
 
             HStack {
@@ -313,6 +387,108 @@ struct PhotoAnalysisView: View {
         }
     }
 
+    // MARK: - Cooking Method Picker
+
+    @ViewBuilder
+    private var cookingMethodPicker: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("How was this prepared?")
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 8) {
+                    // "None" option to clear selection
+                    cookingMethodPill(nil, label: "Auto")
+
+                    ForEach(CookingMethod.allCases) { method in
+                        cookingMethodPill(method, label: method.rawValue)
+                    }
+                }
+            }
+        }
+        .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 8, trailing: 16))
+    }
+
+    @ViewBuilder
+    private func cookingMethodPill(_ method: CookingMethod?, label: String) -> some View {
+        let isSelected = selectedCookingMethod == method
+        Button {
+            if selectedCookingMethod != method {
+                selectedCookingMethod = method
+                reEstimateWithContext()
+            }
+        } label: {
+            HStack(spacing: 4) {
+                if let method {
+                    Image(systemName: method.iconName)
+                        .font(.caption2)
+                }
+                Text(label)
+                    .font(.caption)
+                    .fontWeight(.medium)
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 6)
+            .background(isSelected ? DS.Color.protein.opacity(0.2) : DS.Color.backgroundElevated)
+            .foregroundStyle(isSelected ? DS.Color.protein : DS.Color.textSecondary)
+            .clipShape(Capsule())
+            .overlay(
+                Capsule()
+                    .strokeBorder(isSelected ? DS.Color.protein.opacity(0.5) : DS.Color.border, lineWidth: 1)
+            )
+        }
+        .buttonStyle(.plain)
+    }
+
+    // MARK: - Plate Size Picker
+
+    @ViewBuilder
+    private var plateSizePicker: some View {
+        HStack {
+            Text("Plate size")
+                .font(.subheadline)
+            Spacer()
+            Picker("Plate size", selection: $selectedPlateSize) {
+                ForEach(PlateSize.allCases) { size in
+                    Text(size.rawValue).tag(size)
+                }
+            }
+            .pickerStyle(.segmented)
+            .frame(maxWidth: 280)
+            .onChange(of: selectedPlateSize) { _, _ in
+                reEstimateWithContext()
+            }
+        }
+    }
+
+    // MARK: - Confidence Badge
+
+    @ViewBuilder
+    private func confidenceBadge(score: Int?) -> some View {
+        if let score {
+            let (color, label): (Color, String) = {
+                switch score {
+                case 4...5: return (DS.Color.success, "High")
+                case 3: return (DS.Color.carbs, "Medium")
+                default: return (DS.Color.danger, "Low")
+                }
+            }()
+            HStack(spacing: 3) {
+                Image(systemName: score >= 4 ? "checkmark.circle.fill" : score == 3 ? "questionmark.circle.fill" : "exclamationmark.circle.fill")
+                    .font(.caption2)
+                Text(label)
+                    .font(.caption2)
+                    .fontWeight(.semibold)
+            }
+            .foregroundStyle(color)
+            .padding(.horizontal, 6)
+            .padding(.vertical, 2)
+            .background(color.opacity(0.12))
+            .clipShape(Capsule())
+        }
+    }
+
     // MARK: - Barcode Portion Picker
 
     @ViewBuilder
@@ -368,14 +544,46 @@ struct PhotoAnalysisView: View {
 
         Task {
             do {
+                loadingStatus = "Analyzing photo..."
+                let response = try await VisionAPIService.shared.identifyFoods(in: image, plateSize: selectedPlateSize)
+                cachedVisionResponse = response
                 loadingStatus = "Looking up nutrition data..."
-                let foods = try await FoodAnalysisPipeline.analyzeImage(image)
+                let foods = try await FoodAnalysisPipeline.processVisionResponse(
+                    response,
+                    cookingMethod: selectedCookingMethod,
+                    plateSize: selectedPlateSize
+                )
                 identifiedFoods = foods
+                // Auto-detect cooking method from first result if not manually set
+                if selectedCookingMethod == nil, let detected = foods.first(where: { $0.cookingMethod != nil })?.cookingMethod {
+                    selectedCookingMethod = CookingMethod.from(detected)
+                }
                 isLoading = false
             } catch {
                 errorMessage = error.localizedDescription
                 isLoading = false
             }
+        }
+    }
+
+    /// Re-runs USDA/FNDDS lookups with updated cooking method or plate size context.
+    /// Reuses the cached vision response to avoid re-sending the image to the API.
+    private func reEstimateWithContext() {
+        guard let cachedResponse = cachedVisionResponse, !identifiedFoods.isEmpty else { return }
+        isReEstimating = true
+
+        Task {
+            do {
+                let foods = try await FoodAnalysisPipeline.processVisionResponse(
+                    cachedResponse,
+                    cookingMethod: selectedCookingMethod,
+                    plateSize: selectedPlateSize
+                )
+                identifiedFoods = foods
+            } catch {
+                // Silently fail — keep existing results
+            }
+            isReEstimating = false
         }
     }
 

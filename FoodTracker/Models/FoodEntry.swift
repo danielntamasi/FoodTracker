@@ -56,6 +56,7 @@ final class FoodEntry {
     var servingDescription: String?
     var servingGrams: Double?
     var barcode: String?
+    var isGeneratedImage: Bool = false
 
     var totalCalories: Int { Int((Double(calories) * servings).rounded()) }
     var totalProteinGrams: Double { (proteinGrams * servings).roundedTo(1) }
@@ -79,7 +80,8 @@ final class FoodEntry {
         servings: Double = 1.0,
         servingDescription: String? = nil,
         servingGrams: Double? = nil,
-        barcode: String? = nil
+        barcode: String? = nil,
+        isGeneratedImage: Bool = false
     ) {
         self.id = id
         self.name = name
@@ -98,5 +100,6 @@ final class FoodEntry {
         self.servingDescription = servingDescription
         self.servingGrams = servingGrams
         self.barcode = barcode
+        self.isGeneratedImage = isGeneratedImage
     }
 }

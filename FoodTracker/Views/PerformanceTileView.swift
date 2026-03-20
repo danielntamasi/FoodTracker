@@ -109,7 +109,9 @@ struct PerformanceTileView: View {
                     Image(systemName: "info.circle")
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
+                        .frame(minWidth: 44, minHeight: 44)
                 }
+                .accessibilityLabel("Performance info")
                 .buttonStyle(.plain)
                 if selectedPeriod == .week && calc.hasTargets {
                     Button {
@@ -120,7 +122,9 @@ struct PerformanceTileView: View {
                         Image(systemName: useBarChart ? "chart.bar.fill" : "circle.grid.3x3.fill")
                             .font(.subheadline)
                             .foregroundStyle(.secondary)
+                            .frame(minWidth: 44, minHeight: 44)
                     }
+                    .accessibilityLabel(useBarChart ? "Show dot matrix" : "Show bar chart")
                     .buttonStyle(.plain)
                 }
                 Spacer()
@@ -179,9 +183,7 @@ struct PerformanceTileView: View {
                         .foregroundStyle(.secondary)
                 }
                 Spacer()
-                if streak > 0 {
-                    streakLabel(count: streak, isBest: false)
-                }
+                streakLabel(count: streak, isBest: false)
             }
         }
     }
@@ -248,7 +250,7 @@ struct PerformanceTileView: View {
                 yStart: .value("Low", 90),
                 yEnd: .value("High", 110)
             )
-            .foregroundStyle(.green.opacity(0.08))
+            .foregroundStyle(DS.Color.success.opacity(0.08))
 
             RuleMark(y: .value("Target", 100))
                 .lineStyle(StrokeStyle(lineWidth: 1, dash: [4, 3]))

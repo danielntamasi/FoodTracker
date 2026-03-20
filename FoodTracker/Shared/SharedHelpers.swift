@@ -79,32 +79,52 @@ func dominantColor(from image: UIImage, colorScheme: ColorScheme) -> Color? {
     let r = Double(bitmap[0]) / 255.0
     let g = Double(bitmap[1]) / 255.0
     let b = Double(bitmap[2]) / 255.0
-    let darkenFactor: Double = colorScheme == .dark ? 0.3 : 0.55
-    return Color(red: r * darkenFactor, green: g * darkenFactor, blue: b * darkenFactor)
+
+    if colorScheme == .dark {
+        let factor = 0.3
+        return Color(red: r * factor, green: g * factor, blue: b * factor)
+    } else {
+        // Light mode: blend toward white for a soft pastel background
+        let blend = 0.85
+        return Color(red: r + (1 - r) * blend, green: g + (1 - g) * blend, blue: b + (1 - b) * blend)
+    }
 }
 
-// MARK: - Icon Dark Color (for hero backgrounds)
+// MARK: - Icon Hero Color (adaptive for hero backgrounds)
 
-func iconDarkColor(for iconName: String) -> Color {
+func iconHeroColor(for iconName: String) -> Color {
+    // Adaptive: dark values (low range 0.05-0.24) for dark mode,
+    // light pastels (high range 0.88-0.96) for light mode
+    func adaptive(darkR: Double, darkG: Double, darkB: Double,
+                  lightR: Double, lightG: Double, lightB: Double) -> Color {
+        Color(uiColor: UIColor { traits in
+            if traits.userInterfaceStyle == .dark {
+                return UIColor(red: darkR, green: darkG, blue: darkB, alpha: 1)
+            } else {
+                return UIColor(red: lightR, green: lightG, blue: lightB, alpha: 1)
+            }
+        })
+    }
+
     switch iconName {
-    case "bird": return Color(red: 0.15, green: 0.10, blue: 0.05)
-    case "flame": return Color(red: 0.21, green: 0.09, blue: 0.05)
-    case "fish": return Color(red: 0.05, green: 0.15, blue: 0.15)
-    case "egg": return Color(red: 0.22, green: 0.19, blue: 0.08)
-    case "cup.and.saucer": return Color(red: 0.14, green: 0.09, blue: 0.05)
-    case "cup.and.saucer.fill": return Color(red: 0.10, green: 0.15, blue: 0.20)
-    case "waterbottle": return Color(red: 0.05, green: 0.15, blue: 0.18)
-    case "wineglass": return Color(red: 0.15, green: 0.05, blue: 0.10)
-    case "birthday.cake": return Color(red: 0.18, green: 0.08, blue: 0.12)
-    case "takeoutbag.and.cup.and.straw": return Color(red: 0.20, green: 0.12, blue: 0.05)
-    case "triangle": return Color(red: 0.22, green: 0.08, blue: 0.05)
-    case "leaf": return Color(red: 0.05, green: 0.15, blue: 0.05)
-    case "carrot": return Color(red: 0.24, green: 0.14, blue: 0.05)
-    case "leaf.circle": return Color(red: 0.12, green: 0.15, blue: 0.08)
-    case "chart.bar": return Color(red: 0.10, green: 0.12, blue: 0.18)
-    case "snowflake": return Color(red: 0.12, green: 0.19, blue: 0.22)
-    case "bowl": return Color(red: 0.20, green: 0.14, blue: 0.06)
-    default: return Color(red: 0.12, green: 0.12, blue: 0.14)
+    case "bird": return adaptive(darkR: 0.15, darkG: 0.10, darkB: 0.05, lightR: 0.95, lightG: 0.92, lightB: 0.88)
+    case "flame": return adaptive(darkR: 0.21, darkG: 0.09, darkB: 0.05, lightR: 0.96, lightG: 0.90, lightB: 0.88)
+    case "fish": return adaptive(darkR: 0.05, darkG: 0.15, darkB: 0.15, lightR: 0.88, lightG: 0.95, lightB: 0.95)
+    case "egg": return adaptive(darkR: 0.22, darkG: 0.19, darkB: 0.08, lightR: 0.96, lightG: 0.95, lightB: 0.89)
+    case "cup.and.saucer": return adaptive(darkR: 0.14, darkG: 0.09, darkB: 0.05, lightR: 0.94, lightG: 0.91, lightB: 0.88)
+    case "cup.and.saucer.fill": return adaptive(darkR: 0.10, darkG: 0.15, darkB: 0.20, lightR: 0.90, lightG: 0.93, lightB: 0.96)
+    case "waterbottle": return adaptive(darkR: 0.05, darkG: 0.15, darkB: 0.18, lightR: 0.88, lightG: 0.94, lightB: 0.96)
+    case "wineglass": return adaptive(darkR: 0.15, darkG: 0.05, darkB: 0.10, lightR: 0.95, lightG: 0.88, lightB: 0.92)
+    case "birthday.cake": return adaptive(darkR: 0.18, darkG: 0.08, darkB: 0.12, lightR: 0.96, lightG: 0.90, lightB: 0.93)
+    case "takeoutbag.and.cup.and.straw": return adaptive(darkR: 0.20, darkG: 0.12, darkB: 0.05, lightR: 0.96, lightG: 0.92, lightB: 0.88)
+    case "triangle": return adaptive(darkR: 0.22, darkG: 0.08, darkB: 0.05, lightR: 0.96, lightG: 0.90, lightB: 0.88)
+    case "leaf": return adaptive(darkR: 0.05, darkG: 0.15, darkB: 0.05, lightR: 0.88, lightG: 0.95, lightB: 0.88)
+    case "carrot": return adaptive(darkR: 0.24, darkG: 0.14, darkB: 0.05, lightR: 0.96, lightG: 0.93, lightB: 0.88)
+    case "leaf.circle": return adaptive(darkR: 0.12, darkG: 0.15, darkB: 0.08, lightR: 0.92, lightG: 0.94, lightB: 0.89)
+    case "chart.bar": return adaptive(darkR: 0.10, darkG: 0.12, darkB: 0.18, lightR: 0.91, lightG: 0.92, lightB: 0.95)
+    case "snowflake": return adaptive(darkR: 0.12, darkG: 0.19, darkB: 0.22, lightR: 0.92, lightG: 0.95, lightB: 0.96)
+    case "bowl": return adaptive(darkR: 0.20, darkG: 0.14, darkB: 0.06, lightR: 0.96, lightG: 0.93, lightB: 0.89)
+    default: return adaptive(darkR: 0.12, darkG: 0.12, darkB: 0.14, lightR: 0.92, lightG: 0.92, lightB: 0.94)
     }
 }
 
@@ -117,7 +137,7 @@ func quickAddEntry(_ entry: FoodEntry, into modelContext: ModelContext) {
         proteinGrams: entry.proteinGrams,
         carbsGrams: entry.carbsGrams,
         fatGrams: entry.fatGrams,
-        photoData: entry.photoData,
+        photoData: entry.isGeneratedImage ? nil : entry.photoData,
         iconName: entry.iconName ?? foodIconName(for: entry.name),
         servings: entry.servings,
         servingDescription: entry.servingDescription,
@@ -136,7 +156,7 @@ func quickAddMealGroup(_ entries: [FoodEntry], mealName: String?, into modelCont
             proteinGrams: entry.proteinGrams,
             carbsGrams: entry.carbsGrams,
             fatGrams: entry.fatGrams,
-            photoData: entry.photoData,
+            photoData: entry.isGeneratedImage ? nil : entry.photoData,
             mealGroupID: newGroupID,
             mealName: mealName,
             iconName: entry.iconName ?? foodIconName(for: entry.name),

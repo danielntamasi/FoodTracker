@@ -311,12 +311,14 @@ struct DailySummaryView: View {
     private func entryCard(for item: EntryDisplayItem) -> some View {
         switch item {
         case .standalone(let entry):
-            FoodEntryRow(entry: entry)
-                .padding(12)
-                .background(DS.Color.backgroundSecondary)
-                .clipShape(RoundedRectangle(cornerRadius: 12))
-                .contentShape(Rectangle())
-                .onTapGesture { editingEntry = entry }
+            Button { editingEntry = entry } label: {
+                FoodEntryRow(entry: entry)
+                    .padding(12)
+                    .background(DS.Color.backgroundSecondary)
+                    .clipShape(RoundedRectangle(cornerRadius: 12))
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(PressableButtonStyle())
                 .swipeActions(edge: .trailing, allowsFullSwipe: false) {
                     Button(role: .destructive) {
                         let entryID = entry.id
@@ -338,11 +340,13 @@ struct DailySummaryView: View {
 
         case .mealGroup(let groupID, let mealName, let entries):
             HStack {
-                MealEntryRow(mealName: mealName, entries: entries)
-                    .contentShape(Rectangle())
-                    .onTapGesture {
-                        editingMealGroup = MealGroup(id: groupID, name: mealName, entries: entries)
-                    }
+                Button {
+                    editingMealGroup = MealGroup(id: groupID, name: mealName, entries: entries)
+                } label: {
+                    MealEntryRow(mealName: mealName, entries: entries)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(PressableButtonStyle())
                 Button {
                     withAnimation(.easeInOut(duration: 0.2)) {
                         if expandedGroups.contains(groupID) {
@@ -355,9 +359,10 @@ struct DailySummaryView: View {
                     Image(systemName: expandedGroups.contains(groupID) ? "chevron.up" : "chevron.down")
                         .font(.caption)
                         .foregroundStyle(.secondary)
-                        .frame(width: 32, height: 32)
+                        .frame(width: 44, height: 44)
                         .contentShape(Rectangle())
                 }
+                .accessibilityLabel(expandedGroups.contains(groupID) ? "Collapse meal" : "Expand meal")
                 .buttonStyle(.plain)
             }
             .padding(12)
@@ -394,13 +399,15 @@ struct DailySummaryView: View {
     // MARK: - Expanded Sub-Item Row
 
     private func expandedSubItemRow(entry: FoodEntry, groupPhotoData: Data? = nil) -> some View {
-        FoodEntryRow(entry: entry, groupPhotoData: groupPhotoData)
-            .padding(.vertical, 8)
-            .padding(.horizontal, 12)
-            .background(DS.Color.backgroundSecondary.opacity(0.7))
-            .clipShape(RoundedRectangle(cornerRadius: 10))
-            .contentShape(Rectangle())
-            .onTapGesture { editingEntry = entry }
+        Button { editingEntry = entry } label: {
+            FoodEntryRow(entry: entry, groupPhotoData: groupPhotoData)
+                .padding(.vertical, 8)
+                .padding(.horizontal, 12)
+                .background(DS.Color.backgroundSecondary.opacity(0.7))
+                .clipShape(RoundedRectangle(cornerRadius: 10))
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(PressableButtonStyle())
             .listRowBackground(Color.clear)
             .listRowSeparator(.hidden)
             .listRowInsets(EdgeInsets(top: 2, leading: 32, bottom: 2, trailing: 16))
@@ -581,7 +588,7 @@ struct FoodIconThumbnail: View {
             .frame(width: size, height: size)
             .background(
                 RoundedRectangle(cornerRadius: DS.Radius.s, style: .continuous)
-                    .fill(Color.white.opacity(0.05))
+                    .fill(DS.Color.iconThumbnailBg)
             )
             .clipShape(RoundedRectangle(cornerRadius: DS.Radius.s, style: .continuous))
     }

@@ -21,24 +21,54 @@ enum DS {
     // MARK: Color
 
     enum Color {
-        static let backgroundPrimary   = SwiftUI.Color(hex: "0A0D12")
-        static let backgroundSecondary = SwiftUI.Color(hex: "12161E")
-        static let backgroundElevated  = SwiftUI.Color(hex: "1A1F2B")
-        static let backgroundSubtle    = SwiftUI.Color(hex: "1F2535")
+        // Adaptive helper: returns a Color that switches between light/dark hex values
+        private static func adaptive(light: String, dark: String) -> SwiftUI.Color {
+            SwiftUI.Color(uiColor: UIColor { traits in
+                let hex = traits.userInterfaceStyle == .dark ? dark : light
+                let trimmed = hex.trimmingCharacters(in: CharacterSet.alphanumerics.inverted)
+                var int: UInt64 = 0
+                Scanner(string: trimmed).scanHexInt64(&int)
+                let r = CGFloat((int >> 16) & 0xFF) / 255
+                let g = CGFloat((int >> 8) & 0xFF) / 255
+                let b = CGFloat(int & 0xFF) / 255
+                return UIColor(red: r, green: g, blue: b, alpha: 1)
+            })
+        }
 
-        static let textPrimary   = SwiftUI.Color(hex: "F0F3FA")
-        static let textSecondary = SwiftUI.Color(hex: "8892A4")
-        static let textTertiary  = SwiftUI.Color(hex: "4E566A")
+        private static func adaptiveOpacity(lightBase: UIColor, lightAlpha: CGFloat, darkBase: UIColor, darkAlpha: CGFloat) -> SwiftUI.Color {
+            SwiftUI.Color(uiColor: UIColor { traits in
+                traits.userInterfaceStyle == .dark
+                    ? darkBase.withAlphaComponent(darkAlpha)
+                    : lightBase.withAlphaComponent(lightAlpha)
+            })
+        }
 
-        static let protein = SwiftUI.Color(hex: "4D8CF5")
-        static let carbs   = SwiftUI.Color(hex: "F5A623")
-        static let fat     = SwiftUI.Color(hex: "A776F5")
+        static let backgroundPrimary   = adaptive(light: "F2F2F7", dark: "0A0D12")
+        static let backgroundSecondary = adaptive(light: "FFFFFF", dark: "12161E")
+        static let backgroundElevated  = adaptive(light: "FFFFFF", dark: "1A1F2B")
+        static let backgroundSubtle    = adaptive(light: "F0F0F5", dark: "1F2535")
 
-        static let success = SwiftUI.Color(hex: "34C77B")
-        static let danger  = SwiftUI.Color(hex: "F05A5A")
+        static let textPrimary   = adaptive(light: "1C1C1E", dark: "F0F3FA")
+        static let textSecondary = adaptive(light: "6C6C70", dark: "9BA3B5")
+        static let textTertiary  = adaptive(light: "AEAEB2", dark: "4E566A")
 
-        static let border       = SwiftUI.Color.white.opacity(0.07)
-        static let borderStrong = SwiftUI.Color.white.opacity(0.12)
+        static let protein = adaptive(light: "3478F6", dark: "4D8CF5")
+        static let carbs   = adaptive(light: "E09500", dark: "F5A623")
+        static let fat     = adaptive(light: "8F5DE0", dark: "A776F5")
+
+        static let success = adaptive(light: "28A060", dark: "34C77B")
+        static let danger  = adaptive(light: "D93030", dark: "F05A5A")
+
+        static let border       = adaptiveOpacity(lightBase: .black, lightAlpha: 0.08, darkBase: .white, darkAlpha: 0.07)
+        static let borderStrong = adaptiveOpacity(lightBase: .black, lightAlpha: 0.15, darkBase: .white, darkAlpha: 0.12)
+
+        // Semantic tokens
+        static let ringTrack       = adaptiveOpacity(lightBase: .black, lightAlpha: 0.06, darkBase: .white, darkAlpha: 0.06)
+        static let overlayText     = adaptive(light: "1C1C1E", dark: "FFFFFF")
+        static let dimming         = adaptiveOpacity(lightBase: .black, lightAlpha: 0.3, darkBase: .black, darkAlpha: 0.5)
+        static let shadowColor     = adaptiveOpacity(lightBase: .black, lightAlpha: 0.1, darkBase: .black, darkAlpha: 0.25)
+        static let heroTextShadow  = adaptiveOpacity(lightBase: .white, lightAlpha: 0.5, darkBase: .black, darkAlpha: 0.3)
+        static let iconThumbnailBg = adaptiveOpacity(lightBase: .black, lightAlpha: 0.05, darkBase: .white, darkAlpha: 0.05)
     }
 
     // MARK: Spacing
@@ -84,7 +114,7 @@ enum DS {
         )
 
         static let cardShimmer = LinearGradient(
-            colors: [SwiftUI.Color(hex: "1A1F2B"), SwiftUI.Color(hex: "1F2535")],
+            colors: [DS.Color.backgroundElevated, DS.Color.backgroundSubtle],
             startPoint: .topLeading,
             endPoint: .bottomTrailing
         )
@@ -124,6 +154,16 @@ extension View {
     func appCard() -> some View { modifier(AppCardModifier()) }
 }
 
+// MARK: - Pressable Button Style
+
+struct PressableButtonStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .opacity(configuration.isPressed ? 0.7 : 1.0)
+            .animation(.easeOut(duration: 0.15), value: configuration.isPressed)
+    }
+}
+
 // MARK: - Macro Pill
 
 struct MacroPill: View {
@@ -156,6 +196,7 @@ struct CalorieRing: View {
     var size: CGFloat = 200
     let lineWidth: CGFloat = 18
 
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var animatedProgress: Double = 0
 
     private var targetProgress: Double {
@@ -169,7 +210,7 @@ struct CalorieRing: View {
         ZStack {
             // Track
             Circle()
-                .stroke(SwiftUI.Color.white.opacity(0.06), lineWidth: lineWidth)
+                .stroke(DS.Color.ringTrack, lineWidth: lineWidth)
 
             // Ring with glow via shadow
             Circle()
@@ -211,13 +252,21 @@ struct CalorieRing: View {
         }
         .frame(width: size, height: size)
         .onAppear {
-            withAnimation(.spring(response: 1.0, dampingFraction: 0.8)) {
+            if reduceMotion {
                 animatedProgress = targetProgress
+            } else {
+                withAnimation(.spring(response: 1.0, dampingFraction: 0.8)) {
+                    animatedProgress = targetProgress
+                }
             }
         }
         .onChange(of: targetProgress) { _, newValue in
-            withAnimation(.spring(response: 1.0, dampingFraction: 0.8)) {
+            if reduceMotion {
                 animatedProgress = newValue
+            } else {
+                withAnimation(.spring(response: 1.0, dampingFraction: 0.8)) {
+                    animatedProgress = newValue
+                }
             }
         }
     }
@@ -232,6 +281,7 @@ struct MacroArc: View {
     let color: SwiftUI.Color
     var arcSize: CGFloat = 64
 
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var animatedProgress: Double = 0
 
     private var targetProgress: Double {
@@ -245,7 +295,7 @@ struct MacroArc: View {
         VStack(spacing: 6) {
             ZStack {
                 Circle()
-                    .stroke(SwiftUI.Color.white.opacity(0.08), lineWidth: 5)
+                    .stroke(DS.Color.ringTrack, lineWidth: 5)
                     .frame(width: arcSize, height: arcSize)
 
                 Circle()
@@ -282,13 +332,21 @@ struct MacroArc: View {
             }
         }
         .onAppear {
-            withAnimation(.spring(response: 1.0, dampingFraction: 0.8)) {
+            if reduceMotion {
                 animatedProgress = targetProgress
+            } else {
+                withAnimation(.spring(response: 1.0, dampingFraction: 0.8)) {
+                    animatedProgress = targetProgress
+                }
             }
         }
         .onChange(of: targetProgress) { _, newValue in
-            withAnimation(.spring(response: 1.0, dampingFraction: 0.8)) {
+            if reduceMotion {
                 animatedProgress = newValue
+            } else {
+                withAnimation(.spring(response: 1.0, dampingFraction: 0.8)) {
+                    animatedProgress = newValue
+                }
             }
         }
     }

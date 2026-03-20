@@ -50,9 +50,11 @@ struct HistoryView: View {
                                 ForEach(groupedDisplayItems(from: dayEntries), id: \.id) { item in
                                     switch item {
                                     case .standalone(let entry):
-                                        FoodEntryRow(entry: entry)
-                                            .contentShape(Rectangle())
-                                            .onTapGesture { editingEntry = entry }
+                                        Button { editingEntry = entry } label: {
+                                            FoodEntryRow(entry: entry)
+                                                .contentShape(Rectangle())
+                                        }
+                                        .buttonStyle(PressableButtonStyle())
                                             .swipeActions(edge: .trailing, allowsFullSwipe: false) {
                                                 Button(role: .destructive) {
                                                     let entryID = entry.id
@@ -74,11 +76,13 @@ struct HistoryView: View {
 
                                     case .mealGroup(let groupID, let mealName, let entries):
                                         HStack {
-                                            MealEntryRow(mealName: mealName, entries: entries)
-                                                .contentShape(Rectangle())
-                                                .onTapGesture {
-                                                    editingMealGroup = MealGroup(id: groupID, name: mealName, entries: entries)
-                                                }
+                                            Button {
+                                                editingMealGroup = MealGroup(id: groupID, name: mealName, entries: entries)
+                                            } label: {
+                                                MealEntryRow(mealName: mealName, entries: entries)
+                                                    .contentShape(Rectangle())
+                                            }
+                                            .buttonStyle(PressableButtonStyle())
                                             Button {
                                                 withAnimation(.easeInOut(duration: 0.2)) {
                                                     if expandedGroups.contains(groupID) {
@@ -91,9 +95,10 @@ struct HistoryView: View {
                                                 Image(systemName: expandedGroups.contains(groupID) ? "chevron.up" : "chevron.down")
                                                     .font(.caption)
                                                     .foregroundStyle(DS.Color.textTertiary)
-                                                    .frame(width: 32, height: 32)
+                                                    .frame(width: 44, height: 44)
                                                     .contentShape(Rectangle())
                                             }
+                                            .accessibilityLabel(expandedGroups.contains(groupID) ? "Collapse meal" : "Expand meal")
                                             .buttonStyle(.plain)
                                         }
                                         .swipeActions(edge: .trailing, allowsFullSwipe: false) {
@@ -124,9 +129,11 @@ struct HistoryView: View {
                                         if expandedGroups.contains(groupID) {
                                             let groupPhoto = entries.first(where: { $0.photoData != nil })?.photoData
                                             ForEach(entries) { entry in
-                                                FoodEntryRow(entry: entry, groupPhotoData: groupPhoto)
-                                                    .contentShape(Rectangle())
-                                                    .onTapGesture { editingEntry = entry }
+                                                Button { editingEntry = entry } label: {
+                                                    FoodEntryRow(entry: entry, groupPhotoData: groupPhoto)
+                                                        .contentShape(Rectangle())
+                                                }
+                                                .buttonStyle(PressableButtonStyle())
                                                     .padding(.leading, 16)
                                                     .swipeActions(edge: .trailing, allowsFullSwipe: false) {
                                                         Button(role: .destructive) {
@@ -165,7 +172,7 @@ struct HistoryView: View {
                                     Image(systemName: expandedDays.contains(dateString) ? "chevron.down" : "chevron.right")
                                         .font(.caption2)
                                         .foregroundStyle(DS.Color.textTertiary)
-                                        .frame(width: 12)
+                                        .frame(width: 16)
                                     Text(dateString)
                                         .font(DS.Typography.labelS)
                                         .foregroundStyle(DS.Color.textSecondary)

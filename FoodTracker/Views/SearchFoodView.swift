@@ -205,7 +205,7 @@ struct SearchFoodView: View {
             proteinGrams: entry.proteinGrams,
             carbsGrams: entry.carbsGrams,
             fatGrams: entry.fatGrams,
-            photoData: entry.photoData,
+            photoData: entry.isGeneratedImage ? nil : entry.photoData,
             iconName: entry.iconName ?? foodIconName(for: entry.name),
             servings: 1.0,
             servingDescription: entry.servingDescription,

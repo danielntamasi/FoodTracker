@@ -52,6 +52,94 @@ struct IdentifiedFood: Identifiable {
     var servings: Double = 1.0
     // Barcode string if this food came from a barcode scan
     var barcode: String?
+
+    // Accuracy enhancement fields (Phase 1)
+    var hiddenCaloriesEstimate: Int?
+    var hiddenCaloriesSource: String?
+    var confidenceScore: Int?
+    var cookingMethod: String?
+}
+
+// MARK: - Cooking Method
+
+enum CookingMethod: String, CaseIterable, Identifiable {
+    case raw = "Raw"
+    case grilled = "Grilled"
+    case fried = "Fried"
+    case baked = "Baked"
+    case steamed = "Steamed"
+    case sauteed = "Sautéed"
+    case roasted = "Roasted"
+    case boiled = "Boiled"
+    case airFried = "Air Fried"
+    case other = "Other"
+
+    var id: String { rawValue }
+
+    var usdaQueryTerm: String {
+        switch self {
+        case .raw: return "raw"
+        case .grilled: return "grilled"
+        case .fried: return "fried"
+        case .baked: return "baked"
+        case .steamed: return "steamed"
+        case .sauteed: return "sauteed"
+        case .roasted: return "roasted"
+        case .boiled: return "boiled"
+        case .airFried: return "air fried"
+        case .other: return ""
+        }
+    }
+
+    var iconName: String {
+        switch self {
+        case .raw: return "leaf"
+        case .grilled: return "flame"
+        case .fried: return "drop.fill"
+        case .baked: return "rectangle.inset.filled"
+        case .steamed: return "cloud"
+        case .sauteed: return "frying.pan"
+        case .roasted: return "flame.fill"
+        case .boiled: return "drop.circle"
+        case .airFried: return "wind"
+        case .other: return "ellipsis.circle"
+        }
+    }
+
+    /// Attempts to match a string from the vision API to a CookingMethod.
+    /// Checks longer terms first (e.g., "air fried" before "fried") to avoid false matches.
+    static func from(_ string: String?) -> CookingMethod? {
+        guard let string = string?.lowercased() else { return nil }
+        // Sort by query term length descending so "air fried" matches before "fried"
+        let sorted = allCases.filter { !$0.usdaQueryTerm.isEmpty }
+            .sorted { $0.usdaQueryTerm.count > $1.usdaQueryTerm.count }
+        return sorted.first { string.contains($0.usdaQueryTerm) }
+    }
+}
+
+// MARK: - Plate Size
+
+enum PlateSize: String, CaseIterable, Identifiable {
+    case small = "Small ~8\""
+    case medium = "Medium ~10\""
+    case large = "Large ~12\""
+
+    var id: String { rawValue }
+
+    var diameterInches: Double {
+        switch self {
+        case .small: return 8
+        case .medium: return 10.5
+        case .large: return 12
+        }
+    }
+
+    /// Scaling factor relative to a standard 10.5" dinner plate.
+    /// Uses linear scaling (not area-based) to avoid over-correction.
+    var portionScale: Double {
+        let standardDiameter = 10.5
+        return diameterInches / standardDiameter
+    }
 }
 
 // MARK: - Vision Provider Selection
@@ -100,6 +188,11 @@ struct VisionIdentifiedItem: Codable {
     let protein_grams: Double?
     let carbs_grams: Double?
     let fat_grams: Double?
+    // Accuracy enhancement fields
+    let hidden_calories_estimate: Double?
+    let hidden_calories_source: String?
+    let confidence: Int?
+    let cooking_method: String?
 
     var nutritionSource: NutritionSource {
         switch source {

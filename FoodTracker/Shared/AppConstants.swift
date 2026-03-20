@@ -34,5 +34,7 @@ enum AppConstants {
         static let widgetFat = "widgetFat"
         static let widgetLastSync = "widgetLastSync"
         static let favoriteFoodNames = "favoriteFoodNames"
+        static let imagePlaygroundEnabled = "imagePlaygroundEnabled"
+        static let appearanceMode = "appearanceMode"
     }
 }

@@ -49,8 +49,8 @@ actor USDAService {
     }
 
     /// Looks up a food and returns the single best result.
-    func lookupFood(for foodName: String) async throws -> USDALookupResult {
-        let results = try await lookupFoodOptions(for: foodName)
+    func lookupFood(for foodName: String, cookingMethod: CookingMethod? = nil) async throws -> USDALookupResult {
+        let results = try await lookupFoodOptions(for: foodName, cookingMethod: cookingMethod)
         guard let first = results.first else {
             return USDALookupResult(description: foodName, nutrientsPer100g: NutrientsPer100g())
         }
@@ -58,24 +58,71 @@ actor USDAService {
     }
 
     /// Looks up a food and returns up to 5 scored/de-duped results with serving info.
-    func lookupFoodOptions(for foodName: String) async throws -> [USDALookupResult] {
+    /// Uses a two-pass strategy: tries with cooking method first, falls back to stripped query.
+    func lookupFoodOptions(for foodName: String, cookingMethod: CookingMethod? = nil) async throws -> [USDALookupResult] {
         // Clean query: strip parenthetical content and special chars that cause USDA API errors
         let cleanedName = foodName
             .replacingOccurrences(of: "\\s*\\([^)]*\\)", with: "", options: .regularExpression)
             .trimmingCharacters(in: .whitespaces)
         let afterParens = cleanedName.isEmpty ? foodName : cleanedName
 
-        // Strip cooking methods for better USDA matching
+        // Strip cooking methods for USDA matching
         let words = afterParens.split(separator: " ").map { String($0) }
         let stripped = words.filter { !Self.cookingMethods.contains($0.lowercased()) }
-        let query = stripped.isEmpty ? afterParens : stripped.joined(separator: " ")
+        let strippedQuery = stripped.isEmpty ? afterParens : stripped.joined(separator: " ")
 
+        // Two-pass strategy: try with cooking method first if available
+        let cookingTerm = cookingMethod?.usdaQueryTerm ?? ""
+        let queriesInOrder: [String]
+        if !cookingTerm.isEmpty {
+            let withMethod = "\(cookingTerm) \(strippedQuery)"
+            queriesInOrder = [withMethod, strippedQuery]
+        } else {
+            // Check if the original name has a cooking method we can preserve
+            let hasMethod = words.contains { Self.cookingMethods.contains($0.lowercased()) }
+            if hasMethod {
+                queriesInOrder = [afterParens, strippedQuery]
+            } else {
+                queriesInOrder = [strippedQuery]
+            }
+        }
+
+        for query in queriesInOrder {
+            let results = try await executeUSDASearch(
+                query: query,
+                dataType: "Foundation,SR Legacy",
+                foodName: foodName,
+                cookingMethod: cookingMethod
+            )
+            if !results.isEmpty { return results }
+        }
+
+        return []
+    }
+
+    /// Looks up prepared/cooked foods in FNDDS (Survey database) which includes recipe-level nutrition.
+    func lookupPreparedFood(for foodName: String, cookingMethod: CookingMethod? = nil) async throws -> [USDALookupResult] {
+        let cleanedName = foodName
+            .replacingOccurrences(of: "\\s*\\([^)]*\\)", with: "", options: .regularExpression)
+            .trimmingCharacters(in: .whitespaces)
+        let query = cleanedName.isEmpty ? foodName : cleanedName
+
+        return try await executeUSDASearch(
+            query: query,
+            dataType: "Survey (FNDDS)",
+            foodName: foodName,
+            cookingMethod: cookingMethod
+        )
+    }
+
+    /// Core USDA search execution shared by FDC and FNDDS lookups.
+    private func executeUSDASearch(query: String, dataType: String, foodName: String, cookingMethod: CookingMethod?) async throws -> [USDALookupResult] {
         var components = URLComponents(string: baseURL)!
         components.queryItems = [
             URLQueryItem(name: "api_key", value: apiKey),
             URLQueryItem(name: "query", value: query),
             URLQueryItem(name: "pageSize", value: "5"),
-            URLQueryItem(name: "dataType", value: "Foundation,SR Legacy")
+            URLQueryItem(name: "dataType", value: dataType)
         ]
 
         guard let url = components.url else {
@@ -113,13 +160,13 @@ actor USDAService {
         let queryLower = query.lowercased()
         let penaltyKeywords = ["dried", "dehydrated", "powder", "concentrate", "canned", "juice", "frozen", "infant formula"]
         let sortedFoods = foods.sorted { a, b in
-            scoreFood(a, query: queryLower, penaltyKeywords: penaltyKeywords) > scoreFood(b, query: queryLower, penaltyKeywords: penaltyKeywords)
+            scoreFood(a, query: queryLower, penaltyKeywords: penaltyKeywords, cookingMethod: cookingMethod) >
+            scoreFood(b, query: queryLower, penaltyKeywords: penaltyKeywords, cookingMethod: cookingMethod)
         }
 
         var results: [USDALookupResult] = []
         for food in sortedFoods {
             let result = await buildResult(from: food, fallbackName: foodName)
-            // Skip results with no nutrition data
             let per100g = result.nutrientsPer100g
             guard per100g.calories > 0 || per100g.protein > 0 || per100g.carbs > 0 || per100g.fat > 0 else { continue }
             results.append(result)
@@ -237,7 +284,7 @@ actor USDAService {
         "glazed", "caramelized", "crispy", "creamy"
     ]
 
-    private func scoreFood(_ food: [String: Any], query: String, penaltyKeywords: [String]) -> Int {
+    private func scoreFood(_ food: [String: Any], query: String, penaltyKeywords: [String], cookingMethod: CookingMethod? = nil) -> Int {
         let desc = (food["description"] as? String ?? "").lowercased()
         var score = 0
 
@@ -258,6 +305,19 @@ actor USDAService {
         if let foodNutrients = food["foodNutrients"] as? [[String: Any]] {
             let hasEnergy = foodNutrients.contains { ($0["nutrientId"] as? Int) == AppConstants.USDA.energyNutrientID }
             if hasEnergy { score += 2 }
+        }
+
+        // Cooking method matching bonus/penalty
+        if let method = cookingMethod, !method.usdaQueryTerm.isEmpty {
+            let term = method.usdaQueryTerm.lowercased()
+            if desc.contains(term) {
+                score += 5 // Strong bonus for matching cooking method
+            } else {
+                // Penalty for mismatched cooking method (e.g., user said "fried" but result says "baked")
+                let otherMethods: [String] = ["fried", "baked", "grilled", "roasted", "steamed", "boiled", "sauteed", "broiled", "raw"]
+                let hasDifferentMethod = otherMethods.contains { $0 != term && desc.contains($0) }
+                if hasDifferentMethod { score -= 3 }
+            }
         }
 
         return score

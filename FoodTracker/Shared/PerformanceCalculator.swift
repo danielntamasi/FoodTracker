@@ -161,10 +161,16 @@ struct PerformanceCalculator {
         records.filter { $0.hasData }.count
     }
 
-    func currentStreak(in records: [DayRecord]) -> Int {
+    func currentStreak(in records: [DayRecord], excludeToday: Bool = false) -> Int {
+        let calendar = Calendar.current
+        let today = calendar.startOfDay(for: Date())
         var streak = 0
         var started = false
         for record in records.reversed() {
+            // Skip today — the day isn't over yet so it shouldn't break a streak
+            if excludeToday && calendar.isDate(record.date, inSameDayAs: today) {
+                continue
+            }
             if isDayFullyOnTarget(record) {
                 streak += 1
                 started = true
@@ -177,9 +183,8 @@ struct PerformanceCalculator {
         return streak
     }
 
-    /// Computes the current streak looking back from today across ALL entries,
-    /// not limited to the selected period. Builds daily records from the earliest
-    /// entry to today, then walks backwards using the same streak logic.
+    /// Computes the current streak looking back from yesterday across ALL entries,
+    /// not limited to the selected period. Today is excluded because it's still in progress.
     func globalCurrentStreak(allEntries: [FoodEntry]) -> Int {
         let calendar = Calendar.current
         let now = Date()
@@ -191,7 +196,7 @@ struct PerformanceCalculator {
 
         let globalCalc = PerformanceCalculator(entries: allEntries, activeMacroTypes: activeMacroTypes)
         let records = globalCalc.buildDailyRecords(days: totalDays)
-        return globalCalc.currentStreak(in: records)
+        return globalCalc.currentStreak(in: records, excludeToday: true)
     }
 
     func bestStreak(in records: [DayRecord]) -> Int {

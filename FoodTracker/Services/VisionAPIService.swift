@@ -8,7 +8,7 @@ actor VisionAPIService {
 
     // MARK: - Identify Foods (Image)
 
-    func identifyFoods(in image: UIImage) async throws -> VisionFoodResponse {
+    func identifyFoods(in image: UIImage, plateSize: PlateSize = .medium) async throws -> VisionFoodResponse {
         let provider = VisionProvider.selected
         guard let apiKey = KeychainService.load(account: provider.keychainAccount),
               !apiKey.isEmpty else {
@@ -20,7 +20,40 @@ actor VisionAPIService {
         }
 
         let base64Image = jpegData.base64EncodedString()
-        let request = buildVisionRequest(provider: provider, apiKey: apiKey, base64Image: base64Image)
+        let prompt = visionPrompt(plateSize: plateSize)
+        let request = buildVisionRequest(provider: provider, apiKey: apiKey, base64Images: [base64Image], prompt: prompt)
+        let (data, response) = try await performRequest(request)
+
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw FoodAnalysisError.invalidResponse
+        }
+        guard httpResponse.statusCode == 200 else {
+            throw FoodAnalysisError.apiError("Analysis failed (HTTP \(httpResponse.statusCode)). Please try again.")
+        }
+
+        let text = try extractText(from: data, provider: provider)
+        return try decodeVisionResponse(from: text)
+    }
+
+    // MARK: - Identify Foods (Multi-Angle Precision Mode)
+
+    func identifyFoods(images: [UIImage], plateSize: PlateSize = .medium) async throws -> VisionFoodResponse {
+        let provider = VisionProvider.selected
+        guard let apiKey = KeychainService.load(account: provider.keychainAccount),
+              !apiKey.isEmpty else {
+            throw FoodAnalysisError.noAPIKey
+        }
+
+        var base64Images: [String] = []
+        for image in images {
+            guard let jpegData = prepareImageForUpload(image) else {
+                throw FoodAnalysisError.invalidImage
+            }
+            base64Images.append(jpegData.base64EncodedString())
+        }
+
+        let prompt = multiAngleVisionPrompt(plateSize: plateSize)
+        let request = buildVisionRequest(provider: provider, apiKey: apiKey, base64Images: base64Images, prompt: prompt)
         let (data, response) = try await performRequest(request)
 
         guard let httpResponse = response as? HTTPURLResponse else {
@@ -56,7 +89,7 @@ actor VisionAPIService {
 
     // MARK: - Request Builders
 
-    private func buildVisionRequest(provider: VisionProvider, apiKey: String, base64Image: String) -> URLRequest {
+    private func buildVisionRequest(provider: VisionProvider, apiKey: String, base64Images: [String], prompt: String) -> URLRequest {
         let (url, headers, body) = switch provider {
         case .claude:
             (
@@ -66,7 +99,7 @@ actor VisionAPIService {
                     "x-api-key": apiKey,
                     "anthropic-version": "2023-06-01"
                 ],
-                claudeVisionBody(base64Image: base64Image)
+                claudeVisionBody(base64Images: base64Images, prompt: prompt)
             )
         case .gemini:
             (
@@ -75,7 +108,7 @@ actor VisionAPIService {
                     "Content-Type": "application/json",
                     "x-goog-api-key": apiKey
                 ],
-                geminiVisionBody(base64Image: base64Image)
+                geminiVisionBody(base64Images: base64Images, prompt: prompt)
             )
         }
 
@@ -122,48 +155,52 @@ actor VisionAPIService {
 
     // MARK: - Provider-Specific Bodies
 
-    private func claudeVisionBody(base64Image: String) -> [String: Any] {
-        [
+    private func claudeVisionBody(base64Images: [String], prompt: String) -> [String: Any] {
+        var contentBlocks: [[String: Any]] = []
+        for base64Image in base64Images {
+            contentBlocks.append([
+                "type": "image",
+                "source": [
+                    "type": "base64",
+                    "media_type": "image/jpeg",
+                    "data": base64Image
+                ]
+            ])
+        }
+        contentBlocks.append([
+            "type": "text",
+            "text": prompt
+        ])
+
+        return [
             "model": AppConstants.API.claudeModel,
-            "max_tokens": 2048,
-            "system": "You are a food identification assistant. Always respond with valid JSON only.",
+            "max_tokens": 4096,
+            "system": "You are an expert food identification and nutrition estimation assistant. Analyze carefully, reason through portion sizes and hidden calories step by step, then respond with valid JSON.",
             "messages": [
                 [
                     "role": "user",
-                    "content": [
-                        [
-                            "type": "image",
-                            "source": [
-                                "type": "base64",
-                                "media_type": "image/jpeg",
-                                "data": base64Image
-                            ]
-                        ],
-                        [
-                            "type": "text",
-                            "text": visionPrompt
-                        ]
-                    ]
+                    "content": contentBlocks
                 ]
             ]
         ]
     }
 
-    private func geminiVisionBody(base64Image: String) -> [String: Any] {
-        [
+    private func geminiVisionBody(base64Images: [String], prompt: String) -> [String: Any] {
+        var parts: [[String: Any]] = []
+        for base64Image in base64Images {
+            parts.append([
+                "inline_data": [
+                    "mime_type": "image/jpeg",
+                    "data": base64Image
+                ]
+            ])
+        }
+        parts.append(["text": prompt])
+
+        return [
             "contents": [
                 [
-                    "parts": [
-                        [
-                            "inline_data": [
-                                "mime_type": "image/jpeg",
-                                "data": base64Image
-                            ]
-                        ],
-                        [
-                            "text": visionPrompt
-                        ]
-                    ]
+                    "parts": parts
                 ]
             ]
         ]
@@ -237,37 +274,80 @@ actor VisionAPIService {
 
 // MARK: - Shared Prompts
 
-private let visionPrompt = """
-Analyze every food item in this photo. For each item, determine which mode applies:
+private func visionPrompt(plateSize: PlateSize = .medium) -> String {
+    """
+    Analyze every food item in this photo. For each item, determine which mode applies:
 
-MODE 1 – NUTRITION LABEL VISIBLE: If you can see a nutrition facts label or printed nutritional information for an item, READ the exact values from the label. Use the brand/product name as-is (e.g. "David Protein Bar", not "protein bar"). Set "source": "label" and include the numeric values you read.
+    MODE 1 – NUTRITION LABEL VISIBLE: If you can see a nutrition facts label or printed nutritional information, READ the exact values from the label. Use the brand/product name as-is. Set "source": "label".
 
-MODE 2 – NO LABEL: If there is no nutrition label visible for an item, identify it using simple, generic USDA database names. Drop cooking methods from names: use "garlic" not "sauteed garlic", "mushrooms" not "sauteed mushrooms", "beef tenderloin" not "pan-seared filet mignon", "asparagus" not "roasted asparagus". Estimate portion size. Set "source": "estimate". Include your best estimate for "calories", "protein_grams", "carbs_grams", and "fat_grams" but food name accuracy and portion size matter most.
+    MODE 2 – NO LABEL: For each food without a label, reason through these steps before estimating:
 
-GROUPING: If there are multiple food items in the photo, ALWAYS group them under a single "meal_name" with an "ingredients" array. The meal_name should be a natural description of the whole plate or meal (e.g. "Steak with Sides", "Chicken and Vegetables", "Lunch Plate"). Only return a standalone item (without meal_name/ingredients) if there is literally one single food item in the entire photo.
+    1. IDENTIFY: What specific food is this? Note the cooking method (grilled, fried, baked, steamed, sautéed, etc.)
+    2. PLATE REFERENCE: The plate/bowl is approximately \(plateSize.diameterInches) inches in diameter. Use this as your size reference.
+    3. VOLUME: Estimate the volume of each food item (cups, pieces, or dimensions in inches) relative to the plate.
+    4. WEIGHT: Convert volume to weight in grams using food density. Be generous — people typically underestimate portions.
+    5. COOKING METHOD: How does the cooking method affect nutrition?
+       - Frying: food absorbs oil equal to ~10-15% of its weight
+       - Sautéing: typically 1-2 tbsp oil added (120-240 cal)
+       - Roasting with oil: typically 1-2 tbsp oil (120-240 cal)
+       - Grilling: minimal added fat but some fat renders out
+    6. HIDDEN CALORIES: Estimate ALL added fats, oils, butter, sauces, dressings not visible as separate items:
+       - Oil sheen or pooling visible? → estimate tablespoons (1 tbsp oil = 120 cal)
+       - Sauce, gravy, or dressing? → estimate amount and type
+       - Cheese, cream, butter, mayo? → estimate amount
+       - Breading or batter? → estimate flour + oil absorption
+       Include these hidden calories IN the total calories field.
+    7. NUTRITION: Calculate final per-portion nutrition. The calories field MUST include hidden calories from step 6.
 
-Return ONLY valid JSON with no additional text, in this exact format:
-{"foods": [
-  {"meal_name": "Steak Dinner", "ingredients": [
-    {"name": "ribeye steak", "portion": "8 oz", "portion_grams": 227, "source": "estimate", "calories": 544, "protein_grams": 48, "carbs_grams": 0, "fat_grams": 38},
-    {"name": "mashed potatoes", "portion": "1 cup", "portion_grams": 210, "source": "estimate", "calories": 237, "protein_grams": 4, "carbs_grams": 35, "fat_grams": 9},
-    {"name": "steamed broccoli", "portion": "1 cup", "portion_grams": 156, "source": "estimate", "calories": 55, "protein_grams": 3.7, "carbs_grams": 11, "fat_grams": 0.6}
-  ]}
-]}
-"""
+    Use simple USDA-friendly base names (e.g., "chicken breast" not "pan-seared chicken"). Report the cooking method in "cooking_method" field.
+
+    GROUPING: Multiple items → group under "meal_name" with "ingredients" array. Single item → standalone.
+
+    After your reasoning, return valid JSON in this format:
+    {"foods": [
+      {"meal_name": "Steak Dinner", "ingredients": [
+        {"name": "ribeye steak", "portion": "8 oz", "portion_grams": 227, "source": "estimate", "cooking_method": "grilled", "calories": 574, "protein_grams": 48, "carbs_grams": 0, "fat_grams": 40, "hidden_calories_estimate": 30, "hidden_calories_source": "grill butter baste", "confidence": 4},
+        {"name": "mashed potatoes", "portion": "1 cup", "portion_grams": 210, "source": "estimate", "cooking_method": "boiled", "calories": 270, "protein_grams": 4, "carbs_grams": 35, "fat_grams": 12, "hidden_calories_estimate": 33, "hidden_calories_source": "butter and cream", "confidence": 3},
+        {"name": "broccoli", "portion": "1 cup", "portion_grams": 156, "source": "estimate", "cooking_method": "steamed", "calories": 55, "protein_grams": 3.7, "carbs_grams": 11, "fat_grams": 0.6, "hidden_calories_estimate": 0, "hidden_calories_source": null, "confidence": 4}
+      ]}
+    ]}
+
+    confidence: 1-5 scale (1=very uncertain, 5=very confident). Consider: is the food clearly visible? Can you tell the cooking method? Is the portion size easy to judge?
+    """
+}
+
+private func multiAngleVisionPrompt(plateSize: PlateSize = .medium) -> String {
+    """
+    You are provided with multiple photos of the SAME meal from different angles. Image 1 is typically top-down, and subsequent images are from the side or at an angle.
+
+    Use ALL images together to improve your portion size and volume estimation:
+    - Top-down view: reveals food spread/area on the plate
+    - Side view: reveals food HEIGHT, pile depth, sauce pooling, and layering
+    - Cross-reference views to estimate volume more accurately than either alone
+
+    \(visionPrompt(plateSize: plateSize))
+    """
+}
 
 private let nutritionEstimatePrompt = """
 Estimate the nutrition for this food item. Provide your best estimate for a single standard serving.
 
-Return ONLY valid JSON with no additional text, in this exact format:
+Reason step by step:
+1. What is a standard serving size for this food?
+2. What are the main macronutrient sources?
+3. If it's a prepared/cooked dish, what cooking fats, oils, sauces, or dressings are typically included?
+4. Calculate total nutrition including any hidden calories from cooking.
+
+After reasoning, return valid JSON in this format:
 {"name": "Chicken Fajita", "serving_description": "1 fajita", "serving_grams": 220, "calories": 350, "protein_grams": 28, "carbs_grams": 26, "fat_grams": 14}
 
 Rules:
 - Use a realistic standard serving size
-- For prepared/cooked dishes, estimate the complete dish nutrition (all ingredients combined)
+- For prepared/cooked dishes, include ALL ingredients (cooking oil, sauces, etc.) in the nutrition total
 - Include a human-readable serving_description (e.g. "1 bowl", "1 plate", "1 sandwich", "1 cup")
 - Include serving_grams as the approximate weight of that serving in grams
 - Be accurate — users depend on these values for dietary tracking
+- Err slightly high rather than low for calorie-dense prepared foods
 
 The food to estimate:
 """
