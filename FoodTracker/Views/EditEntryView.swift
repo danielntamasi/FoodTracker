@@ -141,6 +141,7 @@ struct EditEntryView: View {
         }
         .interactiveDismissDisabled(hasUnsavedChanges)
         .onAppear {
+            servings = entry.servings
             if let uiImage = entryImage {
                 extractedColor = dominantColor(from: uiImage, colorScheme: colorScheme)
             }

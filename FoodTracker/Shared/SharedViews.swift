@@ -159,7 +159,8 @@ struct ServingPicker: View {
 
     init(servings: Binding<Double>) {
         self._servings = servings
-        let maxValue = max(20.0, (servings.wrappedValue * 4).rounded(.up) / 4 * 4)
+        let snapped = max(0.25, (servings.wrappedValue * 4).rounded() / 4)
+        let maxValue = max(20.0, (snapped * 4).rounded(.up) / 4 * 4)
         let count = Int(maxValue / 0.25)
         values = (1...count).map { Double($0) * 0.25 }
     }
@@ -172,6 +173,13 @@ struct ServingPicker: View {
         }
         .pickerStyle(.wheel)
         .frame(height: 120)
+        .onAppear {
+            // Snap to nearest quarter so the picker always has a matching tag
+            let snapped = max(0.25, (servings * 4).rounded() / 4)
+            if abs(servings - snapped) > 0.001 {
+                servings = snapped
+            }
+        }
     }
 }
 

@@ -591,12 +591,28 @@ struct PhotoAnalysisView: View {
         // Ingredient mode: return IngredientItems instead of saving to SwiftData
         if let onIngredientsAdded {
             let items = identifiedFoods.map { food in
-                IngredientItem(
+                // Convert total-portion values to per-serving before passing to ingredient
+                let perServingCal: Int
+                let perServingP: Double
+                let perServingC: Double
+                let perServingF: Double
+                if food.servings > 0 && abs(food.servings - 1.0) > 0.001 {
+                    perServingCal = Int((Double(food.calories) / food.servings).rounded())
+                    perServingP = food.proteinGrams / food.servings
+                    perServingC = food.carbsGrams / food.servings
+                    perServingF = food.fatGrams / food.servings
+                } else {
+                    perServingCal = food.calories
+                    perServingP = food.proteinGrams
+                    perServingC = food.carbsGrams
+                    perServingF = food.fatGrams
+                }
+                return IngredientItem(
                     name: food.name.titleCased(),
-                    calories: food.calories,
-                    proteinGrams: food.proteinGrams,
-                    carbsGrams: food.carbsGrams,
-                    fatGrams: food.fatGrams,
+                    calories: perServingCal,
+                    proteinGrams: perServingP,
+                    carbsGrams: perServingC,
+                    fatGrams: perServingF,
                     servings: food.servings,
                     servingDescription: food.portionDescription.isEmpty ? nil : food.portionDescription,
                     servingGrams: food.servingGrams
@@ -678,11 +694,19 @@ struct PhotoAnalysisView: View {
                 }
                 savedServings = food.servings
             } else {
-                // AI-estimated: values represent the detected portion (= 1 serving)
-                perServingCal = food.calories
-                perServingP = food.proteinGrams
-                perServingC = food.carbsGrams
-                perServingF = food.fatGrams
+                // AI-estimated: values may represent the total detected portion
+                // Divide by servings to get true per-serving values
+                if food.servings > 0 && abs(food.servings - 1.0) > 0.001 {
+                    perServingCal = Int((Double(food.calories) / food.servings).rounded())
+                    perServingP = food.proteinGrams / food.servings
+                    perServingC = food.carbsGrams / food.servings
+                    perServingF = food.fatGrams / food.servings
+                } else {
+                    perServingCal = food.calories
+                    perServingP = food.proteinGrams
+                    perServingC = food.carbsGrams
+                    perServingF = food.fatGrams
+                }
                 savedServings = food.servings
             }
 

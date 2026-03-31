@@ -154,9 +154,9 @@ struct BrowseFoodsView: View {
                     Section("Favorites") {
                         ForEach(Array(favoriteItems.enumerated()), id: \.offset) { _, item in
                             switch item {
-                            case .food(let name, let calories, let protein, let carbs, let fat, let iconName, let photoData, let servings, let servingDescription, let servingGrams):
+                            case .food(let name, let calories, let protein, let carbs, let fat, let iconName, let photoData, _, let servingDescription, let servingGrams):
                                 Button {
-                                    addFood(name: name, calories: calories, protein: protein, carbs: carbs, fat: fat, iconName: iconName, photoData: photoData, servings: servings, servingDescription: servingDescription, servingGrams: servingGrams)
+                                    addFood(name: name, calories: calories, protein: protein, carbs: carbs, fat: fat, iconName: iconName, photoData: photoData, servingDescription: servingDescription, servingGrams: servingGrams)
                                 } label: {
                                     HStack {
                                         Image(systemName: "star.fill")
@@ -166,11 +166,11 @@ struct BrowseFoodsView: View {
                                         VStack(alignment: .leading, spacing: 2) {
                                             Text(name)
                                                 .font(.body)
-                                            coloredMacroText(protein: protein * servings, carbs: carbs * servings, fat: fat * servings)
+                                            coloredMacroText(protein: protein, carbs: carbs, fat: fat)
                                                 .font(.caption)
                                         }
                                         Spacer()
-                                        Text("\(Int((Double(calories) * servings).rounded())) cal")
+                                        Text("\(calories) cal")
                                             .font(.subheadline)
                                             .fontWeight(.semibold)
                                             .foregroundStyle(DS.Color.textSecondary)
@@ -187,7 +187,7 @@ struct BrowseFoodsView: View {
                                                 proteinGrams: entry.proteinGrams,
                                                 carbsGrams: entry.carbsGrams,
                                                 fatGrams: entry.fatGrams,
-                                                servings: entry.servings,
+                                                servings: 1.0,
                                                 servingDescription: entry.servingDescription,
                                                 servingGrams: entry.servingGrams
                                             ))
@@ -229,7 +229,7 @@ struct BrowseFoodsView: View {
                     Section("Frequent") {
                         ForEach(Array(frequentFoods.enumerated()), id: \.offset) { _, food in
                             Button {
-                                addFood(name: food.name, calories: food.calories, protein: food.protein, carbs: food.carbs, fat: food.fat, iconName: food.iconName, photoData: food.photoData, servings: food.servings, servingDescription: food.servingDescription, servingGrams: food.servingGrams)
+                                addFood(name: food.name, calories: food.calories, protein: food.protein, carbs: food.carbs, fat: food.fat, iconName: food.iconName, photoData: food.photoData, servingDescription: food.servingDescription, servingGrams: food.servingGrams)
                             } label: {
                                 HStack {
                                     Image(systemName: food.iconName ?? "fork.knife")
@@ -239,12 +239,12 @@ struct BrowseFoodsView: View {
                                     VStack(alignment: .leading, spacing: 2) {
                                         Text(food.name)
                                             .font(.body)
-                                        coloredMacroText(protein: food.protein * food.servings, carbs: food.carbs * food.servings, fat: food.fat * food.servings)
+                                        coloredMacroText(protein: food.protein, carbs: food.carbs, fat: food.fat)
                                             .font(.caption)
                                     }
                                     Spacer()
                                     VStack(alignment: .trailing, spacing: 2) {
-                                        Text("\(Int((Double(food.calories) * food.servings).rounded())) cal")
+                                        Text("\(food.calories) cal")
                                             .font(.subheadline)
                                             .fontWeight(.semibold)
                                             .foregroundStyle(DS.Color.textSecondary)
@@ -271,7 +271,7 @@ struct BrowseFoodsView: View {
                                             proteinGrams: entry.proteinGrams,
                                             carbsGrams: entry.carbsGrams,
                                             fatGrams: entry.fatGrams,
-                                            servings: entry.servings,
+                                            servings: 1.0,
                                             servingDescription: entry.servingDescription,
                                             servingGrams: entry.servingGrams
                                         ))
@@ -319,7 +319,7 @@ struct BrowseFoodsView: View {
                                         proteinGrams: entry.proteinGrams,
                                         carbsGrams: entry.carbsGrams,
                                         fatGrams: entry.fatGrams,
-                                        servings: entry.servings,
+                                        servings: 1.0,
                                         servingDescription: entry.servingDescription,
                                         servingGrams: entry.servingGrams
                                     ))
@@ -337,11 +337,11 @@ struct BrowseFoodsView: View {
                                     VStack(alignment: .leading, spacing: 2) {
                                         Text(entry.name)
                                             .font(.body)
-                                        coloredMacroText(protein: entry.totalProteinGrams, carbs: entry.totalCarbsGrams, fat: entry.totalFatGrams)
+                                        coloredMacroText(protein: entry.proteinGrams, carbs: entry.carbsGrams, fat: entry.fatGrams)
                                             .font(.caption)
                                     }
                                     Spacer()
-                                    Text("\(entry.totalCalories) cal")
+                                    Text("\(entry.calories) cal")
                                         .font(.subheadline)
                                         .fontWeight(.semibold)
                                         .foregroundStyle(.secondary)

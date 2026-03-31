@@ -315,7 +315,7 @@ enum FoodAnalysisPipeline {
 
             if let servingGrams = result?.servingGrams, servingGrams > 0 {
                 srvGrams = servingGrams
-                detectedServings = (scaledPortionGrams / servingGrams).roundedTo(2)
+                detectedServings = max(0.25, ((scaledPortionGrams / servingGrams) * 4).rounded() / 4)
                 let portionScale = scaledPortionGrams / 100.0
                 calories = (nutrients.calories * portionScale)
                 protein = (nutrients.protein * portionScale)
@@ -338,7 +338,7 @@ enum FoodAnalysisPipeline {
                     carbPer100g = aiResult.carbsGrams * (100.0 / sg)
                     fatPer100g = aiResult.fatGrams * (100.0 / sg)
                     let portionScale = scaledPortionGrams / sg
-                    detectedServings = portionScale.roundedTo(2)
+                    detectedServings = max(0.25, (portionScale * 4).rounded() / 4)
                     calories = Double(aiResult.calories) * portionScale
                     protein = aiResult.proteinGrams * portionScale
                     carbs = aiResult.carbsGrams * portionScale
