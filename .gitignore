@@ -1,0 +1,36 @@
+# macOS
+.DS_Store
+
+# Xcode
+build/
+DerivedData/
+*.xcuserstate
+xcuserdata/
+*.xcworkspace/xcuserdata/
+*.xcodeproj/xcuserdata/
+*.xcodeproj/project.xcworkspace/xcuserdata/
+*.xcodeproj/project.xcworkspace/xcshareddata/
+
+# Swift Package Manager
+.build/
+Packages/
+Package.pins
+Package.resolved
+.swiftpm/
+
+# CocoaPods (not used, but defensive)
+Pods/
+
+# Carthage (not used, but defensive)
+Carthage/Build/
+
+# Tooling / local agents
+.claude/
+.agents/
+skills-lock.json
+
+# Personal documents
+*.pdf
+
+# Logs
+*.log
