@@ -80,7 +80,7 @@ struct PhotoAnalysisView: View {
                         }
 
                         ProgressView(loadingStatus)
-                            .font(.headline)
+                            .font(DS.Typography.headline)
                     }
                     .padding()
                 } else if let error = errorMessage {
@@ -220,7 +220,7 @@ struct PhotoAnalysisView: View {
         VStack(alignment: .leading, spacing: 4) {
             HStack {
                 TextField("Meal name", text: mealNameBinding(for: indices))
-                    .font(.headline)
+                    .font(DS.Typography.headline)
                     .textInputAutocapitalization(.sentences)
                 Spacer()
                 SourceBadge(source: .estimate)
@@ -232,11 +232,11 @@ struct PhotoAnalysisView: View {
                 Text("C: \(String(format: "%.0f", totalCarbs))g")
                 Text("F: \(String(format: "%.0f", totalFat))g")
             }
-            .font(.caption)
-            .foregroundStyle(.secondary)
+            .font(DS.Typography.caption)
+            .foregroundStyle(DS.Color.textSecondary)
             Text("\(indices.count) ingredients")
-                .font(.caption2)
-                .foregroundStyle(.tertiary)
+                .font(DS.Typography.caption2)
+                .foregroundStyle(DS.Color.textTertiary)
         }
         .padding(.vertical, 2)
     }
@@ -258,13 +258,13 @@ struct PhotoAnalysisView: View {
         VStack(spacing: 4) {
             HStack {
                 TextField("Name", text: $identifiedFoods[index].name)
-                    .font(.subheadline)
+                    .font(DS.Typography.subhead)
                     .textInputAutocapitalization(.sentences)
                 Spacer()
                 confidenceBadge(score: identifiedFoods[index].confidenceScore)
                 TextField("Portion", text: $identifiedFoods[index].portionDescription)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                    .font(DS.Typography.caption)
+                    .foregroundStyle(DS.Color.textSecondary)
                     .multilineTextAlignment(.trailing)
                     .frame(maxWidth: 100)
             }
@@ -273,48 +273,48 @@ struct PhotoAnalysisView: View {
                let source = identifiedFoods[index].hiddenCaloriesSource {
                 HStack(spacing: 4) {
                     Image(systemName: "eye.slash")
-                        .font(.caption2)
+                        .font(DS.Typography.caption2)
                         .foregroundStyle(DS.Color.carbs)
                     Text("+\(hiddenCals) hidden")
-                        .font(.caption2)
+                        .font(DS.Typography.caption2)
                         .foregroundStyle(DS.Color.carbs)
                     Text("(\(source))")
-                        .font(.caption2)
-                        .foregroundStyle(.tertiary)
+                        .font(DS.Typography.caption2)
+                        .foregroundStyle(DS.Color.textTertiary)
                     Spacer()
                 }
             }
             HStack(spacing: 12) {
                 HStack(spacing: 2) {
-                    Text("Cal").foregroundStyle(.secondary)
+                    Text("Cal").foregroundStyle(DS.Color.textSecondary)
                     TextField("Cal", value: $identifiedFoods[index].calories, format: .number)
                         .keyboardType(.numberPad)
                         .multilineTextAlignment(.trailing)
                         .frame(maxWidth: 50)
                 }
                 HStack(spacing: 2) {
-                    Text("P").foregroundStyle(.secondary)
+                    Text("P").foregroundStyle(DS.Color.textSecondary)
                     TextField("P", value: $identifiedFoods[index].proteinGrams, format: .number)
                         .keyboardType(.decimalPad)
                         .multilineTextAlignment(.trailing)
                         .frame(maxWidth: 40)
                 }
                 HStack(spacing: 2) {
-                    Text("C").foregroundStyle(.secondary)
+                    Text("C").foregroundStyle(DS.Color.textSecondary)
                     TextField("C", value: $identifiedFoods[index].carbsGrams, format: .number)
                         .keyboardType(.decimalPad)
                         .multilineTextAlignment(.trailing)
                         .frame(maxWidth: 40)
                 }
                 HStack(spacing: 2) {
-                    Text("F").foregroundStyle(.secondary)
+                    Text("F").foregroundStyle(DS.Color.textSecondary)
                     TextField("F", value: $identifiedFoods[index].fatGrams, format: .number)
                         .keyboardType(.decimalPad)
                         .multilineTextAlignment(.trailing)
                         .frame(maxWidth: 40)
                 }
             }
-            .font(.caption)
+            .font(DS.Typography.caption)
         }
         .padding(.vertical, 2)
         .overlay(
@@ -336,7 +336,7 @@ struct PhotoAnalysisView: View {
         Section {
             HStack {
                 Text(identifiedFoods[index].name)
-                    .font(.headline)
+                    .font(DS.Typography.headline)
                 Spacer()
                 confidenceBadge(score: identifiedFoods[index].confidenceScore)
                 SourceBadge(source: identifiedFoods[index].source)
@@ -347,15 +347,15 @@ struct PhotoAnalysisView: View {
                let source = identifiedFoods[index].hiddenCaloriesSource {
                 HStack(spacing: 6) {
                     Image(systemName: "eye.slash")
-                        .font(.caption)
+                        .font(DS.Typography.caption)
                         .foregroundStyle(DS.Color.carbs)
                     Text("+\(hiddenCals) hidden cal")
-                        .font(.caption)
+                        .font(DS.Typography.caption)
                         .fontWeight(.medium)
                         .foregroundStyle(DS.Color.carbs)
                     Text("(\(source))")
-                        .font(.caption2)
-                        .foregroundStyle(.secondary)
+                        .font(DS.Typography.caption2)
+                        .foregroundStyle(DS.Color.textSecondary)
                 }
             }
 
@@ -423,8 +423,8 @@ struct PhotoAnalysisView: View {
     private var cookingMethodPicker: some View {
         VStack(alignment: .leading, spacing: 8) {
             Text("How was this prepared?")
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
+                .font(DS.Typography.subhead)
+                .foregroundStyle(DS.Color.textSecondary)
 
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 8) {
@@ -452,10 +452,10 @@ struct PhotoAnalysisView: View {
             HStack(spacing: 4) {
                 if let method {
                     Image(systemName: method.iconName)
-                        .font(.caption2)
+                        .font(DS.Typography.caption2)
                 }
                 Text(label)
-                    .font(.caption)
+                    .font(DS.Typography.labelM)
                     .fontWeight(.medium)
             }
             .padding(.horizontal, 12)
@@ -477,7 +477,7 @@ struct PhotoAnalysisView: View {
     private var plateSizePicker: some View {
         HStack {
             Text("Plate size")
-                .font(.subheadline)
+                .font(DS.Typography.subhead)
             Spacer()
             Picker("Plate size", selection: $selectedPlateSize) {
                 ForEach(PlateSize.allCases) { size in
@@ -506,10 +506,9 @@ struct PhotoAnalysisView: View {
             }()
             HStack(spacing: 3) {
                 Image(systemName: score >= 4 ? "checkmark.circle.fill" : score == 3 ? "questionmark.circle.fill" : "exclamationmark.circle.fill")
-                    .font(.caption2)
+                    .font(DS.Typography.caption2)
                 Text(label)
-                    .font(.caption2)
-                    .fontWeight(.semibold)
+                    .font(DS.Typography.labelS)
             }
             .foregroundStyle(color)
             .padding(.horizontal, 6)
@@ -530,7 +529,7 @@ struct PhotoAnalysisView: View {
             Text("Serving Size")
             Spacer()
             Text(servingLabel)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(DS.Color.textSecondary)
         }
 
         ServingPicker(servings: Binding(
@@ -796,14 +795,13 @@ struct SourceBadge: View {
         case .label: return DS.Color.success
         case .estimate: return DS.Color.carbs
         case .barcode: return DS.Color.protein
-        case .usda: return .teal
+        case .usda: return DS.Color.success
         }
     }
 
     var body: some View {
         Text(source.displayLabel)
-            .font(.caption2)
-            .fontWeight(.semibold)
+            .font(DS.Typography.labelS)
             .padding(.horizontal, 8)
             .padding(.vertical, 3)
             .background(color.opacity(0.15))

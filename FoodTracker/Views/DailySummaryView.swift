@@ -5,26 +5,28 @@ import WidgetKit
 
 struct DailySummaryView: View {
     @Environment(\.modelContext) private var modelContext
-    @Query private var allEntries: [FoodEntry]
+    @Query private var todayEntriesRaw: [FoodEntry]
     @State private var editingEntry: FoodEntry?
     @State private var editingMealGroup: MealGroup?
     @State private var expandedGroups: Set<UUID> = []
     @State private var reverseChronological = sharedDefaults.bool(forKey: AppConstants.Defaults.reverseChronological)
+
+    init() {
+        let startOfToday = Calendar.current.startOfDay(for: Date())
+        _todayEntriesRaw = Query(filter: #Predicate<FoodEntry> { $0.date >= startOfToday })
+    }
 
     private var orderedPeriods: [TimeOfDay] {
         reverseChronological ? TimeOfDay.allCases.reversed() : TimeOfDay.allCases
     }
 
     private var todayEntries: [FoodEntry] {
-        let calendar = Calendar.current
-        return allEntries
-            .filter { calendar.isDateInToday($0.date) }
-            .sorted {
-                if let a = $0.sortOrder, let b = $1.sortOrder { return a < b }
-                if $0.sortOrder != nil { return true }
-                if $1.sortOrder != nil { return false }
-                return $0.date > $1.date
-            }
+        todayEntriesRaw.sorted {
+            if let a = $0.sortOrder, let b = $1.sortOrder { return a < b }
+            if $0.sortOrder != nil { return true }
+            if $1.sortOrder != nil { return false }
+            return $0.date > $1.date
+        }
     }
 
     private var totals: (cal: Int, protein: Double, carbs: Double, fat: Double) {

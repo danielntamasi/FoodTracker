@@ -95,14 +95,17 @@ enum DS {
     // MARK: Typography
 
     enum Typography {
-        static let displayL = Font.system(size: 56, weight: .bold, design: .default)
-        static let displayM = Font.system(size: 36, weight: .semibold, design: .default)
-        static let numberL  = Font.system(size: 24, weight: .semibold, design: .rounded)
-        static let numberM  = Font.system(size: 17, weight: .medium, design: .rounded)
-        static let labelL   = Font.system(size: 15, weight: .medium, design: .rounded)
-        static let labelM   = Font.system(size: 13, weight: .medium, design: .rounded)
-        static let labelS   = Font.system(size: 11, weight: .semibold, design: .rounded)
-        static let caption   = Font.system(size: 12, weight: .regular, design: .rounded)
+        static let displayL  = Font.system(.largeTitle, design: .default, weight: .bold)
+        static let displayM  = Font.system(.title, design: .default, weight: .semibold)
+        static let numberL   = Font.system(.title2, design: .rounded, weight: .semibold)
+        static let numberM   = Font.system(.body, design: .rounded, weight: .medium)
+        static let headline  = Font.system(.headline, design: .default, weight: .semibold)
+        static let subhead   = Font.system(.subheadline, design: .default, weight: .regular)
+        static let labelL    = Font.system(.subheadline, design: .rounded, weight: .medium)
+        static let labelM    = Font.system(.footnote, design: .rounded, weight: .medium)
+        static let labelS    = Font.system(.caption2, design: .rounded, weight: .semibold)
+        static let caption   = Font.system(.caption, design: .rounded, weight: .regular)
+        static let caption2  = Font.system(.caption2, design: .rounded, weight: .regular)
     }
 
     // MARK: Gradient
@@ -150,8 +153,36 @@ struct AppCardModifier: ViewModifier {
     }
 }
 
+struct AppCardSubtleModifier: ViewModifier {
+    func body(content: Content) -> some View {
+        content
+            .background(
+                RoundedRectangle(cornerRadius: DS.Radius.s, style: .continuous)
+                    .fill(DS.Color.backgroundSubtle)
+            )
+    }
+}
+
+struct AppCardHighlightModifier: ViewModifier {
+    let color: Color
+
+    func body(content: Content) -> some View {
+        content
+            .background(
+                RoundedRectangle(cornerRadius: DS.Radius.m, style: .continuous)
+                    .fill(color.opacity(0.08))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: DS.Radius.m, style: .continuous)
+                            .strokeBorder(color.opacity(0.3), lineWidth: 1)
+                    )
+            )
+    }
+}
+
 extension View {
     func appCard() -> some View { modifier(AppCardModifier()) }
+    func appCardSubtle() -> some View { modifier(AppCardSubtleModifier()) }
+    func appCardHighlight(_ color: Color = DS.Color.protein) -> some View { modifier(AppCardHighlightModifier(color: color)) }
 }
 
 // MARK: - Pressable Button Style
