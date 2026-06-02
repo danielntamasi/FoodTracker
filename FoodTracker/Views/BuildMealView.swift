@@ -104,7 +104,9 @@ struct BuildMealView: View {
                 }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Save") { saveMeal() }
-                        .disabled(mealName.isEmpty || ingredients.isEmpty)
+                        .disabled(mealName.isEmpty || ingredients.isEmpty || ingredients.contains {
+                            !isValidNutrition(calories: $0.calories, protein: $0.proteinGrams, carbs: $0.carbsGrams, fat: $0.fatGrams)
+                        })
                 }
             }
             .sheet(item: $activeSource) { source in

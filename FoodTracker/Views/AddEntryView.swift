@@ -177,7 +177,12 @@ struct AddEntryView: View {
                 }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Save") { save() }
-                        .disabled(name.isEmpty || caloriesText.isEmpty)
+                        .disabled(name.isEmpty || caloriesText.isEmpty || !isValidNutrition(
+                            calories: Int(caloriesText) ?? 0,
+                            protein: Double(proteinText) ?? 0,
+                            carbs: Double(carbsText) ?? 0,
+                            fat: Double(fatText) ?? 0
+                        ))
                 }
             }
             .interactiveDismissDisabled(hasContent)

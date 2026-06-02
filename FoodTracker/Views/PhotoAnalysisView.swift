@@ -157,8 +157,16 @@ struct PhotoAnalysisView: View {
                             ProgressView()
                         } else {
                             Button("Save") { saveAll() }
-                                .disabled(identifiedFoods.isEmpty)
+                                .disabled(identifiedFoods.isEmpty || identifiedFoods.contains {
+                                    !isValidNutrition(calories: $0.calories, protein: $0.proteinGrams, carbs: $0.carbsGrams, fat: $0.fatGrams)
+                                })
                         }
+                    }
+                }
+                ToolbarItemGroup(placement: .keyboard) {
+                    Spacer()
+                    Button("Done") {
+                        UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
                     }
                 }
             }

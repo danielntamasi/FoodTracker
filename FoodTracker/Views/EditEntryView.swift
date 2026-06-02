@@ -231,6 +231,12 @@ struct EditEntryView: View {
                 } label: {
                     floatingButtonLabel("Done")
                 }
+                .disabled(!isValidNutrition(
+                    calories: entry.calories,
+                    protein: entry.proteinGrams,
+                    carbs: entry.carbsGrams,
+                    fat: entry.fatGrams
+                ))
             } else {
                 Button {
                     startEditing()

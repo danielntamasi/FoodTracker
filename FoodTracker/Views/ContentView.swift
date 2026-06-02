@@ -152,9 +152,7 @@ struct ContentView: View {
             let action = item.action
             withAnimation(.spring(duration: 0.3, bounce: 0.2)) {
                 showingRadialMenu = false
-            }
-            Task { @MainActor in
-                try? await Task.sleep(for: .milliseconds(350))
+            } completion: {
                 triggerAction(action)
             }
         } label: {

@@ -33,6 +33,7 @@ enum AppearanceMode: String, CaseIterable, Identifiable {
 struct FoodTrackerApp: App {
     @AppStorage(AppConstants.Defaults.appearanceMode, store: sharedDefaults)
     private var appearanceMode: String = "system"
+    @State private var showDatabaseAlert = false
 
     init() {
         sharedDefaults.register(defaults: [
@@ -49,7 +50,15 @@ struct FoodTrackerApp: App {
             ContentView()
                 .preferredColorScheme(resolvedColorScheme)
                 .tint(DS.Color.protein)
-                .onAppear { migrateEntryNames() }
+                .onAppear {
+                    migrateEntryNames()
+                    if isUsingInMemoryStore { showDatabaseAlert = true }
+                }
+                .alert("Database Error", isPresented: $showDatabaseAlert) {
+                    Button("Continue") { }
+                } message: {
+                    Text("Your data couldn't be loaded. The app is running with a temporary empty database. Your previous entries may still be recoverable — try restarting the app.")
+                }
         }
         .modelContainer(sharedModelContainer)
     }

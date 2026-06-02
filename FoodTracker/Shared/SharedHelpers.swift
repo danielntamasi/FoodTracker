@@ -5,6 +5,12 @@ import SwiftData
 
 let sharedDefaults = UserDefaults(suiteName: appGroupID) ?? .standard
 
+// MARK: - Input Validation
+
+func isValidNutrition(calories: Int, protein: Double, carbs: Double, fat: Double) -> Bool {
+    calories >= 0 && protein >= 0 && carbs >= 0 && fat >= 0
+}
+
 // MARK: - Format Servings
 
 func formatServings(_ value: Double) -> String {
