@@ -419,10 +419,14 @@ enum FoodAnalysisPipeline {
                 fat = nutrients.fat * scale
             }
 
-            // Fix 1a: Add hidden calories to USDA-derived totals
+            // Fix 1a: Add hidden calories to USDA-derived totals and per-100g values
             if let hiddenCal = item.hidden_calories_estimate, hiddenCal > 0 {
                 calories += hiddenCal
                 fat += hiddenCal / 9.0
+                if scaledPortionGrams > 0 {
+                    calPer100g = calories * (100.0 / scaledPortionGrams)
+                    fatPer100g = fat * (100.0 / scaledPortionGrams)
+                }
             }
         } else {
             // USDA had no data — use portion-aware AI estimation

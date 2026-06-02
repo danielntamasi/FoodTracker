@@ -59,8 +59,12 @@ enum BugReportService {
         var resultURL: URL?
 
         coordinator.coordinate(readingItemAt: directoryURL, options: .forUploading, error: &error) { tempZipURL in
-            try? FileManager.default.copyItem(at: tempZipURL, to: zipURL)
-            resultURL = zipURL
+            do {
+                try FileManager.default.copyItem(at: tempZipURL, to: zipURL)
+                resultURL = zipURL
+            } catch {
+                // resultURL stays nil — caught by guard below
+            }
         }
 
         if let error { throw error }

@@ -122,24 +122,29 @@ struct BugReportView: View {
         isGenerating = true
         errorMessage = nil
 
-        Task {
+        Task.detached {
+            let context = BugReportService.ReportContext(
+                trace: trace,
+                photos: photos,
+                userComplaint: userComplaint,
+                identifiedFoods: identifiedFoods,
+                entryName: entryName,
+                originalValues: originalValues,
+                correctedValues: correctedValues
+            )
             do {
-                let context = BugReportService.ReportContext(
-                    trace: trace,
-                    photos: photos,
-                    userComplaint: userComplaint,
-                    identifiedFoods: identifiedFoods,
-                    entryName: entryName,
-                    originalValues: originalValues,
-                    correctedValues: correctedValues
-                )
                 let url = try BugReportService.generateReport(context)
-                reportURL = url
-                showShareSheet = true
+                await MainActor.run {
+                    reportURL = url
+                    showShareSheet = true
+                    isGenerating = false
+                }
             } catch {
-                errorMessage = "Failed to generate report: \(error.localizedDescription)"
+                await MainActor.run {
+                    errorMessage = "Failed to generate report: \(error.localizedDescription)"
+                    isGenerating = false
+                }
             }
-            isGenerating = false
         }
     }
 }

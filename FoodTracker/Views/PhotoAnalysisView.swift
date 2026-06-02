@@ -18,8 +18,6 @@ struct PhotoAnalysisView: View {
     @State private var selectedCookingMethod: CookingMethod?
     @State private var selectedPlateSize: PlateSize = .medium
     @State private var isReEstimating = false
-    /// Cached vision API response so re-estimation only re-runs USDA lookups, not the vision call
-    @State private var cachedVisionResponse: VisionFoodResponse?
     @State private var pipelineTrace: PipelineTrace?
     @State private var showingBugReport = false
 
@@ -579,7 +577,6 @@ struct PhotoAnalysisView: View {
                     cookingMethod: selectedCookingMethod,
                     plateSize: selectedPlateSize
                 )
-                cachedVisionResponse = nil
                 pipelineTrace = trace
                 loadingStatus = "Looking up nutrition data..."
                 identifiedFoods = foods
@@ -597,19 +594,10 @@ struct PhotoAnalysisView: View {
     /// Re-runs USDA/FNDDS lookups with updated cooking method or plate size context.
     /// Reuses the cached vision response to avoid re-sending the image to the API.
     private func reEstimateWithContext() {
-        guard !identifiedFoods.isEmpty else { return }
-
-        // Use cached vision response if available, otherwise rebuild from existing trace
-        let cachedResponse: VisionFoodResponse?
-        if let cached = cachedVisionResponse {
-            cachedResponse = cached
-        } else if let trace = pipelineTrace, let rawText = trace.rawVisionResponseText {
-            cachedResponse = try? decodeVisionResponse(from: rawText)
-        } else {
-            return
-        }
-
-        guard let response = cachedResponse else { return }
+        guard !identifiedFoods.isEmpty,
+              let trace = pipelineTrace,
+              let rawText = trace.rawVisionResponseText,
+              let response = try? decodeVisionResponse(from: rawText) else { return }
         isReEstimating = true
 
         Task {

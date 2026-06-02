@@ -9,7 +9,9 @@ enum QuickAddAction {
 }
 
 struct ContentView: View {
+    @Environment(\.scenePhase) private var scenePhase
     @State private var activeTab: AppTab = .today
+    @State private var todayViewID = Calendar.current.startOfDay(for: Date())
     @State private var showingRadialMenu = false
     @State private var showingAddEntry = false
     @State private var showingPhotoCapture = false
@@ -39,10 +41,17 @@ struct ContentView: View {
                 switch activeTab {
                 case .today:
                     DailySummaryView()
+                        .id(todayViewID)
                 case .history:
                     HistoryView()
                 case .settings:
                     SettingsView()
+                }
+            }
+            .onChange(of: scenePhase) { _, newPhase in
+                if newPhase == .active {
+                    let newStart = Calendar.current.startOfDay(for: Date())
+                    if newStart != todayViewID { todayViewID = newStart }
                 }
             }
             .safeAreaInset(edge: .bottom, spacing: 0) {
