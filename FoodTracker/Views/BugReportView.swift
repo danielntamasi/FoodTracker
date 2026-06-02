@@ -122,16 +122,17 @@ struct BugReportView: View {
         isGenerating = true
         errorMessage = nil
 
+        let context = BugReportService.ReportContext(
+            trace: trace,
+            photos: photos,
+            userComplaint: userComplaint,
+            identifiedFoods: identifiedFoods,
+            entryName: entryName,
+            originalValues: originalValues,
+            correctedValues: correctedValues
+        )
+
         Task.detached {
-            let context = BugReportService.ReportContext(
-                trace: trace,
-                photos: photos,
-                userComplaint: userComplaint,
-                identifiedFoods: identifiedFoods,
-                entryName: entryName,
-                originalValues: originalValues,
-                correctedValues: correctedValues
-            )
             do {
                 let url = try BugReportService.generateReport(context)
                 await MainActor.run {
