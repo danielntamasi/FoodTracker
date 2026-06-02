@@ -128,14 +128,14 @@ actor VisionAPIService {
 
     // MARK: - Estimate Nutrition (Text)
 
-    func estimateNutrition(for foodName: String) async throws -> AIEstimateResult {
+    func estimateNutrition(for foodName: String, portionGrams: Double? = nil) async throws -> AIEstimateResult {
         let provider = VisionProvider.selected
         guard let apiKey = KeychainService.load(account: provider.keychainAccount),
               !apiKey.isEmpty else {
             throw FoodAnalysisError.noAPIKey
         }
 
-        let request = buildEstimateRequest(provider: provider, apiKey: apiKey, foodName: foodName)
+        let request = buildEstimateRequest(provider: provider, apiKey: apiKey, foodName: foodName, portionGrams: portionGrams)
         let (data, response) = try await performRequest(request)
 
         guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
@@ -180,7 +180,8 @@ actor VisionAPIService {
         return request
     }
 
-    private func buildEstimateRequest(provider: VisionProvider, apiKey: String, foodName: String) -> URLRequest {
+    private func buildEstimateRequest(provider: VisionProvider, apiKey: String, foodName: String, portionGrams: Double? = nil) -> URLRequest {
+        let prompt = nutritionEstimatePrompt(portionGrams: portionGrams) + foodName
         let (url, headers, body) = switch provider {
         case .claude:
             (
@@ -190,7 +191,7 @@ actor VisionAPIService {
                     "x-api-key": apiKey,
                     "anthropic-version": "2023-06-01"
                 ],
-                claudeEstimateBody(foodName: foodName)
+                claudeEstimateBody(prompt: prompt)
             )
         case .gemini:
             (
@@ -199,7 +200,7 @@ actor VisionAPIService {
                     "Content-Type": "application/json",
                     "x-goog-api-key": apiKey
                 ],
-                geminiEstimateBody(foodName: foodName)
+                geminiEstimateBody(prompt: prompt)
             )
         }
 
@@ -265,7 +266,7 @@ actor VisionAPIService {
         ]
     }
 
-    private func claudeEstimateBody(foodName: String) -> [String: Any] {
+    private func claudeEstimateBody(prompt: String) -> [String: Any] {
         [
             "model": AppConstants.API.claudeModel,
             "max_tokens": 512,
@@ -273,18 +274,18 @@ actor VisionAPIService {
             "messages": [
                 [
                     "role": "user",
-                    "content": nutritionEstimatePrompt + foodName
+                    "content": prompt
                 ]
             ]
         ]
     }
 
-    private func geminiEstimateBody(foodName: String) -> [String: Any] {
+    private func geminiEstimateBody(prompt: String) -> [String: Any] {
         [
             "contents": [
                 [
                     "parts": [
-                        ["text": nutritionEstimatePrompt + foodName]
+                        ["text": prompt]
                     ]
                 ]
             ]
@@ -388,28 +389,40 @@ func multiAngleVisionPrompt(plateSize: PlateSize = .medium) -> String {
     """
 }
 
-private let nutritionEstimatePrompt = """
-Estimate the nutrition for this food item. Provide your best estimate for a single standard serving.
+func nutritionEstimatePrompt(portionGrams: Double? = nil) -> String {
+    let portionContext: String
+    if let grams = portionGrams, grams > 0 {
+        portionContext = """
+        IMPORTANT: The user has a specific portion of approximately \(Int(grams)) grams. \
+        Estimate nutrition for exactly \(Int(grams))g of this food — do NOT estimate for a generic serving. \
+        Set serving_grams to \(Int(grams)) and describe the portion accordingly.
+        """
+    } else {
+        portionContext = "Provide your best estimate for a single standard serving."
+    }
 
-Reason step by step:
-1. What is a standard serving size for this food?
-2. What are the main macronutrient sources?
-3. If it's a prepared/cooked dish, what cooking fats, oils, sauces, or dressings are typically included?
-4. Calculate total nutrition including any hidden calories from cooking.
+    return """
+    Estimate the nutrition for this food item. \(portionContext)
 
-After reasoning, return valid JSON in this format:
-{"name": "Chicken Fajita", "serving_description": "1 fajita", "serving_grams": 220, "calories": 350, "protein_grams": 28, "carbs_grams": 26, "fat_grams": 14}
+    Reason step by step:
+    1. What is this food and how is it typically prepared?
+    2. What are the main macronutrient sources?
+    3. If it's a prepared/cooked dish, what cooking fats, oils, sauces, or dressings are typically included?
+    4. Calculate total nutrition including any hidden calories from cooking.\(portionGrams != nil ? "\n5. Scale all values to the specified \(Int(portionGrams!))g portion." : "")
 
-Rules:
-- Use a realistic standard serving size
-- For prepared/cooked dishes, include ALL ingredients (cooking oil, sauces, etc.) in the nutrition total
-- Include a human-readable serving_description (e.g. "1 bowl", "1 plate", "1 sandwich", "1 cup")
-- Include serving_grams as the approximate weight of that serving in grams
-- Be accurate — users depend on these values for dietary tracking
-- Err slightly high rather than low for calorie-dense prepared foods
+    After reasoning, return valid JSON in this format:
+    {"name": "Chicken Fajita", "serving_description": "1 fajita", "serving_grams": 220, "calories": 350, "protein_grams": 28, "carbs_grams": 26, "fat_grams": 14}
 
-The food to estimate:
-"""
+    Rules:
+    - For prepared/cooked dishes, include ALL ingredients (cooking oil, sauces, etc.) in the nutrition total
+    - Include a human-readable serving_description (e.g. "1 bowl", "1 plate", "1 sandwich", "1 cup")
+    - Include serving_grams as the weight in grams of the portion you estimated
+    - Be accurate — users depend on these values for dietary tracking
+    - Err slightly high rather than low for calorie-dense prepared foods
+
+    The food to estimate:
+    """
+}
 
 // MARK: - AI Nutrition Estimate Result
 

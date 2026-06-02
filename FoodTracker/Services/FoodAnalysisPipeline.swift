@@ -231,6 +231,7 @@ enum FoodAnalysisPipeline {
         collectTrace: Bool
     ) async throws -> (foods: [IdentifiedFood], foodTraces: [PipelineTrace.FoodItemTrace]) {
         var itemsWithGrouping: [(index: Int, item: VisionIdentifiedItem, mealGroupID: UUID?, mealName: String?)] = []
+        var wholeDishResults: [UUID: USDAService.USDALookupResult] = [:]
 
         for element in response.foods {
             switch element {
@@ -239,6 +240,11 @@ enum FoodAnalysisPipeline {
                 let titleName = name.titleCased()
                 for ingredient in ingredients {
                     itemsWithGrouping.append((index: itemsWithGrouping.count, item: ingredient, mealGroupID: groupID, mealName: titleName))
+                }
+                // Fix 1c: Try whole-dish FNDDS lookup before decomposing into ingredients
+                if let fnddsResult = try? await USDAService.shared.lookupPreparedFood(for: name).first,
+                   fnddsResult.nutrientsPer100g.calories > 0 {
+                    wholeDishResults[groupID] = fnddsResult
                 }
             case .standalone(let item):
                 itemsWithGrouping.append((index: itemsWithGrouping.count, item: item, mealGroupID: nil, mealName: nil))
@@ -256,6 +262,9 @@ enum FoodAnalysisPipeline {
                 let originalIndex = entry.index
                 let shouldTrace = collectTrace
 
+                // Fix 1c: If whole-dish FNDDS result exists for this meal group, use it
+                let wholeDish = groupID.flatMap { wholeDishResults[$0] }
+
                 group.addTask {
                     if item.hasLabelNutrition {
                         return (originalIndex, buildLabelFood(item: item, groupID: groupID, mealName: mealName), nil)
@@ -266,7 +275,8 @@ enum FoodAnalysisPipeline {
                             mealName: mealName,
                             cookingMethod: cookingMethod,
                             plateSize: plateSize,
-                            collectTrace: shouldTrace
+                            collectTrace: shouldTrace,
+                            wholeDishResult: wholeDish
                         )
                         return (originalIndex, food, trace)
                     }
@@ -325,7 +335,8 @@ enum FoodAnalysisPipeline {
         mealName: String?,
         cookingMethod: CookingMethod?,
         plateSize: PlateSize,
-        collectTrace: Bool = false
+        collectTrace: Bool = false,
+        wholeDishResult: USDAService.USDALookupResult? = nil
     ) async -> (IdentifiedFood, PipelineTrace.FoodItemTrace?) {
         let effectiveMethod = cookingMethod ?? CookingMethod.from(item.cooking_method)
 
@@ -347,9 +358,9 @@ enum FoodAnalysisPipeline {
             )
         }
 
-        // Try FNDDS first for cooked foods, then fall back to FDC
-        var result: USDAService.USDALookupResult?
-        if effectiveMethod != nil && effectiveMethod != .raw {
+        // Fix 1c: Use whole-dish FNDDS result if available, otherwise per-ingredient lookup
+        var result: USDAService.USDALookupResult? = wholeDishResult
+        if result == nil, effectiveMethod != nil && effectiveMethod != .raw {
             if collectTrace {
                 foodTrace?.fnddsAttempted = true
                 let (fnddsResults, fnddsQueries) = (try? await USDAService.shared.lookupPreparedFoodWithTrace(for: item.name, cookingMethod: effectiveMethod)) ?? ([], [])
@@ -414,29 +425,23 @@ enum FoodAnalysisPipeline {
                 fat += hiddenCal / 9.0
             }
         } else {
-            // USDA had no data — use focused text-based AI estimation
-            if let aiResult = try? await VisionAPIService.shared.estimateNutrition(for: item.name) {
+            // USDA had no data — use portion-aware AI estimation
+            if let aiResult = try? await VisionAPIService.shared.estimateNutrition(for: item.name, portionGrams: scaledPortionGrams) {
                 foodTrace?.aiEstimateFallbackUsed = true
                 foodTrace?.aiEstimateResult = PipelineTrace.traceAIEstimate(aiResult)
 
-                // Fix 1f: Pass portion context — use portionGrams to scale instead of double-estimating
+                // AI was told the exact portion — use its values directly, no scaling
+                calories = Double(aiResult.calories)
+                protein = aiResult.proteinGrams
+                carbs = aiResult.carbsGrams
+                fat = aiResult.fatGrams
+
                 if let sg = aiResult.servingGrams, sg > 0 {
                     srvGrams = sg
                     calPer100g = Double(aiResult.calories) * (100.0 / sg)
                     protPer100g = aiResult.proteinGrams * (100.0 / sg)
                     carbPer100g = aiResult.carbsGrams * (100.0 / sg)
                     fatPer100g = aiResult.fatGrams * (100.0 / sg)
-                    let portionScale = scaledPortionGrams / sg
-                    detectedServings = max(0.25, (portionScale * 4).rounded() / 4)
-                    calories = Double(aiResult.calories) * portionScale
-                    protein = aiResult.proteinGrams * portionScale
-                    carbs = aiResult.carbsGrams * portionScale
-                    fat = aiResult.fatGrams * portionScale
-                } else {
-                    calories = Double(aiResult.calories)
-                    protein = aiResult.proteinGrams
-                    carbs = aiResult.carbsGrams
-                    fat = aiResult.fatGrams
                 }
             } else {
                 // Last resort: use vision inline estimates
