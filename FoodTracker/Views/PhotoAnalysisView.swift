@@ -20,6 +20,8 @@ struct PhotoAnalysisView: View {
     @State private var isReEstimating = false
     /// Cached vision API response so re-estimation only re-runs USDA lookups, not the vision call
     @State private var cachedVisionResponse: VisionFoodResponse?
+    @State private var pipelineTrace: PipelineTrace?
+    @State private var showingBugReport = false
 
     // Standard init for photo analysis
     init(image: UIImage, onIngredientsAdded: (([IngredientItem]) -> Void)? = nil) {
@@ -37,11 +39,12 @@ struct PhotoAnalysisView: View {
     }
 
     // Init for multi-angle: has image for display + pre-filled results (no re-analysis needed)
-    init(image: UIImage, prefilled foods: [IdentifiedFood], onIngredientsAdded: (([IngredientItem]) -> Void)? = nil) {
+    init(image: UIImage, prefilled foods: [IdentifiedFood], trace: PipelineTrace? = nil, onIngredientsAdded: (([IngredientItem]) -> Void)? = nil) {
         self.image = image
         self.onIngredientsAdded = onIngredientsAdded
         self._identifiedFoods = State(initialValue: foods)
         self._isLoading = State(initialValue: false)
+        self._pipelineTrace = State(initialValue: trace)
     }
 
     /// Groups items by mealGroupID. Returns (groupID, mealName, indices) for groups,
@@ -127,6 +130,18 @@ struct PhotoAnalysisView: View {
                                 standaloneFoodSection(index: group.indices[0])
                             }
                         }
+
+                        if pipelineTrace != nil || image != nil {
+                            Section {
+                                Button {
+                                    showingBugReport = true
+                                } label: {
+                                    Label("Report an Issue", systemImage: "flag")
+                                        .font(.subheadline)
+                                        .foregroundStyle(DS.Color.textSecondary)
+                                }
+                            }
+                        }
                     }
                 }
             }
@@ -151,6 +166,13 @@ struct PhotoAnalysisView: View {
                 if image != nil && identifiedFoods.isEmpty {
                     analyzePhoto()
                 }
+            }
+            .sheet(isPresented: $showingBugReport) {
+                BugReportView(
+                    trace: pipelineTrace,
+                    photos: image.map { [$0] } ?? [],
+                    identifiedFoods: identifiedFoods
+                )
             }
             .alert("Improve Nutrition Data?", isPresented: $showCorrectionAlert) {
                 Button("Submit Correction") {
@@ -545,16 +567,15 @@ struct PhotoAnalysisView: View {
         Task {
             do {
                 loadingStatus = "Analyzing photo..."
-                let response = try await VisionAPIService.shared.identifyFoods(in: image, plateSize: selectedPlateSize)
-                cachedVisionResponse = response
-                loadingStatus = "Looking up nutrition data..."
-                let foods = try await FoodAnalysisPipeline.processVisionResponse(
-                    response,
+                let (foods, trace) = try await FoodAnalysisPipeline.analyzeImageWithTrace(
+                    image,
                     cookingMethod: selectedCookingMethod,
                     plateSize: selectedPlateSize
                 )
+                cachedVisionResponse = nil
+                pipelineTrace = trace
+                loadingStatus = "Looking up nutrition data..."
                 identifiedFoods = foods
-                // Auto-detect cooking method from first result if not manually set
                 if selectedCookingMethod == nil, let detected = foods.first(where: { $0.cookingMethod != nil })?.cookingMethod {
                     selectedCookingMethod = CookingMethod.from(detected)
                 }
@@ -569,17 +590,36 @@ struct PhotoAnalysisView: View {
     /// Re-runs USDA/FNDDS lookups with updated cooking method or plate size context.
     /// Reuses the cached vision response to avoid re-sending the image to the API.
     private func reEstimateWithContext() {
-        guard let cachedResponse = cachedVisionResponse, !identifiedFoods.isEmpty else { return }
+        guard !identifiedFoods.isEmpty else { return }
+
+        // Use cached vision response if available, otherwise rebuild from existing trace
+        let cachedResponse: VisionFoodResponse?
+        if let cached = cachedVisionResponse {
+            cachedResponse = cached
+        } else if let trace = pipelineTrace, let rawText = trace.rawVisionResponseText {
+            cachedResponse = try? decodeVisionResponse(from: rawText)
+        } else {
+            return
+        }
+
+        guard let response = cachedResponse else { return }
         isReEstimating = true
 
         Task {
             do {
-                let foods = try await FoodAnalysisPipeline.processVisionResponse(
-                    cachedResponse,
+                let (foods, foodTraces) = try await FoodAnalysisPipeline.processVisionResponseWithTrace(
+                    response,
                     cookingMethod: selectedCookingMethod,
                     plateSize: selectedPlateSize
                 )
                 identifiedFoods = foods
+                if var trace = pipelineTrace {
+                    trace.foodTraces = foodTraces
+                    trace.plateSize = selectedPlateSize.rawValue
+                    trace.cookingMethodSelection = selectedCookingMethod?.rawValue
+                    trace.finalResults = foods.map { PipelineTrace.traceIdentifiedFood($0) }
+                    pipelineTrace = trace
+                }
             } catch {
                 // Silently fail — keep existing results
             }

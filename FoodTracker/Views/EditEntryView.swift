@@ -28,6 +28,7 @@ struct EditEntryView: View {
     @State private var isFavorite = false
     @State private var isGeneratingImage = false
     @State private var originalIsGeneratedImage = false
+    @State private var showingBugReport = false
 
     private var hasUnsavedChanges: Bool {
         guard isEditing else { return false }
@@ -181,6 +182,26 @@ struct EditEntryView: View {
                 entry.servingGrams = product.portionGrams > 0 ? product.portionGrams : nil
                 entry.barcode = barcode
             }
+        }
+        .sheet(isPresented: $showingBugReport) {
+            BugReportView(
+                trace: nil,
+                photos: entryImage.map { [$0] } ?? [],
+                identifiedFoods: [],
+                entryName: entry.name,
+                originalValues: BugReportService.CorrectionValues(
+                    calories: originalCalories,
+                    protein: originalProtein,
+                    carbs: originalCarbs,
+                    fat: originalFat
+                ),
+                correctedValues: BugReportService.CorrectionValues(
+                    calories: entry.calories,
+                    protein: entry.proteinGrams,
+                    carbs: entry.carbsGrams,
+                    fat: entry.fatGrams
+                )
+            )
         }
         .alert("Improve Nutrition Data?", isPresented: $showCorrectionAlert) {
             Button("Submit Correction") {
@@ -385,6 +406,15 @@ struct EditEntryView: View {
                                 .font(.caption)
                                 .foregroundStyle(DS.Color.textSecondary)
                                 .padding(.top, 4)
+
+                            Button {
+                                showingBugReport = true
+                            } label: {
+                                Label("Report an Issue", systemImage: "flag")
+                                    .font(.caption)
+                                    .foregroundStyle(DS.Color.textTertiary)
+                            }
+                            .padding(.top, 8)
                         }
                         .padding(.top, 12)
                         .transition(.opacity)

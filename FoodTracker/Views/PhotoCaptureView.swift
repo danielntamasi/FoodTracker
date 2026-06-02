@@ -160,6 +160,7 @@ struct MultiAngleAnalysisView: View {
     @State private var errorMessage: String?
     @State private var selectedPlateSize: PlateSize = .medium
     @State private var selectedCookingMethod: CookingMethod?
+    @State private var pipelineTrace: PipelineTrace?
 
     var body: some View {
         if !identifiedFoods.isEmpty || errorMessage != nil {
@@ -168,6 +169,7 @@ struct MultiAngleAnalysisView: View {
                 PhotoAnalysisView(
                     image: firstImage,
                     prefilled: identifiedFoods,
+                    trace: pipelineTrace,
                     onIngredientsAdded: onIngredientsAdded
                 )
             } else {
@@ -217,12 +219,13 @@ struct MultiAngleAnalysisView: View {
     private func analyzeMultiAngle() async {
         do {
             loadingStatus = "Analyzing \(images.count) angles for better accuracy..."
-            let foods = try await FoodAnalysisPipeline.analyzeImages(
+            let (foods, trace) = try await FoodAnalysisPipeline.analyzeImagesWithTrace(
                 images,
                 cookingMethod: selectedCookingMethod,
                 plateSize: selectedPlateSize
             )
             identifiedFoods = foods
+            pipelineTrace = trace
             isLoading = false
         } catch {
             errorMessage = error.localizedDescription

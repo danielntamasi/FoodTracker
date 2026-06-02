@@ -47,6 +47,9 @@
 		E7A1B2C30000000000000001 /* ImagePlaygroundService.swift in Sources */ = {isa = PBXBuildFile; fileRef = E7A1B2C30000000000000002 /* ImagePlaygroundService.swift */; };
 		D10001010000000000000001 /* DesignSystem.swift in Sources */ = {isa = PBXBuildFile; fileRef = D10002010000000000000001 /* DesignSystem.swift */; };
 		F50001010000000000000001 /* AccuracyTracker.swift in Sources */ = {isa = PBXBuildFile; fileRef = F50002010000000000000001 /* AccuracyTracker.swift */; };
+		E20001010000000000000001 /* PipelineTrace.swift in Sources */ = {isa = PBXBuildFile; fileRef = E20002010000000000000001 /* PipelineTrace.swift */; };
+		E20001010000000000000002 /* BugReportService.swift in Sources */ = {isa = PBXBuildFile; fileRef = E20002010000000000000002 /* BugReportService.swift */; };
+		E20001010000000000000003 /* BugReportView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E20002010000000000000003 /* BugReportView.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -117,6 +120,9 @@
 		E7A1B2C30000000000000002 /* ImagePlaygroundService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImagePlaygroundService.swift; sourceTree = "<group>"; };
 		D10002010000000000000001 /* DesignSystem.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DesignSystem.swift; sourceTree = "<group>"; };
 		F50002010000000000000001 /* AccuracyTracker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AccuracyTracker.swift; sourceTree = "<group>"; };
+		E20002010000000000000001 /* PipelineTrace.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PipelineTrace.swift; sourceTree = "<group>"; };
+		E20002010000000000000002 /* BugReportService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BugReportService.swift; sourceTree = "<group>"; };
+		E20002010000000000000003 /* BugReportView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BugReportView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -175,6 +181,8 @@
 				A10002010000000000000003 /* KeychainService.swift */,
 				C10002010000000000000001 /* VisionAPIService.swift */,
 				A10002010000000000000004 /* FoodAnalysisPipeline.swift */,
+				E20002010000000000000002 /* BugReportService.swift */,
+				E20002010000000000000001 /* PipelineTrace.swift */,
 				B30002010000000000000004 /* FoodAnalysisModels.swift */,
 				B30002010000000000000005 /* USDAService.swift */,
 				A1000201000000000000000E /* OpenFoodFactsService.swift */,
@@ -194,6 +202,7 @@
 				A1000F010000000000000001 /* SearchFoodView.swift */,
 				A10002010000000000000008 /* PhotoCaptureView.swift */,
 				A10002010000000000000009 /* PhotoAnalysisView.swift */,
+				E20002010000000000000003 /* BugReportView.swift */,
 				A1000201000000000000000A /* HistoryView.swift */,
 				A1000201000000000000000B /* SettingsView.swift */,
 				A1000201000000000000000F /* BarcodeScannerView.swift */,
@@ -346,6 +355,9 @@
 				A10001010000000000000002 /* FoodEntry.swift in Sources */,
 				A10001010000000000000003 /* KeychainService.swift in Sources */,
 				A10001010000000000000004 /* FoodAnalysisPipeline.swift in Sources */,
+				E20001010000000000000003 /* BugReportView.swift in Sources */,
+				E20001010000000000000002 /* BugReportService.swift in Sources */,
+				E20001010000000000000001 /* PipelineTrace.swift in Sources */,
 				C10001010000000000000001 /* VisionAPIService.swift in Sources */,
 				C10001010000000000000002 /* AppConstants.swift in Sources */,
 				C10001010000000000000003 /* NutritionLookup.swift in Sources */,

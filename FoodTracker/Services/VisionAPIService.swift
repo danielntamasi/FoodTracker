@@ -35,6 +35,65 @@ actor VisionAPIService {
         return try decodeVisionResponse(from: text)
     }
 
+    func identifyFoodsWithRawText(in image: UIImage, plateSize: PlateSize = .medium) async throws -> (response: VisionFoodResponse, rawText: String, prompt: String) {
+        let provider = VisionProvider.selected
+        guard let apiKey = KeychainService.load(account: provider.keychainAccount),
+              !apiKey.isEmpty else {
+            throw FoodAnalysisError.noAPIKey
+        }
+
+        guard let jpegData = prepareImageForUpload(image) else {
+            throw FoodAnalysisError.invalidImage
+        }
+
+        let base64Image = jpegData.base64EncodedString()
+        let prompt = visionPrompt(plateSize: plateSize)
+        let request = buildVisionRequest(provider: provider, apiKey: apiKey, base64Images: [base64Image], prompt: prompt)
+        let (data, response) = try await performRequest(request)
+
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw FoodAnalysisError.invalidResponse
+        }
+        guard httpResponse.statusCode == 200 else {
+            throw FoodAnalysisError.apiError("Analysis failed (HTTP \(httpResponse.statusCode)). Please try again.")
+        }
+
+        let text = try extractText(from: data, provider: provider)
+        let parsed = try decodeVisionResponse(from: text)
+        return (response: parsed, rawText: text, prompt: prompt)
+    }
+
+    func identifyFoodsWithRawText(images: [UIImage], plateSize: PlateSize = .medium) async throws -> (response: VisionFoodResponse, rawText: String, prompt: String) {
+        let provider = VisionProvider.selected
+        guard let apiKey = KeychainService.load(account: provider.keychainAccount),
+              !apiKey.isEmpty else {
+            throw FoodAnalysisError.noAPIKey
+        }
+
+        var base64Images: [String] = []
+        for image in images {
+            guard let jpegData = prepareImageForUpload(image) else {
+                throw FoodAnalysisError.invalidImage
+            }
+            base64Images.append(jpegData.base64EncodedString())
+        }
+
+        let prompt = multiAngleVisionPrompt(plateSize: plateSize)
+        let request = buildVisionRequest(provider: provider, apiKey: apiKey, base64Images: base64Images, prompt: prompt)
+        let (data, response) = try await performRequest(request)
+
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw FoodAnalysisError.invalidResponse
+        }
+        guard httpResponse.statusCode == 200 else {
+            throw FoodAnalysisError.apiError("Analysis failed (HTTP \(httpResponse.statusCode)). Please try again.")
+        }
+
+        let text = try extractText(from: data, provider: provider)
+        let parsed = try decodeVisionResponse(from: text)
+        return (response: parsed, rawText: text, prompt: prompt)
+    }
+
     // MARK: - Identify Foods (Multi-Angle Precision Mode)
 
     func identifyFoods(images: [UIImage], plateSize: PlateSize = .medium) async throws -> VisionFoodResponse {
@@ -274,7 +333,7 @@ actor VisionAPIService {
 
 // MARK: - Shared Prompts
 
-private func visionPrompt(plateSize: PlateSize = .medium) -> String {
+func visionPrompt(plateSize: PlateSize = .medium) -> String {
     """
     Analyze every food item in this photo. For each item, determine which mode applies:
 
@@ -316,7 +375,7 @@ private func visionPrompt(plateSize: PlateSize = .medium) -> String {
     """
 }
 
-private func multiAngleVisionPrompt(plateSize: PlateSize = .medium) -> String {
+func multiAngleVisionPrompt(plateSize: PlateSize = .medium) -> String {
     """
     You are provided with multiple photos of the SAME meal from different angles. Image 1 is typically top-down, and subsequent images are from the side or at an angle.
 

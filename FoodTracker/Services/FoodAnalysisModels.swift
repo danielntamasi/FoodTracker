@@ -135,10 +135,10 @@ enum PlateSize: String, CaseIterable, Identifiable {
     }
 
     /// Scaling factor relative to a standard 10.5" dinner plate.
-    /// Uses linear scaling (not area-based) to avoid over-correction.
+    /// Uses area-based scaling: food area scales with diameter squared.
     var portionScale: Double {
         let standardDiameter = 10.5
-        return diameterInches / standardDiameter
+        return pow(diameterInches / standardDiameter, 2)
     }
 }
 

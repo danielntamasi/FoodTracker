@@ -43,8 +43,6 @@ func extractJSON(from text: String) -> String {
 
 // MARK: - Nutrition Sanity Checking
 
-/// Validates and corrects nutrition values using multiple heuristics.
-/// Returns corrected (calories, protein, carbs, fat).
 func sanitizeNutrition(
     calories: Double,
     protein: Double,
@@ -53,77 +51,62 @@ func sanitizeNutrition(
     foodName: String = "",
     portionGrams: Double = 0
 ) -> (calories: Int, protein: Double, carbs: Double, fat: Double) {
+    let result = sanitizeNutritionWithTrace(
+        calories: calories, protein: protein, carbs: carbs, fat: fat,
+        foodName: foodName, portionGrams: portionGrams
+    )
+    return (result.calories, result.protein, result.carbs, result.fat)
+}
+
+func sanitizeNutritionWithTrace(
+    calories: Double,
+    protein: Double,
+    carbs: Double,
+    fat: Double,
+    foodName: String = "",
+    portionGrams: Double = 0
+) -> (calories: Int, protein: Double, carbs: Double, fat: Double, heuristics: [String]) {
     var cal = calories
     var p = protein
     var c = carbs
     var f = fat
+    var heuristics: [String] = []
 
     // 1. Derive calories from macros if zero
     let macroDerived = p * 4 + c * 4 + f * 9
     if cal == 0 && macroDerived > 0 {
         cal = macroDerived
+        heuristics.append("macro-derived calories (original was 0)")
     }
 
-    // 2. Macro-calorie consistency check: if calories differs from macro-derived by >25%, use macro-derived
+    // 2. Macro-calorie consistency check
     if cal > 0 && macroDerived > 0 {
         let divergence = abs(cal - macroDerived) / max(cal, macroDerived)
         if divergence > 0.25 {
+            heuristics.append("macro-calorie consistency (divergence: \(Int(divergence * 100))%, \(Int(cal))→\(Int(macroDerived)))")
             cal = macroDerived
         }
     }
 
-    // 3. Per-food-category range checks (based on portion, rough heuristics)
-    let nameLower = foodName.lowercased()
-    let maxCalForPortion: Double
-    let minCalForPortion: Double
-
-    if nameLower.contains("salad") && !nameLower.contains("pasta") {
-        maxCalForPortion = 800
-        minCalForPortion = 20
-    } else if nameLower.contains("soup") || nameLower.contains("broth") {
-        maxCalForPortion = 600
-        minCalForPortion = 20
-    } else if nameLower.contains("fruit") || nameLower.contains("apple") || nameLower.contains("banana") ||
-              nameLower.contains("orange") || nameLower.contains("berry") || nameLower.contains("grape") {
-        maxCalForPortion = 400
-        minCalForPortion = 10
-    } else if nameLower.contains("water") || nameLower.contains("tea") || nameLower.contains("coffee") {
-        maxCalForPortion = 100
-        minCalForPortion = 0
-    } else {
-        // General food: scale max by portion size
-        let portionFactor = portionGrams > 0 ? portionGrams / 100.0 : 1.0
-        maxCalForPortion = max(400 * portionFactor, 1500)
-        minCalForPortion = 0
-    }
-
-    // Clamp to reasonable range (soft correction)
-    if cal > maxCalForPortion && maxCalForPortion > 0 {
-        let scale = cal > 0 ? maxCalForPortion / cal : 1.0
-        cal = maxCalForPortion
-        p *= scale
-        c *= scale
-        f *= scale
-    }
-    if cal > 0 && cal < minCalForPortion {
-        cal = minCalForPortion
-    }
-
-    // 4. Single portion sanity: flag extremely high values
-    if cal > 3000 {
-        // Very likely an overestimate for a single portion — cap at 3000
-        let scale = 3000.0 / cal
-        cal = 3000
-        p *= scale
-        c *= scale
-        f *= scale
+    // 3. Physics-based calorie cap: impossible to exceed 9 cal/g (pure fat)
+    if portionGrams > 0 {
+        let physicsMax = portionGrams * 9
+        if cal > physicsMax {
+            let scale = physicsMax / cal
+            heuristics.append("physics cap (\(Int(cal)) > \(Int(physicsMax)) max for \(Int(portionGrams))g)")
+            cal = physicsMax
+            p *= scale
+            c *= scale
+            f *= scale
+        }
     }
 
     return (
         calories: Int(cal.rounded()),
         protein: p.roundedTo(1),
         carbs: c.roundedTo(1),
-        fat: f.roundedTo(1)
+        fat: f.roundedTo(1),
+        heuristics: heuristics
     )
 }
 
@@ -134,7 +117,6 @@ enum FoodAnalysisPipeline {
     static func estimateNutrition(for foodName: String) async throws -> USDAService.USDALookupResult {
         let estimate = try await VisionAPIService.shared.estimateNutrition(for: foodName)
 
-        // Convert to per-100g values if serving grams is known, otherwise store as-is
         let per100g: USDAService.NutrientsPer100g
         if let grams = estimate.servingGrams, grams > 0 {
             let scale = 100.0 / grams
@@ -161,19 +143,38 @@ enum FoodAnalysisPipeline {
         )
     }
 
-    /// Vision provider identifies foods → USDA looks up macros → returns combined results.
-    /// Accepts optional cooking method and plate size for improved accuracy.
+    // MARK: - Analyze Image (with optional trace)
+
     static func analyzeImage(
         _ image: UIImage,
         cookingMethod: CookingMethod? = nil,
         plateSize: PlateSize = .medium
     ) async throws -> [IdentifiedFood] {
-        // Step 1: Identify foods using selected vision provider
         let response = try await VisionAPIService.shared.identifyFoods(in: image, plateSize: plateSize)
         return try await processVisionResponse(response, cookingMethod: cookingMethod, plateSize: plateSize)
     }
 
-    /// Multi-angle precision mode: send multiple images for better portion estimation.
+    static func analyzeImageWithTrace(
+        _ image: UIImage,
+        cookingMethod: CookingMethod? = nil,
+        plateSize: PlateSize = .medium
+    ) async throws -> (foods: [IdentifiedFood], trace: PipelineTrace) {
+        var trace = PipelineTrace()
+        trace.visionProvider = VisionProvider.selected.rawValue
+        trace.plateSize = plateSize.rawValue
+        trace.cookingMethodSelection = cookingMethod?.rawValue
+
+        let (response, rawText, prompt) = try await VisionAPIService.shared.identifyFoodsWithRawText(in: image, plateSize: plateSize)
+        trace.rawVisionResponseText = rawText
+        trace.visionPromptUsed = prompt
+        populateVisionTrace(&trace, from: response)
+
+        let (foods, foodTraces) = try await processVisionResponseWithTrace(response, cookingMethod: cookingMethod, plateSize: plateSize)
+        trace.foodTraces = foodTraces
+        trace.finalResults = foods.map { PipelineTrace.traceIdentifiedFood($0) }
+        return (foods, trace)
+    }
+
     static func analyzeImages(
         _ images: [UIImage],
         cookingMethod: CookingMethod? = nil,
@@ -183,15 +184,53 @@ enum FoodAnalysisPipeline {
         return try await processVisionResponse(response, cookingMethod: cookingMethod, plateSize: plateSize)
     }
 
-    /// Process a vision response into IdentifiedFood items with USDA/FNDDS lookups and sanity checks.
-    /// Also used by PhotoAnalysisView to re-run lookups with different cooking method/plate size without re-calling the vision API.
+    static func analyzeImagesWithTrace(
+        _ images: [UIImage],
+        cookingMethod: CookingMethod? = nil,
+        plateSize: PlateSize = .medium
+    ) async throws -> (foods: [IdentifiedFood], trace: PipelineTrace) {
+        var trace = PipelineTrace()
+        trace.visionProvider = VisionProvider.selected.rawValue
+        trace.plateSize = plateSize.rawValue
+        trace.cookingMethodSelection = cookingMethod?.rawValue
+
+        let (response, rawText, prompt) = try await VisionAPIService.shared.identifyFoodsWithRawText(images: images, plateSize: plateSize)
+        trace.rawVisionResponseText = rawText
+        trace.visionPromptUsed = prompt
+        populateVisionTrace(&trace, from: response)
+
+        let (foods, foodTraces) = try await processVisionResponseWithTrace(response, cookingMethod: cookingMethod, plateSize: plateSize)
+        trace.foodTraces = foodTraces
+        trace.finalResults = foods.map { PipelineTrace.traceIdentifiedFood($0) }
+        return (foods, trace)
+    }
+
+    // MARK: - Process Vision Response
+
     static func processVisionResponse(
         _ response: VisionFoodResponse,
         cookingMethod: CookingMethod?,
         plateSize: PlateSize
     ) async throws -> [IdentifiedFood] {
-        // Step 2: Flatten elements, assigning mealGroupID for grouped meals
-        var itemsWithGrouping: [(item: VisionIdentifiedItem, mealGroupID: UUID?, mealName: String?)] = []
+        let (foods, _) = try await processVisionResponseInternal(response, cookingMethod: cookingMethod, plateSize: plateSize, collectTrace: false)
+        return foods
+    }
+
+    static func processVisionResponseWithTrace(
+        _ response: VisionFoodResponse,
+        cookingMethod: CookingMethod?,
+        plateSize: PlateSize
+    ) async throws -> (foods: [IdentifiedFood], foodTraces: [PipelineTrace.FoodItemTrace]) {
+        return try await processVisionResponseInternal(response, cookingMethod: cookingMethod, plateSize: plateSize, collectTrace: true)
+    }
+
+    private static func processVisionResponseInternal(
+        _ response: VisionFoodResponse,
+        cookingMethod: CookingMethod?,
+        plateSize: PlateSize,
+        collectTrace: Bool
+    ) async throws -> (foods: [IdentifiedFood], foodTraces: [PipelineTrace.FoodItemTrace]) {
+        var itemsWithGrouping: [(index: Int, item: VisionIdentifiedItem, mealGroupID: UUID?, mealName: String?)] = []
 
         for element in response.foods {
             switch element {
@@ -199,46 +238,54 @@ enum FoodAnalysisPipeline {
                 let groupID = UUID()
                 let titleName = name.titleCased()
                 for ingredient in ingredients {
-                    itemsWithGrouping.append((item: ingredient, mealGroupID: groupID, mealName: titleName))
+                    itemsWithGrouping.append((index: itemsWithGrouping.count, item: ingredient, mealGroupID: groupID, mealName: titleName))
                 }
             case .standalone(let item):
-                itemsWithGrouping.append((item: item, mealGroupID: nil, mealName: nil))
+                itemsWithGrouping.append((index: itemsWithGrouping.count, item: item, mealGroupID: nil, mealName: nil))
             }
         }
 
-        // Step 3: For label items, use values directly. For estimates, look up USDA/FNDDS.
-        var results: [IdentifiedFood] = []
+        // Fix 1g: Preserve insertion order by indexing tasks and sorting results
+        var indexedResults: [(Int, IdentifiedFood, PipelineTrace.FoodItemTrace?)] = []
 
-        await withTaskGroup(of: IdentifiedFood?.self) { group in
+        await withTaskGroup(of: (Int, IdentifiedFood?, PipelineTrace.FoodItemTrace?).self) { group in
             for entry in itemsWithGrouping {
                 let item = entry.item
                 let groupID = entry.mealGroupID
                 let mealName = entry.mealName
+                let originalIndex = entry.index
+                let shouldTrace = collectTrace
 
                 group.addTask {
                     if item.hasLabelNutrition {
-                        return buildLabelFood(item: item, groupID: groupID, mealName: mealName)
+                        return (originalIndex, buildLabelFood(item: item, groupID: groupID, mealName: mealName), nil)
                     } else {
-                        return await buildEstimatedFood(
+                        let (food, trace) = await buildEstimatedFood(
                             item: item,
                             groupID: groupID,
                             mealName: mealName,
                             cookingMethod: cookingMethod,
-                            plateSize: plateSize
+                            plateSize: plateSize,
+                            collectTrace: shouldTrace
                         )
+                        return (originalIndex, food, trace)
                     }
                 }
             }
 
-            for await food in group {
-                if let food { results.append(food) }
+            for await (index, food, trace) in group {
+                if let food { indexedResults.append((index, food, trace)) }
             }
         }
 
-        return results
+        indexedResults.sort { $0.0 < $1.0 }
+        let foods = indexedResults.map { $0.1 }
+        let traces = indexedResults.compactMap { $0.2 }
+        return (foods, traces)
     }
 
-    /// Build an IdentifiedFood from a label-sourced vision item (no lookup needed).
+    // MARK: - Build Label Food
+
     private static func buildLabelFood(
         item: VisionIdentifiedItem,
         groupID: UUID?,
@@ -270,27 +317,59 @@ enum FoodAnalysisPipeline {
         )
     }
 
-    /// Build an IdentifiedFood from an estimated vision item with USDA/FNDDS lookup.
+    // MARK: - Build Estimated Food (with optional trace)
+
     private static func buildEstimatedFood(
         item: VisionIdentifiedItem,
         groupID: UUID?,
         mealName: String?,
         cookingMethod: CookingMethod?,
-        plateSize: PlateSize
-    ) async -> IdentifiedFood {
-        // Determine effective cooking method: user-selected overrides, else use vision-detected
+        plateSize: PlateSize,
+        collectTrace: Bool = false
+    ) async -> (IdentifiedFood, PipelineTrace.FoodItemTrace?) {
         let effectiveMethod = cookingMethod ?? CookingMethod.from(item.cooking_method)
 
-        // Apply plate size scaling to portion grams if plate isn't medium (default)
+        // Fix 1b: Area-based plate scaling instead of linear
         let scaledPortionGrams = item.portion_grams * plateSize.portionScale
 
-        // Try FNDDS first for cooked foods (has prepared dish data), then fall back to FDC
+        var foodTrace: PipelineTrace.FoodItemTrace?
+        if collectTrace {
+            foodTrace = PipelineTrace.FoodItemTrace(
+                foodNameFromVision: item.name,
+                portionFromVision: item.portion,
+                portionGramsFromVision: item.portion_grams,
+                scaledPortionGrams: scaledPortionGrams,
+                confidenceScore: item.confidence,
+                cookingMethodFromVision: item.cooking_method,
+                effectiveCookingMethod: effectiveMethod?.rawValue,
+                hiddenCaloriesEstimate: item.hidden_calories_estimate,
+                hiddenCaloriesSource: item.hidden_calories_source
+            )
+        }
+
+        // Try FNDDS first for cooked foods, then fall back to FDC
         var result: USDAService.USDALookupResult?
         if effectiveMethod != nil && effectiveMethod != .raw {
-            result = try? await USDAService.shared.lookupPreparedFood(for: item.name, cookingMethod: effectiveMethod).first
+            if collectTrace {
+                foodTrace?.fnddsAttempted = true
+                let (fnddsResults, fnddsQueries) = (try? await USDAService.shared.lookupPreparedFoodWithTrace(for: item.name, cookingMethod: effectiveMethod)) ?? ([], [])
+                foodTrace?.fnddsQueries = fnddsQueries
+                result = fnddsResults.first
+                if let r = result { foodTrace?.fnddsResult = PipelineTrace.traceUSDAResult(r) }
+            } else {
+                result = try? await USDAService.shared.lookupPreparedFood(for: item.name, cookingMethod: effectiveMethod).first
+            }
         }
         if result == nil {
-            result = try? await USDAService.shared.lookupFood(for: item.name, cookingMethod: effectiveMethod)
+            if collectTrace {
+                foodTrace?.fdcAttempted = true
+                let (fdcResult, fdcQueries) = (try? await USDAService.shared.lookupFoodWithTrace(for: item.name, cookingMethod: effectiveMethod)) ?? (nil, [])
+                foodTrace?.fdcQueries = fdcQueries
+                result = fdcResult
+                if let r = result { foodTrace?.fdcResult = PipelineTrace.traceUSDAResult(r) }
+            } else {
+                result = try? await USDAService.shared.lookupFood(for: item.name, cookingMethod: effectiveMethod)
+            }
         }
 
         var calories: Double = 0
@@ -328,9 +407,19 @@ enum FoodAnalysisPipeline {
                 carbs = nutrients.carbs * scale
                 fat = nutrients.fat * scale
             }
+
+            // Fix 1a: Add hidden calories to USDA-derived totals
+            if let hiddenCal = item.hidden_calories_estimate, hiddenCal > 0 {
+                calories += hiddenCal
+                fat += hiddenCal / 9.0
+            }
         } else {
             // USDA had no data — use focused text-based AI estimation
             if let aiResult = try? await VisionAPIService.shared.estimateNutrition(for: item.name) {
+                foodTrace?.aiEstimateFallbackUsed = true
+                foodTrace?.aiEstimateResult = PipelineTrace.traceAIEstimate(aiResult)
+
+                // Fix 1f: Pass portion context — use portionGrams to scale instead of double-estimating
                 if let sg = aiResult.servingGrams, sg > 0 {
                     srvGrams = sg
                     calPer100g = Double(aiResult.calories) * (100.0 / sg)
@@ -351,6 +440,7 @@ enum FoodAnalysisPipeline {
                 }
             } else {
                 // Last resort: use vision inline estimates
+                foodTrace?.visionInlineEstimatesUsed = true
                 let rawCal = item.calories ?? 0
                 let rawP = item.protein_grams ?? 0
                 let rawC = item.carbs_grams ?? 0
@@ -364,17 +454,31 @@ enum FoodAnalysisPipeline {
             usedSource = .estimate
         }
 
-        // Enhanced sanity checking
-        let sanitized = sanitizeNutrition(
-            calories: calories,
-            protein: protein,
-            carbs: carbs,
-            fat: fat,
-            foodName: item.name,
-            portionGrams: scaledPortionGrams
-        )
+        foodTrace?.finalSource = usedSource.rawValue
 
-        return IdentifiedFood(
+        // Sanitization with trace
+        let sanitized: (calories: Int, protein: Double, carbs: Double, fat: Double)
+        if collectTrace {
+            foodTrace?.sanitizationInput = PipelineTrace.NutritionSnapshot(
+                calories: calories, protein: protein, carbs: carbs, fat: fat, portionGrams: scaledPortionGrams
+            )
+            let traced = sanitizeNutritionWithTrace(
+                calories: calories, protein: protein, carbs: carbs, fat: fat,
+                foodName: item.name, portionGrams: scaledPortionGrams
+            )
+            sanitized = (traced.calories, traced.protein, traced.carbs, traced.fat)
+            foodTrace?.sanitizationOutput = PipelineTrace.NutritionSnapshot(
+                calories: Double(traced.calories), protein: traced.protein, carbs: traced.carbs, fat: traced.fat, portionGrams: scaledPortionGrams
+            )
+            foodTrace?.sanitizationHeuristicsFired = traced.heuristics
+        } else {
+            sanitized = sanitizeNutrition(
+                calories: calories, protein: protein, carbs: carbs, fat: fat,
+                foodName: item.name, portionGrams: scaledPortionGrams
+            )
+        }
+
+        let food = IdentifiedFood(
             name: item.name.titleCased(),
             calories: sanitized.calories,
             proteinGrams: sanitized.protein,
@@ -396,5 +500,22 @@ enum FoodAnalysisPipeline {
             confidenceScore: item.confidence,
             cookingMethod: item.cooking_method
         )
+
+        return (food, foodTrace)
+    }
+
+    // MARK: - Helpers
+
+    private static func populateVisionTrace(_ trace: inout PipelineTrace, from response: VisionFoodResponse) {
+        for element in response.foods {
+            switch element {
+            case .meal(let name, let ingredients):
+                for item in ingredients {
+                    trace.parsedVisionFoods.append(PipelineTrace.traceVisionItem(item, mealName: name))
+                }
+            case .standalone(let item):
+                trace.parsedVisionFoods.append(PipelineTrace.traceVisionItem(item, mealName: nil))
+            }
+        }
     }
 }

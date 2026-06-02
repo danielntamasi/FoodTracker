@@ -275,13 +275,75 @@ actor USDAService {
         return nil
     }
 
+    // MARK: - Trace-Returning Variants
+
+    func lookupFoodWithTrace(for foodName: String, cookingMethod: CookingMethod? = nil) async throws -> (result: USDALookupResult?, queries: [PipelineTrace.USDAQueryTrace]) {
+        let (results, queries) = try await lookupFoodOptionsWithTrace(for: foodName, cookingMethod: cookingMethod)
+        if let first = results.first {
+            return (first, queries)
+        }
+        return (nil, queries)
+    }
+
+    func lookupFoodOptionsWithTrace(for foodName: String, cookingMethod: CookingMethod? = nil) async throws -> (results: [USDALookupResult], queries: [PipelineTrace.USDAQueryTrace]) {
+        let cleanedName = foodName
+            .replacingOccurrences(of: "\\s*\\([^)]*\\)", with: "", options: .regularExpression)
+            .trimmingCharacters(in: .whitespaces)
+        let afterParens = cleanedName.isEmpty ? foodName : cleanedName
+        let words = afterParens.split(separator: " ").map { String($0) }
+        let stripped = words.filter { !Self.cookingMethods.contains($0.lowercased()) }
+        let strippedQuery = stripped.isEmpty ? afterParens : stripped.joined(separator: " ")
+
+        let cookingTerm = cookingMethod?.usdaQueryTerm ?? ""
+        let queriesInOrder: [String]
+        if !cookingTerm.isEmpty {
+            queriesInOrder = ["\(cookingTerm) \(strippedQuery)", strippedQuery]
+        } else {
+            let hasMethod = words.contains { Self.cookingMethods.contains($0.lowercased()) }
+            queriesInOrder = hasMethod ? [afterParens, strippedQuery] : [strippedQuery]
+        }
+
+        var allTraces: [PipelineTrace.USDAQueryTrace] = []
+        for query in queriesInOrder {
+            let (results, trace) = try await executeUSDASearchWithTrace(
+                query: query, dataType: "Foundation,SR Legacy", foodName: foodName, cookingMethod: cookingMethod
+            )
+            allTraces.append(trace)
+            if !results.isEmpty { return (results, allTraces) }
+        }
+        return ([], allTraces)
+    }
+
+    func lookupPreparedFoodWithTrace(for foodName: String, cookingMethod: CookingMethod? = nil) async throws -> (results: [USDALookupResult], queries: [PipelineTrace.USDAQueryTrace]) {
+        let cleanedName = foodName
+            .replacingOccurrences(of: "\\s*\\([^)]*\\)", with: "", options: .regularExpression)
+            .trimmingCharacters(in: .whitespaces)
+        let query = cleanedName.isEmpty ? foodName : cleanedName
+
+        let (results, trace) = try await executeUSDASearchWithTrace(
+            query: query, dataType: "Survey (FNDDS)", foodName: foodName, cookingMethod: cookingMethod
+        )
+        return (results, [trace])
+    }
+
+    private func executeUSDASearchWithTrace(query: String, dataType: String, foodName: String, cookingMethod: CookingMethod?) async throws -> ([USDALookupResult], PipelineTrace.USDAQueryTrace) {
+        let results = try await executeUSDASearch(query: query, dataType: dataType, foodName: foodName, cookingMethod: cookingMethod)
+        let trace = PipelineTrace.USDAQueryTrace(
+            query: query,
+            dataType: dataType,
+            resultCount: results.count,
+            topResults: results.prefix(3).map { PipelineTrace.traceUSDAResult($0) }
+        )
+        return (results, trace)
+    }
+
+    // Fix 1e: Only actual cooking verbs — removed descriptors like "creamy", "crispy", "seasoned"
+    // that change nutrition profile significantly (e.g., "creamy tomato soup" ≠ "tomato soup")
     private static let cookingMethods: Set<String> = [
         "sauteed", "sautéed", "grilled", "roasted", "baked", "fried",
         "steamed", "boiled", "braised", "broiled", "poached", "smoked",
         "pan-fried", "stir-fried", "deep-fried", "air-fried",
-        "diced", "chopped", "sliced", "minced", "mashed", "pureed",
-        "blanched", "charred", "toasted", "seasoned", "marinated",
-        "glazed", "caramelized", "crispy", "creamy"
+        "blanched", "charred", "toasted"
     ]
 
     private func scoreFood(_ food: [String: Any], query: String, penaltyKeywords: [String], cookingMethod: CookingMethod? = nil) -> Int {
