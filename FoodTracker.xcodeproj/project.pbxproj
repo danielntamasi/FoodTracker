@@ -50,6 +50,7 @@
 		E20001010000000000000001 /* PipelineTrace.swift in Sources */ = {isa = PBXBuildFile; fileRef = E20002010000000000000001 /* PipelineTrace.swift */; };
 		E20001010000000000000002 /* BugReportService.swift in Sources */ = {isa = PBXBuildFile; fileRef = E20002010000000000000002 /* BugReportService.swift */; };
 		E20001010000000000000003 /* BugReportView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E20002010000000000000003 /* BugReportView.swift */; };
+		F30001010000000000000001 /* CSVImportService.swift in Sources */ = {isa = PBXBuildFile; fileRef = F30002010000000000000001 /* CSVImportService.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -123,6 +124,7 @@
 		E20002010000000000000001 /* PipelineTrace.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PipelineTrace.swift; sourceTree = "<group>"; };
 		E20002010000000000000002 /* BugReportService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BugReportService.swift; sourceTree = "<group>"; };
 		E20002010000000000000003 /* BugReportView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BugReportView.swift; sourceTree = "<group>"; };
+		F30002010000000000000001 /* CSVImportService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CSVImportService.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -181,6 +183,7 @@
 				A10002010000000000000003 /* KeychainService.swift */,
 				C10002010000000000000001 /* VisionAPIService.swift */,
 				A10002010000000000000004 /* FoodAnalysisPipeline.swift */,
+				F30002010000000000000001 /* CSVImportService.swift */,
 				E20002010000000000000002 /* BugReportService.swift */,
 				E20002010000000000000001 /* PipelineTrace.swift */,
 				B30002010000000000000004 /* FoodAnalysisModels.swift */,
@@ -355,6 +358,7 @@
 				A10001010000000000000002 /* FoodEntry.swift in Sources */,
 				A10001010000000000000003 /* KeychainService.swift in Sources */,
 				A10001010000000000000004 /* FoodAnalysisPipeline.swift in Sources */,
+				F30001010000000000000001 /* CSVImportService.swift in Sources */,
 				E20001010000000000000003 /* BugReportView.swift in Sources */,
 				E20001010000000000000002 /* BugReportService.swift in Sources */,
 				E20001010000000000000001 /* PipelineTrace.swift in Sources */,

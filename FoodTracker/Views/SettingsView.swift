@@ -28,6 +28,7 @@ enum DailyTarget {
 }
 
 struct SettingsView: View {
+    @Environment(\.modelContext) private var modelContext
     @Query private var allEntries: [FoodEntry]
     @FocusState private var isTargetFieldFocused: Bool
     @State private var selectedProvider = VisionProvider.selected
@@ -47,6 +48,9 @@ struct SettingsView: View {
     @State private var imagePlaygroundEnabled = ImagePlaygroundService.isEnabled
     @AppStorage(AppConstants.Defaults.appearanceMode, store: sharedDefaults)
     private var appearanceMode: String = "system"
+    @State private var showImportPicker = false
+    @State private var isImporting = false
+    @State private var importSummary: String?
 
     var body: some View {
         NavigationStack {
@@ -266,6 +270,28 @@ struct SettingsView: View {
                 accuracySection
 
                 Section {
+                    Button {
+                        showImportPicker = true
+                    } label: {
+                        Label("Import Food Entries (CSV)", systemImage: "square.and.arrow.down")
+                    }
+                    if let importSummary {
+                        Text(importSummary)
+                            .font(DS.Typography.caption)
+                            .foregroundStyle(DS.Color.success)
+                    }
+                } header: {
+                    Text("DATA")
+                        .font(DS.Typography.labelS)
+                        .foregroundStyle(DS.Color.textTertiary)
+                        .tracking(0.8)
+                } footer: {
+                    Text("Import food entries from a CSV file. Expected columns: Name, Calories, Protein, Fat, Carbs. Optional: Date, Serving Size.")
+                        .font(DS.Typography.caption)
+                        .foregroundStyle(DS.Color.textTertiary)
+                }
+
+                Section {
                     HStack {
                         Text("Version")
                         Spacer()
@@ -307,6 +333,29 @@ struct SettingsView: View {
             } message: {
                 Text("Your API key has been securely saved.")
             }
+            .fileImporter(isPresented: $showImportPicker, allowedContentTypes: [.commaSeparatedText]) { result in
+                switch result {
+                case .success(let url):
+                    importCSV(from: url)
+                case .failure(let error):
+                    importSummary = "Failed: \(error.localizedDescription)"
+                }
+            }
+        }
+    }
+
+    private func importCSV(from url: URL) {
+        isImporting = true
+        importSummary = nil
+        Task {
+            do {
+                let parsed = try CSVImportService.parse(csvURL: url)
+                let count = CSVImportService.importEntries(parsed.entries, into: modelContext)
+                importSummary = "Imported \(count) entries" + (parsed.skippedRows > 0 ? " (\(parsed.skippedRows) skipped)" : "")
+            } catch {
+                importSummary = "Failed: \(error.localizedDescription)"
+            }
+            isImporting = false
         }
     }
 
