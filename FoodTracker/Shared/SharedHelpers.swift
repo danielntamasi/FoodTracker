@@ -145,7 +145,7 @@ func quickAddEntry(_ entry: FoodEntry, into modelContext: ModelContext) {
         fatGrams: entry.fatGrams,
         photoData: entry.isGeneratedImage ? nil : entry.photoData,
         iconName: entry.iconName ?? foodIconName(for: entry.name),
-        servings: 1.0,
+        servings: entry.servings,
         servingDescription: entry.servingDescription,
         servingGrams: entry.servingGrams
     )
@@ -166,7 +166,7 @@ func quickAddMealGroup(_ entries: [FoodEntry], mealName: String?, into modelCont
             mealGroupID: newGroupID,
             mealName: mealName,
             iconName: entry.iconName ?? foodIconName(for: entry.name),
-            servings: 1.0,
+            servings: entry.servings,
             servingDescription: entry.servingDescription,
             servingGrams: entry.servingGrams
         )
