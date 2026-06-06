@@ -233,7 +233,7 @@ actor VisionAPIService {
         ])
 
         return [
-            "model": AppConstants.API.claudeModel,
+            "model": ClaudeModel.selected.rawValue,
             "max_tokens": 4096,
             "system": "You are an expert food identification and nutrition estimation assistant. Analyze carefully, reason through portion sizes and hidden calories step by step, then respond with valid JSON.",
             "messages": [
@@ -268,7 +268,7 @@ actor VisionAPIService {
 
     private func claudeEstimateBody(prompt: String) -> [String: Any] {
         [
-            "model": AppConstants.API.claudeModel,
+            "model": ClaudeModel.selected.rawValue,
             "max_tokens": 512,
             "system": "You are a nutrition estimation assistant. Always respond with valid JSON only.",
             "messages": [

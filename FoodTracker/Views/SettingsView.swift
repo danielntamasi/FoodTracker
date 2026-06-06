@@ -32,6 +32,7 @@ struct SettingsView: View {
     @Query private var allEntries: [FoodEntry]
     @FocusState private var isTargetFieldFocused: Bool
     @State private var selectedProvider = VisionProvider.selected
+    @State private var selectedClaudeModel = ClaudeModel.selected
     @State private var apiKey = ""
     @State private var showingKey = false
     @State private var usdaKey = ""
@@ -78,6 +79,16 @@ struct SettingsView: View {
                     .onChange(of: selectedProvider) { _, newValue in
                         VisionProvider.selected = newValue
                         loadKeyForCurrentProvider()
+                    }
+                    if selectedProvider == .claude {
+                        Picker("Model", selection: $selectedClaudeModel) {
+                            ForEach(ClaudeModel.allCases) { model in
+                                Text(model.displayName).tag(model)
+                            }
+                        }
+                        .onChange(of: selectedClaudeModel) { _, newValue in
+                            ClaudeModel.selected = newValue
+                        }
                     }
                 } header: {
                     Text("VISION PROVIDER")
