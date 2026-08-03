@@ -430,12 +430,12 @@ struct PhotoAnalysisView: View {
             }
             .padding(.horizontal, 12)
             .padding(.vertical, 6)
-            .background(isSelected ? DS.Color.protein.opacity(0.2) : DS.Color.backgroundElevated)
-            .foregroundStyle(isSelected ? DS.Color.protein : DS.Color.textSecondary)
+            .background(isSelected ? DS.Color.brandPink.opacity(0.12) : DS.Color.backgroundElevated)
+            .foregroundStyle(isSelected ? DS.Color.brandPink : DS.Color.textSecondary)
             .clipShape(Capsule())
             .overlay(
                 Capsule()
-                    .strokeBorder(isSelected ? DS.Color.protein.opacity(0.5) : DS.Color.border, lineWidth: 1)
+                    .strokeBorder(isSelected ? DS.Color.brandPink.opacity(0.4) : DS.Color.border, lineWidth: DS.Border.hairline)
             )
         }
         .buttonStyle(.plain)
@@ -747,7 +747,7 @@ struct SourceBadge: View {
         switch source {
         case .label: return DS.Color.success
         case .estimate: return DS.Color.carbs
-        case .barcode: return DS.Color.protein
+        case .barcode: return DS.Color.brandPink
         case .usda: return .teal
         }
     }

@@ -238,7 +238,7 @@ struct DailySummaryView: View {
         .clipShape(RoundedRectangle(cornerRadius: DS.Radius.l, style: .continuous))
         .overlay(
             RoundedRectangle(cornerRadius: DS.Radius.l, style: .continuous)
-                .strokeBorder(DS.Color.border, lineWidth: 1)
+                .strokeBorder(DS.Color.border, lineWidth: DS.Border.hairline)
         )
         .padding(.horizontal, DS.Spacing.m)
     }
@@ -249,7 +249,7 @@ struct DailySummaryView: View {
         VStack(spacing: 12) {
             Image(systemName: "fork.knife")
                 .font(.system(size: 48))
-                .foregroundStyle(DS.Color.protein)
+                .foregroundStyle(DS.Color.brandPink)
                 .symbolEffect(.pulse)
             Text("No meals logged today")
                 .font(.headline)
@@ -274,9 +274,9 @@ struct DailySummaryView: View {
                     .font(.system(size: 11, weight: .semibold))
                     .foregroundStyle(DS.Color.textSecondary)
                 Text(period.rawValue.uppercased())
-                    .font(DS.Typography.labelS)
+                    .font(DS.Typography.sectionLabel)
                     .foregroundStyle(DS.Color.textSecondary)
-                    .tracking(0.8)
+                    .tracking(1.5)
             }
 
             Spacer()

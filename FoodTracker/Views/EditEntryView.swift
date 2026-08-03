@@ -579,9 +579,9 @@ struct EditEntryView: View {
         VStack(alignment: .leading, spacing: 6) {
             if let header {
                 Text(header.uppercased())
-                    .font(DS.Typography.labelS)
+                    .font(DS.Typography.sectionLabel)
                     .foregroundStyle(DS.Color.textTertiary)
-                    .tracking(0.8)
+                    .tracking(1.5)
                     .padding(.horizontal, DS.Spacing.screenEdge + DS.Spacing.m)
             }
             VStack(spacing: 0) {

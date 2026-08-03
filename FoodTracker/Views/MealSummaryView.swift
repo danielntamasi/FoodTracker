@@ -67,9 +67,9 @@ struct MealSummaryView: View {
                             VStack(spacing: 16) {
                                 VStack(alignment: .leading, spacing: 0) {
                                     Text("\(mealGroup.entries.count) items")
-                                        .font(DS.Typography.labelS)
+                                        .font(DS.Typography.sectionLabel)
                                         .foregroundStyle(DS.Color.textTertiary)
-                                        .tracking(0.8)
+                                        .tracking(1.5)
                                         .padding(.horizontal, 24)
                                         .padding(.bottom, 8)
 

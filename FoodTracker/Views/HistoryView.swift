@@ -173,9 +173,10 @@ struct HistoryView: View {
                                         .font(.caption2)
                                         .foregroundStyle(DS.Color.textTertiary)
                                         .frame(width: 16)
-                                    Text(dateString)
-                                        .font(DS.Typography.labelS)
+                                    Text(dateString.uppercased())
+                                        .font(DS.Typography.sectionLabel)
                                         .foregroundStyle(DS.Color.textSecondary)
+                                        .tracking(1.5)
                                     Spacer()
                                     let dayCals = dayEntries.reduce(0) { $0 + $1.totalCalories }
                                     let dayP = dayEntries.reduce(0.0) { $0 + $1.totalProteinGrams }

@@ -100,9 +100,9 @@ struct DailyGoalBarsView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             Text("% OF DAILY GOAL")
-                .font(DS.Typography.labelS)
+                .font(DS.Typography.sectionLabel)
                 .foregroundStyle(DS.Color.textTertiary)
-                .tracking(0.8)
+                .tracking(1.5)
 
             VStack(spacing: 8) {
                 if calorieTarget > 0 {

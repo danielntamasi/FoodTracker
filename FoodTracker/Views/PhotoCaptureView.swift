@@ -114,7 +114,7 @@ struct PrecisionPhotoCaptureView: View {
                                     .fontWeight(.semibold)
                                     .padding(.horizontal, DS.Spacing.m)
                                     .padding(.vertical, DS.Spacing.s)
-                                    .background(DS.Color.protein)
+                                    .background(DS.Color.brandPink)
                                     .foregroundStyle(.white)
                                     .clipShape(Capsule())
                             }

@@ -21,7 +21,6 @@ enum DS {
     // MARK: Color
 
     enum Color {
-        // Adaptive helper: returns a Color that switches between light/dark hex values
         private static func adaptive(light: String, dark: String) -> SwiftUI.Color {
             SwiftUI.Color(uiColor: UIColor { traits in
                 let hex = traits.userInterfaceStyle == .dark ? dark : light
@@ -43,35 +42,43 @@ enum DS {
             })
         }
 
-        static let backgroundPrimary   = adaptive(light: "F2F2F7", dark: "0A0D12")
-        static let backgroundSecondary = adaptive(light: "FFFFFF", dark: "12161E")
-        static let backgroundElevated  = adaptive(light: "FFFFFF", dark: "1A1F2B")
-        static let backgroundSubtle    = adaptive(light: "F0F0F5", dark: "1F2535")
+        // Surfaces — off-white page + white cards (Airbnb layering)
+        static let backgroundPrimary   = adaptive(light: "F7F7F7", dark: "000000")
+        static let backgroundSecondary = adaptive(light: "FFFFFF", dark: "1A1A1A")
+        static let backgroundElevated  = adaptive(light: "FFFFFF", dark: "222222")
+        static let backgroundSubtle    = adaptive(light: "F0F0F0", dark: "2A2A2A")
 
-        static let textPrimary   = adaptive(light: "1C1C1E", dark: "F0F3FA")
-        static let textSecondary = adaptive(light: "6C6C70", dark: "9BA3B5")
-        static let textTertiary  = adaptive(light: "AEAEB2", dark: "4E566A")
+        // Text — 4-tier Airbnb hierarchy
+        static let textPrimary   = adaptive(light: "222222", dark: "F5F5F5")
+        static let textSecondary = adaptive(light: "717171", dark: "A0A0A0")
+        static let textTertiary  = adaptive(light: "B0B0B0", dark: "6B6B6B")
 
-        static let protein = adaptive(light: "3478F6", dark: "4D8CF5")
-        static let carbs   = adaptive(light: "E09500", dark: "F5A623")
-        static let fat     = adaptive(light: "8F5DE0", dark: "A776F5")
+        // Brand
+        static let brandPink = SwiftUI.Color(hex: "FF385C")
 
-        static let success = adaptive(light: "28A060", dark: "34C77B")
-        static let danger  = adaptive(light: "D93030", dark: "F05A5A")
+        // Macros
+        static let protein = adaptive(light: "3B82F6", dark: "60A5FA")
+        static let carbs   = adaptive(light: "D97706", dark: "F59E0B")
+        static let fat     = adaptive(light: "9333EA", dark: "A855F7")
 
-        static let border       = adaptiveOpacity(lightBase: .black, lightAlpha: 0.08, darkBase: .white, darkAlpha: 0.07)
-        static let borderStrong = adaptiveOpacity(lightBase: .black, lightAlpha: 0.15, darkBase: .white, darkAlpha: 0.12)
+        // Status
+        static let success = adaptive(light: "008A05", dark: "34C759")
+        static let danger  = adaptive(light: "D93030", dark: "FF453A")
 
-        // Semantic tokens
-        static let ringTrack       = adaptiveOpacity(lightBase: .black, lightAlpha: 0.06, darkBase: .white, darkAlpha: 0.06)
-        static let overlayText     = adaptive(light: "1C1C1E", dark: "FFFFFF")
+        // Borders — hairline Airbnb style
+        static let border       = adaptive(light: "EBEBEB", dark: "2A2A2A")
+        static let borderStrong = adaptive(light: "DDDDDD", dark: "3A3A3A")
+
+        // Semantic
+        static let ringTrack       = adaptiveOpacity(lightBase: .black, lightAlpha: 0.04, darkBase: .white, darkAlpha: 0.06)
+        static let overlayText     = adaptive(light: "222222", dark: "FFFFFF")
         static let dimming         = adaptiveOpacity(lightBase: .black, lightAlpha: 0.3, darkBase: .black, darkAlpha: 0.5)
-        static let shadowColor     = adaptiveOpacity(lightBase: .black, lightAlpha: 0.1, darkBase: .black, darkAlpha: 0.25)
+        static let shadowColor     = adaptiveOpacity(lightBase: .black, lightAlpha: 0.04, darkBase: .black, darkAlpha: 0.15)
         static let heroTextShadow  = adaptiveOpacity(lightBase: .white, lightAlpha: 0.5, darkBase: .black, darkAlpha: 0.3)
-        static let iconThumbnailBg = adaptiveOpacity(lightBase: .black, lightAlpha: 0.05, darkBase: .white, darkAlpha: 0.05)
+        static let iconThumbnailBg = adaptiveOpacity(lightBase: .black, lightAlpha: 0.04, darkBase: .white, darkAlpha: 0.06)
     }
 
-    // MARK: Spacing
+    // MARK: Spacing (8px grid)
 
     enum Spacing {
         static let xs: CGFloat  = 4
@@ -80,56 +87,70 @@ enum DS {
         static let l: CGFloat   = 24
         static let xl: CGFloat  = 32
         static let xxl: CGFloat = 48
-        static let screenEdge: CGFloat = 20
+        static let screenEdge: CGFloat = 24
     }
 
     // MARK: Radius
 
     enum Radius {
-        static let s: CGFloat  = 10
-        static let m: CGFloat  = 16
-        static let l: CGFloat  = 24
-        static let xl: CGFloat = 32
+        static let s: CGFloat  = 8
+        static let m: CGFloat  = 12
+        static let l: CGFloat  = 16
+        static let xl: CGFloat = 24
+    }
+
+    // MARK: Border
+
+    enum Border {
+        static let hairline: CGFloat = 0.5
+        static let regular: CGFloat = 1.0
     }
 
     // MARK: Typography
 
     enum Typography {
-        static let displayL = Font.system(size: 56, weight: .bold, design: .default)
-        static let displayM = Font.system(size: 36, weight: .semibold, design: .default)
+        static let displayL = Font.system(size: 32, weight: .bold)
+        static let displayM = Font.system(size: 22, weight: .semibold)
         static let numberL  = Font.system(size: 24, weight: .semibold, design: .rounded)
         static let numberM  = Font.system(size: 17, weight: .medium, design: .rounded)
-        static let labelL   = Font.system(size: 15, weight: .medium, design: .rounded)
-        static let labelM   = Font.system(size: 13, weight: .medium, design: .rounded)
-        static let labelS   = Font.system(size: 11, weight: .semibold, design: .rounded)
-        static let caption   = Font.system(size: 12, weight: .regular, design: .rounded)
+        static let labelL   = Font.system(size: 16, weight: .semibold)
+        static let labelM   = Font.system(size: 14, weight: .medium)
+        static let labelS   = Font.system(size: 12, weight: .semibold)
+        static let caption   = Font.system(size: 12, weight: .regular)
+        static let sectionLabel = Font.system(size: 11, weight: .bold)
     }
 
     // MARK: Gradient
 
     enum Gradient {
         static let calorieRing = AngularGradient(
-            colors: [DS.Color.protein, DS.Color.fat, DS.Color.protein],
+            colors: [SwiftUI.Color(hex: "FF385C"), SwiftUI.Color(hex: "FF6B81"), SwiftUI.Color(hex: "FF385C")],
             center: .center
         )
 
         static let cardShimmer = LinearGradient(
-            colors: [DS.Color.backgroundElevated, DS.Color.backgroundSubtle],
+            colors: [DS.Color.backgroundSecondary, DS.Color.backgroundSecondary],
             startPoint: .topLeading,
             endPoint: .bottomTrailing
         )
 
         static let heroGlow = RadialGradient(
-            colors: [DS.Color.protein.opacity(0.08), .clear],
+            colors: [SwiftUI.Color(hex: "FF385C").opacity(0.06), .clear],
             center: .center,
             startRadius: 0,
             endRadius: 200
         )
 
         static let plusButton = LinearGradient(
-            colors: [DS.Color.protein, DS.Color.fat],
-            startPoint: .topLeading,
-            endPoint: .bottomTrailing
+            colors: [SwiftUI.Color(hex: "E31C5F"), SwiftUI.Color(hex: "FF385C")],
+            startPoint: .leading,
+            endPoint: .trailing
+        )
+
+        static let ctaButton = LinearGradient(
+            colors: [SwiftUI.Color(hex: "D03660"), SwiftUI.Color(hex: "D73B53")],
+            startPoint: .leading,
+            endPoint: .trailing
         )
     }
 }
@@ -144,7 +165,7 @@ struct AppCardModifier: ViewModifier {
                     .fill(DS.Color.backgroundSecondary)
                     .overlay(
                         RoundedRectangle(cornerRadius: DS.Radius.m, style: .continuous)
-                            .strokeBorder(DS.Color.border, lineWidth: 1)
+                            .strokeBorder(DS.Color.border, lineWidth: DS.Border.hairline)
                     )
             )
     }
@@ -168,22 +189,22 @@ struct PressableButtonStyle: ButtonStyle {
 
 struct MacroPill: View {
     let value: String
-    let unit: String   // "P", "C", "F"
+    let unit: String
     let color: SwiftUI.Color
 
     var body: some View {
-        HStack(spacing: 3) {
+        HStack(spacing: 2) {
             Text(value)
-                .font(.system(size: 13, weight: .semibold, design: .rounded))
+                .font(.system(size: 13, weight: .semibold))
                 .monospacedDigit()
                 .foregroundStyle(color)
             Text(unit)
-                .font(.system(size: 11, weight: .bold, design: .rounded))
+                .font(.system(size: 11, weight: .bold))
                 .foregroundStyle(color.opacity(0.7))
         }
         .padding(.horizontal, 8)
         .padding(.vertical, 4)
-        .background(color.opacity(0.12))
+        .background(color.opacity(0.08))
         .clipShape(Capsule())
     }
 }
@@ -194,7 +215,7 @@ struct CalorieRing: View {
     let consumed: Int
     let goal: Int
     var size: CGFloat = 200
-    let lineWidth: CGFloat = 18
+    let lineWidth: CGFloat = 16
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var animatedProgress: Double = 0
@@ -208,16 +229,19 @@ struct CalorieRing: View {
 
     var body: some View {
         ZStack {
-            // Track
             Circle()
                 .stroke(DS.Color.ringTrack, lineWidth: lineWidth)
 
-            // Ring with glow via shadow
             Circle()
                 .trim(from: 0, to: animatedProgress)
                 .stroke(
                     AngularGradient(
-                        colors: [DS.Color.protein, DS.Color.protein, DS.Color.fat, DS.Color.fat],
+                        colors: [
+                            SwiftUI.Color(hex: "FF385C"),
+                            SwiftUI.Color(hex: "FF6B81"),
+                            SwiftUI.Color(hex: "FF385C"),
+                            SwiftUI.Color(hex: "FF385C"),
+                        ],
                         center: .center,
                         startAngle: .degrees(0),
                         endAngle: .degrees(360 * animatedProgress)
@@ -225,13 +249,11 @@ struct CalorieRing: View {
                     style: StrokeStyle(lineWidth: lineWidth, lineCap: .round)
                 )
                 .rotationEffect(.degrees(-90))
-                .shadow(color: DS.Color.protein.opacity(0.5), radius: 10)
-                .shadow(color: DS.Color.fat.opacity(0.3), radius: 16)
+                .shadow(color: SwiftUI.Color(hex: "FF385C").opacity(0.25), radius: 8)
 
-            // Center content
             VStack(spacing: 2) {
                 Text("\(consumed)")
-                    .font(.system(size: 48, weight: .bold, design: .default))
+                    .font(.system(size: 44, weight: .bold))
                     .monospacedDigit()
                     .foregroundStyle(DS.Color.textPrimary)
                     .contentTransition(.numericText())
@@ -241,7 +263,7 @@ struct CalorieRing: View {
                         .foregroundStyle(DS.Color.textSecondary)
                     Text("\(abs(remaining)) \(remaining >= 0 ? "left" : "over")")
                         .font(DS.Typography.caption)
-                        .foregroundStyle(remaining >= 0 ? DS.Color.protein : DS.Color.danger)
+                        .foregroundStyle(remaining >= 0 ? DS.Color.brandPink : DS.Color.danger)
                         .contentTransition(.numericText())
                 } else {
                     Text("calories")
@@ -295,18 +317,17 @@ struct MacroArc: View {
         VStack(spacing: 6) {
             ZStack {
                 Circle()
-                    .stroke(DS.Color.ringTrack, lineWidth: 5)
+                    .stroke(DS.Color.ringTrack, lineWidth: 4)
                     .frame(width: arcSize, height: arcSize)
 
                 Circle()
                     .trim(from: 0, to: animatedProgress)
                     .stroke(
                         isOver ? DS.Color.danger : color,
-                        style: StrokeStyle(lineWidth: 5, lineCap: .round)
+                        style: StrokeStyle(lineWidth: 4, lineCap: .round)
                     )
                     .rotationEffect(.degrees(-90))
                     .frame(width: arcSize, height: arcSize)
-                    .shadow(color: color.opacity(0.4), radius: 4)
 
                 VStack(spacing: 0) {
                     Text("\(Int(current))")
@@ -314,20 +335,19 @@ struct MacroArc: View {
                         .monospacedDigit()
                         .foregroundStyle(isOver ? DS.Color.danger : DS.Color.textPrimary)
                     Text("g")
-                        .font(.system(size: 10, weight: .medium, design: .rounded))
+                        .font(.system(size: 10, weight: .medium))
                         .foregroundStyle(DS.Color.textSecondary)
                 }
             }
 
-            Text(label)
-                .font(DS.Typography.labelS)
+            Text(label.uppercased())
+                .font(DS.Typography.sectionLabel)
                 .foregroundStyle(DS.Color.textSecondary)
-                .textCase(.uppercase)
-                .tracking(0.5)
+                .tracking(1.0)
 
             if goal > 0 {
                 Text("/ \(Int(goal))g")
-                    .font(.system(size: 10, weight: .regular, design: .rounded))
+                    .font(.system(size: 10, weight: .regular))
                     .foregroundStyle(DS.Color.textTertiary)
             }
         }

@@ -166,7 +166,7 @@ struct ContentView: View {
                     .frame(width: 52, height: 52)
                     .background(DS.Color.backgroundElevated)
                     .clipShape(Circle())
-                    .shadow(color: DS.Color.protein.opacity(0.2), radius: 6, y: 2)
+                    .shadow(color: DS.Color.brandPink.opacity(0.15), radius: 6, y: 2)
                 Text(item.label)
                     .font(.caption2)
                     .fontWeight(.medium)
@@ -216,7 +216,7 @@ struct ContentView: View {
                     .frame(width: 56, height: 56)
                     .background(DS.Gradient.plusButton)
                     .clipShape(Circle())
-                    .shadow(color: DS.Color.protein.opacity(0.4), radius: 12, y: 4)
+                    .shadow(color: DS.Color.brandPink.opacity(0.3), radius: 12, y: 4)
                     .rotationEffect(.degrees(showingRadialMenu ? 45 : 0))
             }
             .accessibilityLabel(showingRadialMenu ? "Close menu" : "Add food")
@@ -229,19 +229,16 @@ struct ContentView: View {
 
             tabItem(icon: "gearshape", filledIcon: "gearshape.fill", label: "Settings", tab: .settings)
         }
-        .padding(.horizontal, 8)
-        .padding(.vertical, 8)
+        .padding(.horizontal, DS.Spacing.s)
+        .padding(.vertical, DS.Spacing.s)
         .background(
-            RoundedRectangle(cornerRadius: DS.Radius.l)
-                .fill(DS.Color.backgroundPrimary.opacity(0.7))
-                .background(
-                    RoundedRectangle(cornerRadius: DS.Radius.l)
-                        .fill(.ultraThinMaterial)
-                )
-                .shadow(color: DS.Color.shadowColor, radius: 12, y: 4)
+            VStack(spacing: 0) {
+                Rectangle()
+                    .fill(DS.Color.border)
+                    .frame(height: DS.Border.hairline)
+                DS.Color.backgroundSecondary
+            }
         )
-        .padding(.horizontal, DS.Spacing.screenEdge)
-        .padding(.bottom, 8)
     }
 
     private func tabItem(icon: String, filledIcon: String, label: String, tab: AppTab) -> some View {
@@ -258,7 +255,7 @@ struct ContentView: View {
                 Text(label)
                     .font(.caption2)
             }
-            .foregroundStyle(isActive ? DS.Color.protein : DS.Color.textTertiary)
+            .foregroundStyle(isActive ? DS.Color.brandPink : DS.Color.textTertiary)
             .frame(maxWidth: .infinity)
             .contentShape(Rectangle())
         }

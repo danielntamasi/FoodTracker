@@ -60,9 +60,9 @@ struct SettingsView: View {
                     .pickerStyle(.segmented)
                 } header: {
                     Text("APPEARANCE")
-                        .font(DS.Typography.labelS)
+                        .font(DS.Typography.sectionLabel)
                         .foregroundStyle(DS.Color.textTertiary)
-                        .tracking(0.8)
+                        .tracking(1.5)
                 }
 
                 Section {
@@ -77,9 +77,9 @@ struct SettingsView: View {
                     }
                 } header: {
                     Text("VISION PROVIDER")
-                        .font(DS.Typography.labelS)
+                        .font(DS.Typography.sectionLabel)
                         .foregroundStyle(DS.Color.textTertiary)
-                        .tracking(0.8)
+                        .tracking(1.5)
                 }
 
                 Section {
@@ -107,13 +107,13 @@ struct SettingsView: View {
                             savedSuccessfully = true
                         }
                     }
-                    .foregroundStyle(DS.Color.protein)
+                    .foregroundStyle(DS.Color.brandPink)
                     .disabled(apiKey.isEmpty)
                 } header: {
                     Text("\(selectedProvider.rawValue) API Key".uppercased())
-                        .font(DS.Typography.labelS)
+                        .font(DS.Typography.sectionLabel)
                         .foregroundStyle(DS.Color.textTertiary)
-                        .tracking(0.8)
+                        .tracking(1.5)
                 } footer: {
                     Text("Stored securely in the Keychain. \(selectedProvider.keyInstructions).")
                         .font(DS.Typography.caption)
@@ -146,13 +146,13 @@ struct SettingsView: View {
                             savedSuccessfully = true
                         }
                     }
-                    .foregroundStyle(DS.Color.protein)
+                    .foregroundStyle(DS.Color.brandPink)
                     .disabled(usdaKey.isEmpty)
                 } header: {
                     Text("USDA API KEY (OPTIONAL)")
-                        .font(DS.Typography.labelS)
+                        .font(DS.Typography.sectionLabel)
                         .foregroundStyle(DS.Color.textTertiary)
-                        .tracking(0.8)
+                        .tracking(1.5)
                 } footer: {
                     Text("Free key with 1,000 requests/hour. Sign up at fdc.nal.usda.gov/api-key-signup. Without a key, the app uses DEMO_KEY (30/hour).")
                         .font(DS.Typography.caption)
@@ -188,13 +188,13 @@ struct SettingsView: View {
                         let p = KeychainService.save(apiKey: offPassword, account: OpenFoodFactsService.keychainAccountPassword)
                         if u && p { savedSuccessfully = true }
                     }
-                    .foregroundStyle(DS.Color.protein)
+                    .foregroundStyle(DS.Color.brandPink)
                     .disabled(offUserID.isEmpty || offPassword.isEmpty)
                 } header: {
                     Text("OPENFOODFACTS ACCOUNT (OPTIONAL)")
-                        .font(DS.Typography.labelS)
+                        .font(DS.Typography.sectionLabel)
                         .foregroundStyle(DS.Color.textTertiary)
-                        .tracking(0.8)
+                        .tracking(1.5)
                 } footer: {
                     Text("When you correct nutrition data on a scanned product, the app can submit corrections to OpenFoodFacts. Register free at world.openfoodfacts.org.")
                         .font(DS.Typography.caption)
@@ -208,9 +208,9 @@ struct SettingsView: View {
                     targetRow("Fat (g)", value: $fatTarget, key: DailyTarget.fatKey)
                 } header: {
                     Text("DAILY TARGETS")
-                        .font(DS.Typography.labelS)
+                        .font(DS.Typography.sectionLabel)
                         .foregroundStyle(DS.Color.textTertiary)
-                        .tracking(0.8)
+                        .tracking(1.5)
                 } footer: {
                     Text("Set to 0 to disable a target. Targets are shown on the Today screen.")
                         .font(DS.Typography.caption)
@@ -236,9 +236,9 @@ struct SettingsView: View {
                         }
                 } header: {
                     Text("APPLE HEALTH")
-                        .font(DS.Typography.labelS)
+                        .font(DS.Typography.sectionLabel)
                         .foregroundStyle(DS.Color.textTertiary)
-                        .tracking(0.8)
+                        .tracking(1.5)
                 } footer: {
                     Text("When enabled, food entries are written to Apple Health as nutrition data.")
                         .font(DS.Typography.caption)
@@ -253,9 +253,9 @@ struct SettingsView: View {
                             }
                     } header: {
                         Text("IMAGE PLAYGROUND")
-                            .font(DS.Typography.labelS)
+                            .font(DS.Typography.sectionLabel)
                             .foregroundStyle(DS.Color.textTertiary)
-                            .tracking(0.8)
+                            .tracking(1.5)
                     } footer: {
                         Text("Automatically generate food images for entries without photos using Apple Intelligence.")
                             .font(DS.Typography.caption)
@@ -280,9 +280,9 @@ struct SettingsView: View {
                     }
                 } header: {
                     Text("ABOUT")
-                        .font(DS.Typography.labelS)
+                        .font(DS.Typography.sectionLabel)
                         .foregroundStyle(DS.Color.textTertiary)
-                        .tracking(0.8)
+                        .tracking(1.5)
                 }
             }
             .contentMargins(.bottom, 88, for: .scrollContent)
@@ -331,9 +331,9 @@ struct SettingsView: View {
             }
         } header: {
             Text("ACCURACY")
-                .font(DS.Typography.labelS)
+                .font(DS.Typography.sectionLabel)
                 .foregroundStyle(DS.Color.textTertiary)
-                .tracking(0.8)
+                .tracking(1.5)
         }
     }
 
@@ -390,9 +390,9 @@ struct AccuracyDetailView: View {
                     }
                 } header: {
                     Text("OVERVIEW")
-                        .font(DS.Typography.labelS)
+                        .font(DS.Typography.sectionLabel)
                         .foregroundStyle(DS.Color.textTertiary)
-                        .tracking(0.8)
+                        .tracking(1.5)
                 }
 
                 if !summary.mostCorrectedFoods.isEmpty {
@@ -408,9 +408,9 @@ struct AccuracyDetailView: View {
                         }
                     } header: {
                         Text("MOST CORRECTED FOODS")
-                            .font(DS.Typography.labelS)
+                            .font(DS.Typography.sectionLabel)
                             .foregroundStyle(DS.Color.textTertiary)
-                            .tracking(0.8)
+                            .tracking(1.5)
                     }
                 }
 
@@ -441,9 +441,9 @@ struct AccuracyDetailView: View {
                         }
                     } header: {
                         Text("RECENT CORRECTIONS")
-                            .font(DS.Typography.labelS)
+                            .font(DS.Typography.sectionLabel)
                             .foregroundStyle(DS.Color.textTertiary)
-                            .tracking(0.8)
+                            .tracking(1.5)
                     }
                 }
 

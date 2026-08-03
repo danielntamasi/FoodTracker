@@ -48,7 +48,7 @@ struct FoodTrackerApp: App {
         WindowGroup {
             ContentView()
                 .preferredColorScheme(resolvedColorScheme)
-                .tint(DS.Color.protein)
+                .tint(DS.Color.brandPink)
                 .onAppear { migrateEntryNames() }
         }
         .modelContainer(sharedModelContainer)

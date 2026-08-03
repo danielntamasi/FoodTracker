@@ -65,7 +65,7 @@ enum DotStatus {
     var color: Color {
         switch self {
         case .noData: return DS.Color.textTertiary
-        case .noTarget: return DS.Color.protein.opacity(0.3)
+        case .noTarget: return DS.Color.brandPink.opacity(0.3)
         case .onTarget: return DS.Color.success
         case .over(let severe), .under(let severe):
             return severe ? DS.Color.danger : DS.Color.carbs
@@ -510,7 +510,7 @@ struct PerformanceTileView: View {
                 let symbol = calendar.veryShortWeekdaySymbols[weekday - 1]
                 VStack(spacing: 4) {
                     Circle()
-                        .fill(record.hasData ? DS.Color.protein : DS.Color.textTertiary)
+                        .fill(record.hasData ? DS.Color.brandPink : DS.Color.textTertiary)
                         .frame(width: 12, height: 12)
                     Text(symbol)
                         .font(.caption2)

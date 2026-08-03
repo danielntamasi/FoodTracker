@@ -273,7 +273,7 @@ struct PerformanceCalculator {
 
     func monthDotColor(hasData: Bool, adherencePct: Double?) -> Color {
         guard hasData else { return DS.Color.textTertiary }
-        guard let adherence = adherencePct else { return DS.Color.protein }
+        guard let adherence = adherencePct else { return DS.Color.brandPink }
         if adherence >= PerformanceThresholds.monthDotGood { return DS.Color.success }
         if adherence >= PerformanceThresholds.monthDotFair { return DS.Color.carbs }
         return DS.Color.danger
