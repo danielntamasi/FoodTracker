@@ -34,3 +34,6 @@ skills-lock.json
 
 # Logs
 *.log
+
+# Personal build settings (see Config.xcconfig)
+Secrets.xcconfig

@@ -97,7 +97,9 @@ struct BarcodeScannerView: View {
                     carbsPer100g: product.carbsPer100g,
                     fatPer100g: product.fatPer100g,
                     servingGrams: product.portionGrams,
-                    barcode: barcode
+                    barcode: barcode,
+                    scannedServingDescription: product.servingSize,
+                    scannedServingGrams: product.portionGrams
                 )
                 scannedFoods = [food]
                 isLookingUp = false

@@ -33,6 +33,7 @@ struct SettingsView: View {
     @FocusState private var isTargetFieldFocused: Bool
     @State private var selectedProvider = VisionProvider.selected
     @State private var selectedClaudeModel = ClaudeModel.selected
+    @State private var claudeModels = ClaudeModel.available
     @State private var apiKey = ""
     @State private var showingKey = false
     @State private var usdaKey = ""
@@ -52,6 +53,7 @@ struct SettingsView: View {
     @State private var showImportPicker = false
     @State private var isImporting = false
     @State private var importSummary: String?
+    @State private var exportFile: ExportFile?
 
     var body: some View {
         NavigationStack {
@@ -82,12 +84,15 @@ struct SettingsView: View {
                     }
                     if selectedProvider == .claude {
                         Picker("Model", selection: $selectedClaudeModel) {
-                            ForEach(ClaudeModel.allCases) { model in
+                            ForEach(claudeModels) { model in
                                 Text(model.displayName).tag(model)
                             }
                         }
                         .onChange(of: selectedClaudeModel) { _, newValue in
                             ClaudeModel.selected = newValue
+                        }
+                        .task {
+                            await refreshClaudeModels()
                         }
                     }
                 } header: {
@@ -120,6 +125,9 @@ struct SettingsView: View {
                     Button("Save API Key") {
                         if KeychainService.save(apiKey: apiKey, account: selectedProvider.keychainAccount) {
                             savedSuccessfully = true
+                            if selectedProvider == .claude {
+                                Task { await refreshClaudeModels() }
+                            }
                         }
                     }
                     .foregroundStyle(DS.Color.protein)
@@ -286,6 +294,11 @@ struct SettingsView: View {
                     } label: {
                         Label("Import Food Entries (CSV)", systemImage: "square.and.arrow.down")
                     }
+                    Button {
+                        exportEntries()
+                    } label: {
+                        Label("Export Food Entries (CSV)", systemImage: "square.and.arrow.up")
+                    }
                     if let importSummary {
                         Text(importSummary)
                             .font(DS.Typography.caption)
@@ -297,7 +310,24 @@ struct SettingsView: View {
                         .foregroundStyle(DS.Color.textTertiary)
                         .tracking(0.8)
                 } footer: {
-                    Text("Import food entries from a CSV file. Expected columns: Name, Calories, Protein, Fat, Carbs. Optional: Date, Serving Size.")
+                    Text("Import food entries from a CSV file. Expected columns: Name, Calories, Protein, Fat, Carbs. Optional: Date, Serving Size. Export writes your whole log in the same format.")
+                        .font(DS.Typography.caption)
+                        .foregroundStyle(DS.Color.textTertiary)
+                }
+
+                Section {
+                    Button {
+                        FeedbackPresenter.present(context: FeedbackService.makeContext(screenshot: nil, modelContext: modelContext))
+                    } label: {
+                        Label("Send Feedback", systemImage: "bubble.left.and.text.bubble.right")
+                    }
+                } header: {
+                    Text("FEEDBACK")
+                        .font(DS.Typography.labelS)
+                        .foregroundStyle(DS.Color.textTertiary)
+                        .tracking(0.8)
+                } footer: {
+                    Text("Report a problem or suggest a feature. Tip: shake your phone on any screen to report what's on it, with a screenshot.")
                         .font(DS.Typography.caption)
                         .foregroundStyle(DS.Color.textTertiary)
                 }
@@ -344,6 +374,9 @@ struct SettingsView: View {
             } message: {
                 Text("Your API key has been securely saved.")
             }
+            .sheet(item: $exportFile) { file in
+                ShareSheet(activityItems: [file.url])
+            }
             .fileImporter(isPresented: $showImportPicker, allowedContentTypes: [.commaSeparatedText]) { result in
                 switch result {
                 case .success(let url):
@@ -352,6 +385,19 @@ struct SettingsView: View {
                     importSummary = "Failed: \(error.localizedDescription)"
                 }
             }
+        }
+    }
+
+    private func exportEntries() {
+        let entries = (try? modelContext.fetch(FetchDescriptor<FoodEntry>())) ?? []
+        guard !entries.isEmpty else {
+            importSummary = "Nothing to export yet"
+            return
+        }
+        if let url = CSVImportService.exportCSV(entries) {
+            exportFile = ExportFile(url: url)
+        } else {
+            importSummary = "Export failed"
         }
     }
 
@@ -367,6 +413,12 @@ struct SettingsView: View {
                 importSummary = "Failed: \(error.localizedDescription)"
             }
             isImporting = false
+        }
+    }
+
+    private func refreshClaudeModels() async {
+        if let models = await ClaudeModel.refreshAvailable() {
+            claudeModels = models
         }
     }
 
@@ -421,10 +473,16 @@ struct SettingsView: View {
 
 // MARK: - Accuracy Detail View
 
+private struct ExportFile: Identifiable {
+    let url: URL
+    var id: URL { url }
+}
+
 struct AccuracyDetailView: View {
     @State private var summary: AccuracyTracker.AccuracySummary?
     @State private var recentCorrections: [AccuracyTracker.CorrectionRecord] = []
     @State private var showClearAlert = false
+    @State private var exportURL: URL?
 
     var body: some View {
         List {
@@ -526,9 +584,19 @@ struct AccuracyDetailView: View {
         .background(DS.Color.backgroundPrimary)
         .navigationTitle("Estimation Accuracy")
         .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            if let exportURL {
+                ToolbarItem(placement: .primaryAction) {
+                    ShareLink(item: exportURL) {
+                        Label("Export", systemImage: "square.and.arrow.up")
+                    }
+                }
+            }
+        }
         .task {
             summary = await AccuracyTracker.shared.summary()
             recentCorrections = await AccuracyTracker.shared.recentCorrections()
+            exportURL = await AccuracyTracker.shared.exportCSV()
         }
         .alert("Clear History?", isPresented: $showClearAlert) {
             Button("Clear", role: .destructive) {
@@ -536,6 +604,7 @@ struct AccuracyDetailView: View {
                     await AccuracyTracker.shared.clearHistory()
                     summary = await AccuracyTracker.shared.summary()
                     recentCorrections = []
+                    exportURL = nil
                 }
             }
             Button("Cancel", role: .cancel) {}

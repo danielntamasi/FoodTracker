@@ -44,13 +44,17 @@
 		C10001010000000000000003 /* NutritionLookup.swift in Sources */ = {isa = PBXBuildFile; fileRef = C10002010000000000000003 /* NutritionLookup.swift */; };
 		C10001010000000000000004 /* PerformanceCalculator.swift in Sources */ = {isa = PBXBuildFile; fileRef = C10002010000000000000004 /* PerformanceCalculator.swift */; };
 		C40001010000000000000001 /* HealthKitService.swift in Sources */ = {isa = PBXBuildFile; fileRef = C40002010000000000000001 /* HealthKitService.swift */; };
-		E7A1B2C30000000000000001 /* ImagePlaygroundService.swift in Sources */ = {isa = PBXBuildFile; fileRef = E7A1B2C30000000000000002 /* ImagePlaygroundService.swift */; };
 		D10001010000000000000001 /* DesignSystem.swift in Sources */ = {isa = PBXBuildFile; fileRef = D10002010000000000000001 /* DesignSystem.swift */; };
-		F50001010000000000000001 /* AccuracyTracker.swift in Sources */ = {isa = PBXBuildFile; fileRef = F50002010000000000000001 /* AccuracyTracker.swift */; };
 		E20001010000000000000001 /* PipelineTrace.swift in Sources */ = {isa = PBXBuildFile; fileRef = E20002010000000000000001 /* PipelineTrace.swift */; };
 		E20001010000000000000002 /* BugReportService.swift in Sources */ = {isa = PBXBuildFile; fileRef = E20002010000000000000002 /* BugReportService.swift */; };
 		E20001010000000000000003 /* BugReportView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E20002010000000000000003 /* BugReportView.swift */; };
+		E7A1B2C30000000000000001 /* ImagePlaygroundService.swift in Sources */ = {isa = PBXBuildFile; fileRef = E7A1B2C30000000000000002 /* ImagePlaygroundService.swift */; };
 		F30001010000000000000001 /* CSVImportService.swift in Sources */ = {isa = PBXBuildFile; fileRef = F30002010000000000000001 /* CSVImportService.swift */; };
+		F60001010000000000000001 /* FoodChatService.swift in Sources */ = {isa = PBXBuildFile; fileRef = F60002010000000000000001 /* FoodChatService.swift */; };
+		F60001010000000000000003 /* FeedbackService.swift in Sources */ = {isa = PBXBuildFile; fileRef = F60002010000000000000003 /* FeedbackService.swift */; };
+		F60001010000000000000002 /* FoodChatView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F60002010000000000000002 /* FoodChatView.swift */; };
+		F60001010000000000000004 /* FeedbackView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F60002010000000000000004 /* FeedbackView.swift */; };
+		F50001010000000000000001 /* AccuracyTracker.swift in Sources */ = {isa = PBXBuildFile; fileRef = F50002010000000000000001 /* AccuracyTracker.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -118,13 +122,18 @@
 		C10002010000000000000003 /* NutritionLookup.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NutritionLookup.swift; sourceTree = "<group>"; };
 		C10002010000000000000004 /* PerformanceCalculator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PerformanceCalculator.swift; sourceTree = "<group>"; };
 		C40002010000000000000001 /* HealthKitService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HealthKitService.swift; sourceTree = "<group>"; };
-		E7A1B2C30000000000000002 /* ImagePlaygroundService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImagePlaygroundService.swift; sourceTree = "<group>"; };
 		D10002010000000000000001 /* DesignSystem.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DesignSystem.swift; sourceTree = "<group>"; };
-		F50002010000000000000001 /* AccuracyTracker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AccuracyTracker.swift; sourceTree = "<group>"; };
 		E20002010000000000000001 /* PipelineTrace.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PipelineTrace.swift; sourceTree = "<group>"; };
 		E20002010000000000000002 /* BugReportService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BugReportService.swift; sourceTree = "<group>"; };
 		E20002010000000000000003 /* BugReportView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BugReportView.swift; sourceTree = "<group>"; };
+		E7A1B2C30000000000000002 /* ImagePlaygroundService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImagePlaygroundService.swift; sourceTree = "<group>"; };
 		F30002010000000000000001 /* CSVImportService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CSVImportService.swift; sourceTree = "<group>"; };
+		F60002010000000000000009 /* Config.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Config.xcconfig; sourceTree = "<group>"; };
+		F60002010000000000000001 /* FoodChatService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FoodChatService.swift; sourceTree = "<group>"; };
+		F60002010000000000000003 /* FeedbackService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FeedbackService.swift; sourceTree = "<group>"; };
+		F60002010000000000000002 /* FoodChatView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FoodChatView.swift; sourceTree = "<group>"; };
+		F60002010000000000000004 /* FeedbackView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FeedbackView.swift; sourceTree = "<group>"; };
+		F50002010000000000000001 /* AccuracyTracker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AccuracyTracker.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -151,6 +160,7 @@
 				A10005010000000000000002 /* FoodTracker */,
 				A10005010000000000000007 /* FoodTrackerWidget */,
 				A10005010000000000000006 /* Products */,
+				F60002010000000000000009 /* Config.xcconfig */,
 			);
 			sourceTree = "<group>";
 		};
@@ -184,6 +194,8 @@
 				C10002010000000000000001 /* VisionAPIService.swift */,
 				A10002010000000000000004 /* FoodAnalysisPipeline.swift */,
 				F30002010000000000000001 /* CSVImportService.swift */,
+				F60002010000000000000001 /* FoodChatService.swift */,
+				F60002010000000000000003 /* FeedbackService.swift */,
 				E20002010000000000000002 /* BugReportService.swift */,
 				E20002010000000000000001 /* PipelineTrace.swift */,
 				B30002010000000000000004 /* FoodAnalysisModels.swift */,
@@ -205,6 +217,8 @@
 				A1000F010000000000000001 /* SearchFoodView.swift */,
 				A10002010000000000000008 /* PhotoCaptureView.swift */,
 				A10002010000000000000009 /* PhotoAnalysisView.swift */,
+				F60002010000000000000002 /* FoodChatView.swift */,
+				F60002010000000000000004 /* FeedbackView.swift */,
 				E20002010000000000000003 /* BugReportView.swift */,
 				A1000201000000000000000A /* HistoryView.swift */,
 				A1000201000000000000000B /* SettingsView.swift */,
@@ -249,7 +263,7 @@
 				C10002010000000000000002 /* AppConstants.swift */,
 				C10002010000000000000003 /* NutritionLookup.swift */,
 				C10002010000000000000004 /* PerformanceCalculator.swift */,
-			D10002010000000000000001 /* DesignSystem.swift */,
+				D10002010000000000000001 /* DesignSystem.swift */,
 			);
 			path = Shared;
 			sourceTree = "<group>";
@@ -359,6 +373,10 @@
 				A10001010000000000000003 /* KeychainService.swift in Sources */,
 				A10001010000000000000004 /* FoodAnalysisPipeline.swift in Sources */,
 				F30001010000000000000001 /* CSVImportService.swift in Sources */,
+				F60001010000000000000001 /* FoodChatService.swift in Sources */,
+				F60001010000000000000003 /* FeedbackService.swift in Sources */,
+				F60001010000000000000002 /* FoodChatView.swift in Sources */,
+				F60001010000000000000004 /* FeedbackView.swift in Sources */,
 				E20001010000000000000003 /* BugReportView.swift in Sources */,
 				E20001010000000000000002 /* BugReportService.swift in Sources */,
 				E20001010000000000000001 /* PipelineTrace.swift in Sources */,
@@ -391,7 +409,7 @@
 				C40001010000000000000001 /* HealthKitService.swift in Sources */,
 				E7A1B2C30000000000000001 /* ImagePlaygroundService.swift in Sources */,
 				F50001010000000000000001 /* AccuracyTracker.swift in Sources */,
-			D10001010000000000000001 /* DesignSystem.swift in Sources */,
+				D10001010000000000000001 /* DesignSystem.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -537,6 +555,7 @@
 		};
 		A1000A010000000000000003 /* Debug */ = {
 			isa = XCBuildConfiguration;
+			baseConfigurationReference = F60002010000000000000009 /* Config.xcconfig */;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
@@ -573,6 +592,7 @@
 		};
 		A1000A010000000000000004 /* Release */ = {
 			isa = XCBuildConfiguration;
+			baseConfigurationReference = F60002010000000000000009 /* Config.xcconfig */;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;

@@ -52,6 +52,9 @@ struct IdentifiedFood: Identifiable {
     var servings: Double = 1.0
     // Barcode string if this food came from a barcode scan
     var barcode: String?
+    // Serving as the database returned it, to detect serving corrections
+    var scannedServingDescription: String?
+    var scannedServingGrams: Double?
 
     // Accuracy enhancement fields (Phase 1)
     var hiddenCaloriesEstimate: Int?

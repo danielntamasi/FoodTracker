@@ -131,6 +131,36 @@ actor AccuracyTracker {
     }
 
     /// Clear all correction history.
+    /// Writes the full correction history to a CSV file for sharing; nil when there is nothing to export.
+    func exportCSV() -> URL? {
+        loadIfNeeded()
+        guard !corrections.isEmpty else { return nil }
+
+        let formatter = ISO8601DateFormatter()
+        func field(_ text: String) -> String { "\"" + text.replacingOccurrences(of: "\"", with: "\"\"") + "\"" }
+        func num(_ value: Double) -> String { String(format: "%.1f", value) }
+
+        var lines = ["date,food,source,original_calories,original_protein,original_carbs,original_fat,corrected_calories,corrected_protein,corrected_carbs,corrected_fat,calorie_delta,calorie_error_percent"]
+        for r in corrections.sorted(by: { $0.date < $1.date }) {
+            lines.append([
+                formatter.string(from: r.date), field(r.foodName), r.source,
+                "\(r.originalCalories)", num(r.originalProtein), num(r.originalCarbs), num(r.originalFat),
+                "\(r.correctedCalories)", num(r.correctedProtein), num(r.correctedCarbs), num(r.correctedFat),
+                "\(r.calorieDelta)", num(r.calorieErrorPercent)
+            ].joined(separator: ","))
+        }
+
+        let day = formatter.string(from: Date()).prefix(10)
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent("FoodTracker_Corrections_\(day).csv")
+        do {
+            try lines.joined(separator: "\n").write(to: url, atomically: true, encoding: .utf8)
+            return url
+        } catch {
+            logger.error("Failed to export corrections: \(error.localizedDescription)")
+            return nil
+        }
+    }
+
     func clearHistory() {
         corrections = []
         save()

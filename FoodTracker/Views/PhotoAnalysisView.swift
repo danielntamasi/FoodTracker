@@ -180,7 +180,7 @@ struct PhotoAnalysisView: View {
                     identifiedFoods: identifiedFoods
                 )
             }
-            .alert("Improve Nutrition Data?", isPresented: $showCorrectionAlert) {
+            .alert("Submit Correction to OpenFoodFacts?", isPresented: $showCorrectionAlert) {
                 Button("Submit Correction") {
                     let corrections = pendingCorrections
                     Task { for c in corrections { await OpenFoodFactsService.shared.submitCorrection(c) } }
@@ -188,7 +188,7 @@ struct PhotoAnalysisView: View {
                 }
                 Button("No Thanks", role: .cancel) { dismiss() }
             } message: {
-                Text("You corrected the nutrition data for a scanned product. Submit your correction to OpenFoodFacts to help other users?")
+                Text("You corrected a scanned product. This will be sent to the public database:\n\n" + pendingCorrections.map(\.summary).joined(separator: "\n\n"))
             }
         }
     }
@@ -520,14 +520,21 @@ struct PhotoAnalysisView: View {
 
     @ViewBuilder
     private func portionPicker(index: Int) -> some View {
-        let servingDesc = identifiedFoods[index].portionDescription
-        let servingLabel = servingDesc.isEmpty ? "serving" : servingDesc
-
         HStack {
             Text("Serving Size")
             Spacer()
-            Text(servingLabel)
-                .foregroundStyle(DS.Color.textSecondary)
+            TextField("1 serving", text: $identifiedFoods[index].portionDescription)
+                .multilineTextAlignment(.trailing)
+        }
+        HStack {
+            Text("Serving Weight (g)")
+            Spacer()
+            TextField("Grams", value: Binding(
+                get: { identifiedFoods[index].servingGrams },
+                set: { setServingGrams($0, at: index) }
+            ), format: .number)
+                .keyboardType(.decimalPad)
+                .multilineTextAlignment(.trailing)
         }
 
         ServingPicker(servings: Binding(
@@ -536,6 +543,40 @@ struct PhotoAnalysisView: View {
                 applyServings(max(0.25, newValue), at: index)
             }
         ))
+    }
+
+    /// Whether the item's nutrition is still what its per-100g data gives for the current serving,
+    /// i.e. the user hasn't typed over it.
+    private func nutritionMatchesPer100g(_ food: IdentifiedFood) -> Bool {
+        guard let calPer100g = food.caloriesPer100g,
+              let protPer100g = food.proteinPer100g,
+              let carbsPer100g = food.carbsPer100g,
+              let fatPer100g = food.fatPer100g else { return false }
+
+        let expected = perServingFromPer100g(
+            calPer100g: calPer100g, protPer100g: protPer100g,
+            carbsPer100g: carbsPer100g, fatPer100g: fatPer100g,
+            servingGrams: (food.servingGrams ?? 100) * food.servings
+        )
+        return abs(food.calories - expected.calories) <= 1
+            && abs(food.proteinGrams - expected.protein) <= 0.2
+            && abs(food.carbsGrams - expected.carbs) <= 0.2
+            && abs(food.fatGrams - expected.fat) <= 0.2
+    }
+
+    /// Changes the weight of one serving. Untouched nutrition is recalculated for the new weight;
+    /// values the user typed (e.g. from the label) are kept and now describe the new serving.
+    private func setServingGrams(_ grams: Double?, at index: Int) {
+        guard let grams, grams > 0, grams != identifiedFoods[index].servingGrams else { return }
+
+        let recalculate = nutritionMatchesPer100g(identifiedFoods[index])
+        identifiedFoods[index].servingGrams = grams
+        identifiedFoods[index].portionDescription = strippingServingWeight(identifiedFoods[index].portionDescription)
+        if recalculate {
+            applyServings(identifiedFoods[index].servings, at: index)
+        } else {
+            identifiedFoods[index].portionGrams = (grams * identifiedFoods[index].servings).roundedTo(1)
+        }
     }
 
     private func applyServings(_ servings: Double, at index: Int) {
@@ -685,17 +726,7 @@ struct PhotoAnalysisView: View {
                let fatPer100g = food.fatPer100g {
                 // Has per-100g data: check if user manually edited macros
                 let oneServingGrams = food.servingGrams ?? 100
-                let expectedTotalGrams = oneServingGrams * food.servings
-                let expected = perServingFromPer100g(
-                    calPer100g: calPer100g, protPer100g: protPer100g,
-                    carbsPer100g: carbsPer100g, fatPer100g: fatPer100g,
-                    servingGrams: expectedTotalGrams
-                )
-                let calDiff = abs(food.calories - expected.calories)
-                let protDiff = abs(food.proteinGrams - expected.protein)
-                let carbsDiff = abs(food.carbsGrams - expected.carbs)
-                let fatDiff = abs(food.fatGrams - expected.fat)
-                let userEdited = calDiff > 1 || protDiff > 0.2 || carbsDiff > 0.2 || fatDiff > 0.2
+                let userEdited = !nutritionMatchesPer100g(food)
 
                 if userEdited {
                     // User manually corrected values — back-calculate per-serving from displayed totals
@@ -726,6 +757,23 @@ struct PhotoAnalysisView: View {
                     perServingP = scaled.protein
                     perServingC = scaled.carbs
                     perServingF = scaled.fat
+
+                    // Serving corrected but nutrition untouched: send the new serving, keep per-100g as it was
+                    let description = food.portionDescription.trimmingCharacters(in: .whitespacesAndNewlines)
+                    let servingChanged = food.servingGrams != food.scannedServingGrams
+                        || description != (food.scannedServingDescription ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+                    if let barcode = food.barcode, servingChanged, let grams = food.servingGrams, grams > 0 {
+                        corrections.append(OpenFoodFactsService.CorrectionData(
+                            barcode: barcode,
+                            caloriesPerServing: perServingCal,
+                            proteinPerServing: perServingP,
+                            carbsPerServing: perServingC,
+                            fatPerServing: perServingF,
+                            servingDescription: description.isEmpty ? nil : description,
+                            servingGrams: grams,
+                            per100g: .init(calories: calPer100g, protein: protPer100g, carbs: carbsPer100g, fat: fatPer100g)
+                        ))
+                    }
                 }
                 savedServings = food.servings
             } else {

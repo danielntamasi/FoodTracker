@@ -110,6 +110,53 @@ enum CSVImportService {
         return count
     }
 
+    // MARK: - Export
+
+    /// Writes every entry to a CSV in the same layout the importer reads, so an export can be imported again.
+    /// Values are totals for what was eaten (servings already applied). Time and Meal are extra columns the importer ignores.
+    static func exportCSV(_ entries: [FoodEntry]) -> URL? {
+        let dayFormatter = DateFormatter()
+        dayFormatter.dateFormat = "yyyy-MM-dd"
+        let timeFormatter = DateFormatter()
+        timeFormatter.dateFormat = "HH:mm"
+
+        func field(_ text: String) -> String {
+            guard text.contains(where: { ",\"\n".contains($0) }) else { return text }
+            return "\"" + text.replacingOccurrences(of: "\"", with: "'") + "\""
+        }
+        func num(_ value: Double) -> String {
+            value == value.rounded() ? String(Int(value)) : String(format: "%.1f", value)
+        }
+
+        var lines = ["Name,Calories,Protein,Fat,Carbs,Date,Serving Size,Time,Meal"]
+        for entry in entries.sorted(by: { $0.date < $1.date }) {
+            var serving = entry.servingDescription ?? ""
+            if entry.servings != 1 {
+                serving = "\(formatServings(entry.servings)) × \(serving.isEmpty ? "serving" : serving)"
+            }
+            lines.append([
+                field(entry.name),
+                "\(entry.totalCalories)",
+                num(entry.totalProteinGrams),
+                num(entry.totalFatGrams),
+                num(entry.totalCarbsGrams),
+                dayFormatter.string(from: entry.date),
+                field(serving),
+                timeFormatter.string(from: entry.date),
+                field(entry.mealName ?? "")
+            ].joined(separator: ","))
+        }
+
+        let url = FileManager.default.temporaryDirectory
+            .appendingPathComponent("FoodTracker_Export_\(dayFormatter.string(from: Date())).csv")
+        do {
+            try lines.joined(separator: "\n").write(to: url, atomically: true, encoding: .utf8)
+            return url
+        } catch {
+            return nil
+        }
+    }
+
     // MARK: - CSV Parsing (handles quoted fields with commas)
 
     private static func parseCSVRow(_ row: String) -> [String] {

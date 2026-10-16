@@ -1,0 +1,10 @@
+// App build settings shared by everyone who clones the repo.
+// Personal values live in Secrets.xcconfig, which is gitignored. To set them, create it next to this file:
+//
+//   FEEDBACK_EMAIL = you@example.com
+//
+// Without it the app still builds; feedback then goes out through the share sheet instead of email.
+
+FEEDBACK_EMAIL =
+
+#include? "Secrets.xcconfig"
