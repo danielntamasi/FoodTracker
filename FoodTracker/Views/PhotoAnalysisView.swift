@@ -806,7 +806,9 @@ struct PhotoAnalysisView: View {
                 servings: savedServings,
                 servingDescription: food.portionDescription.isEmpty ? nil : food.portionDescription,
                 servingGrams: food.servingGrams,
-                barcode: food.barcode
+                barcode: food.barcode,
+                entrySource: food.barcode != nil ? .barcode : .aiPhoto,
+                aiModel: food.barcode != nil ? nil : currentAIModelID()
             )
             modelContext.insert(entry)
             Task { await HealthKitService.shared.syncEntry(entry) }

@@ -425,12 +425,13 @@ struct EditEntryView: View {
             }
         }
 
-        // Track correction for accuracy analysis
-        if nutritionEdited {
+        // Track corrections to AI-created entries for accuracy analysis
+        if nutritionEdited, let source = entry.entrySource.flatMap(EntrySource.init(rawValue:)), source.isAI {
+            let model = entry.aiModel
             Task {
                 await AccuracyTracker.shared.recordCorrection(
                     foodName: entry.name,
-                    source: entry.barcode != nil ? .barcode : .estimate,
+                    source: .estimate,
                     originalCalories: originalCalories,
                     originalProtein: originalProtein,
                     originalCarbs: originalCarbs,
@@ -438,7 +439,10 @@ struct EditEntryView: View {
                     correctedCalories: entry.calories,
                     correctedProtein: entry.proteinGrams,
                     correctedCarbs: entry.carbsGrams,
-                    correctedFat: entry.fatGrams
+                    correctedFat: entry.fatGrams,
+                    entrySource: source,
+                    model: model,
+                    stage: "edit"
                 )
             }
         }

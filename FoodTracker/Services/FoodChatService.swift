@@ -47,6 +47,14 @@ struct FoodChatTurn: Sendable {
     let jpegs: [Data]
 }
 
+/// ID of the model the AI features currently use, recorded on AI-created entries.
+func currentAIModelID() -> String {
+    switch VisionProvider.selected {
+    case .claude: return ClaudeModel.selected.rawValue
+    case .gemini: return AppConstants.API.geminiModel
+    }
+}
+
 // MARK: - Food Chat Service
 
 enum FoodChatService {

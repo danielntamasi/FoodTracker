@@ -404,6 +404,9 @@ struct FoodChatView: View {
         let trimmedMealName = foodLog.meal_name?.trimmingCharacters(in: .whitespaces) ?? ""
         let mealName: String? = mealGroupID == nil ? nil : (trimmedMealName.isEmpty ? "Meal" : trimmedMealName.titleCased())
         let photoData = messages.last { !$0.jpegs.isEmpty }?.jpegs.first
+        let source: EntrySource = messages.contains { !$0.jpegs.isEmpty } ? .aiChatPhoto : .aiChatText
+        let model = currentAIModelID()
+        recordInChatCorrections(final: items, source: source, model: model)
 
         for (index, item) in items.enumerated() {
             let portion = item.portion?.trimmingCharacters(in: .whitespaces) ?? ""
@@ -419,11 +422,41 @@ struct FoodChatView: View {
                 mealName: mealName,
                 iconName: foodIconName(for: item.name),
                 servingDescription: portion.isEmpty ? nil : portion,
-                servingGrams: item.portion_grams
+                servingGrams: item.portion_grams,
+                entrySource: source,
+                aiModel: model
             )
             modelContext.insert(entry)
             Task { await HealthKitService.shared.syncEntry(entry) }
         }
         dismiss()
+    }
+
+    /// Records how the assistant's first estimate for each item differs from what was logged,
+    /// i.e. what the conversation corrected. Items are matched by name; added or renamed items are skipped.
+    private func recordInChatCorrections(final items: [ChatFoodItem], source: EntrySource, model: String) {
+        guard let first = messages.first(where: { $0.foodLog != nil })?.foodLog else { return }
+        let initial = Dictionary(first.items.map { ($0.name.lowercased(), $0) }, uniquingKeysWith: { a, _ in a })
+
+        for item in items {
+            guard let original = initial[item.name.lowercased()] else { continue }
+            Task {
+                await AccuracyTracker.shared.recordCorrection(
+                    foodName: item.name,
+                    source: .estimate,
+                    originalCalories: Int(original.calories.rounded()),
+                    originalProtein: original.protein_grams,
+                    originalCarbs: original.carbs_grams,
+                    originalFat: original.fat_grams,
+                    correctedCalories: Int(item.calories.rounded()),
+                    correctedProtein: item.protein_grams,
+                    correctedCarbs: item.carbs_grams,
+                    correctedFat: item.fat_grams,
+                    entrySource: source,
+                    model: model,
+                    stage: "chat"
+                )
+            }
+        }
     }
 }

@@ -513,6 +513,34 @@ struct AccuracyDetailView: View {
                         .tracking(0.8)
                 }
 
+                if !summary.bySource.isEmpty {
+                    Section {
+                        ForEach(summary.bySource) { stats in
+                            HStack {
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text(stats.label)
+                                    Text("\(stats.count) correction\(stats.count == 1 ? "" : "s")")
+                                        .font(.caption)
+                                        .foregroundStyle(DS.Color.textSecondary)
+                                }
+                                Spacer()
+                                Text(String(format: "%+.0f%%", stats.averageCalorieErrorPercent))
+                                    .fontWeight(.semibold)
+                                    .foregroundStyle(abs(stats.averageCalorieErrorPercent) > 15 ? DS.Color.danger : DS.Color.textSecondary)
+                            }
+                        }
+                    } header: {
+                        Text("BY SOURCE")
+                            .font(DS.Typography.labelS)
+                            .foregroundStyle(DS.Color.textTertiary)
+                            .tracking(0.8)
+                    } footer: {
+                        Text("Average calorie change from the AI's estimate to what you corrected it to. Negative means the AI guessed too high.")
+                            .font(DS.Typography.caption)
+                            .foregroundStyle(DS.Color.textTertiary)
+                    }
+                }
+
                 if !summary.mostCorrectedFoods.isEmpty {
                     Section {
                         ForEach(summary.mostCorrectedFoods, id: \.name) { food in
@@ -545,6 +573,9 @@ struct AccuracyDetailView: View {
                                         .font(.caption2)
                                         .foregroundStyle(DS.Color.textTertiary)
                                 }
+                                Text(record.sourceLabel)
+                                    .font(.caption2)
+                                    .foregroundStyle(DS.Color.textTertiary)
                                 HStack(spacing: 12) {
                                     Text("\(record.originalCalories) → \(record.correctedCalories) cal")
                                         .font(.caption)
@@ -576,7 +607,7 @@ struct AccuracyDetailView: View {
                 ContentUnavailableView {
                     Label("No Corrections Yet", systemImage: "checkmark.circle")
                 } description: {
-                    Text("When you edit AI-estimated nutrition values, corrections are tracked here to help identify accuracy patterns.")
+                    Text("When you correct the AI, in the AI Chat before logging or by editing an entry afterwards, it's tracked here to show how far off its estimates are.")
                 }
             }
         }
