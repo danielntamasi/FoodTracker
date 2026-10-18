@@ -15,6 +15,7 @@ struct SearchFoodView: View {
     @State private var prefillResult: USDAService.USDALookupResult?
     @State private var lookup = NutritionLookup()
     @State private var resultsVisible = false
+    @State private var isSearchActive = false
 
     private var recentMatches: [FoodEntry] {
         let query = searchText.lowercased().trimmingCharacters(in: .whitespaces)
@@ -46,7 +47,9 @@ struct SearchFoodView: View {
             .listStyle(.plain)
             .scrollContentBackground(.hidden)
             .background(DS.Color.backgroundPrimary)
-            .searchable(text: $searchText, prompt: "Search foods")
+            .searchable(text: $searchText, isPresented: $isSearchActive, prompt: "Search foods")
+            // Open straight into the search field with the keyboard up
+            .onAppear { isSearchActive = true }
             .onChange(of: searchText) { _, newValue in
                 debouncedSearch(query: newValue)
             }

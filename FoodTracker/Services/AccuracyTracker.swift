@@ -27,6 +27,20 @@ actor AccuracyTracker {
         let correctedProtein: Double
         let correctedCarbs: Double
         let correctedFat: Double
+        // Added for AI tracking; nil on older records
+        /// `EntrySource` raw value, or the legacy "estimate"/"usda"/"barcode"
+        var entrySource: String? = nil
+        var model: String? = nil
+        /// "chat": changed in the AI Chat before logging; "edit": changed after saving
+        var stage: String? = nil
+
+        /// Readable source, grouping older records under their legacy label.
+        var sourceLabel: String {
+            if let raw = entrySource, let source = EntrySource(rawValue: raw) {
+                return source.label + (stage == "chat" ? ", in chat" : "")
+            }
+            return source == "barcode" ? "Barcode" : "Older entries"
+        }
 
         var calorieDelta: Int { correctedCalories - originalCalories }
         var calorieErrorPercent: Double {
@@ -42,6 +56,14 @@ actor AccuracyTracker {
         let averageCalorieErrorPercent: Double
         let mostCorrectedFoods: [(name: String, count: Int)]
         let systematicBias: String // "underestimates", "overestimates", or "balanced"
+        var bySource: [SourceStats] = []
+    }
+
+    struct SourceStats: Identifiable {
+        let label: String
+        let count: Int
+        let averageCalorieErrorPercent: Double
+        var id: String { label }
     }
 
     // MARK: - Public API
@@ -57,7 +79,10 @@ actor AccuracyTracker {
         correctedCalories: Int,
         correctedProtein: Double,
         correctedCarbs: Double,
-        correctedFat: Double
+        correctedFat: Double,
+        entrySource: EntrySource? = nil,
+        model: String? = nil,
+        stage: String? = nil
     ) {
         loadIfNeeded()
         // Only record if there's a meaningful difference
@@ -77,7 +102,10 @@ actor AccuracyTracker {
             correctedCalories: correctedCalories,
             correctedProtein: correctedProtein,
             correctedCarbs: correctedCarbs,
-            correctedFat: correctedFat
+            correctedFat: correctedFat,
+            entrySource: entrySource?.rawValue,
+            model: model,
+            stage: stage
         )
 
         corrections.append(record)
@@ -111,16 +139,28 @@ actor AccuracyTracker {
             .map { (name: $0.key, count: $0.value) }
 
         let bias: String
-        if avgErrorPercent < -10 { bias = "underestimates" }
-        else if avgErrorPercent > 10 { bias = "overestimates" }
+        // Error is corrected minus original: negative means the user lowered the estimate, i.e. it was too high
+        if avgErrorPercent < -10 { bias = "overestimates" }
+        else if avgErrorPercent > 10 { bias = "underestimates" }
         else { bias = "balanced" }
+
+        let bySource = Dictionary(grouping: corrections, by: \.sourceLabel)
+            .map { label, records in
+                SourceStats(
+                    label: label,
+                    count: records.count,
+                    averageCalorieErrorPercent: records.reduce(0.0) { $0 + $1.calorieErrorPercent } / Double(records.count)
+                )
+            }
+            .sorted { $0.count > $1.count }
 
         return AccuracySummary(
             totalCorrections: corrections.count,
             averageCalorieError: avgError,
             averageCalorieErrorPercent: avgErrorPercent,
             mostCorrectedFoods: topFoods,
-            systematicBias: bias
+            systematicBias: bias,
+            bySource: bySource
         )
     }
 
@@ -131,6 +171,37 @@ actor AccuracyTracker {
     }
 
     /// Clear all correction history.
+    /// Writes the full correction history to a CSV file for sharing; nil when there is nothing to export.
+    func exportCSV() -> URL? {
+        loadIfNeeded()
+        guard !corrections.isEmpty else { return nil }
+
+        let formatter = ISO8601DateFormatter()
+        func field(_ text: String) -> String { "\"" + text.replacingOccurrences(of: "\"", with: "\"\"") + "\"" }
+        func num(_ value: Double) -> String { String(format: "%.1f", value) }
+
+        var lines = ["date,food,source,original_calories,original_protein,original_carbs,original_fat,corrected_calories,corrected_protein,corrected_carbs,corrected_fat,calorie_delta,calorie_error_percent,entry_source,stage,model"]
+        for r in corrections.sorted(by: { $0.date < $1.date }) {
+            lines.append([
+                formatter.string(from: r.date), field(r.foodName), r.source,
+                "\(r.originalCalories)", num(r.originalProtein), num(r.originalCarbs), num(r.originalFat),
+                "\(r.correctedCalories)", num(r.correctedProtein), num(r.correctedCarbs), num(r.correctedFat),
+                "\(r.calorieDelta)", num(r.calorieErrorPercent),
+                r.entrySource ?? r.source, r.stage ?? "", r.model ?? ""
+            ].joined(separator: ","))
+        }
+
+        let day = formatter.string(from: Date()).prefix(10)
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent("FoodTracker_Corrections_\(day).csv")
+        do {
+            try lines.joined(separator: "\n").write(to: url, atomically: true, encoding: .utf8)
+            return url
+        } catch {
+            logger.error("Failed to export corrections: \(error.localizedDescription)")
+            return nil
+        }
+    }
+
     func clearHistory() {
         corrections = []
         save()

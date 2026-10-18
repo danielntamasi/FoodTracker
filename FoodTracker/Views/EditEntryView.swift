@@ -23,6 +23,62 @@ struct EditEntryView: View {
     @State private var originalFat = 0.0
     @State private var originalDate = Date()
     @State private var originalServings: Double = 1.0
+    @State private var originalServingDescription: String?
+    @State private var originalServingGrams: Double?
+    @State private var servingBase: ServingBase?
+
+    /// Per-serving nutrition for a known serving weight, taken when editing starts.
+    /// Lets a serving-weight change rescale untouched numbers, and tells user-typed numbers apart from rescaled ones.
+    private struct ServingBase {
+        let grams: Double
+        let calories: Int
+        let protein: Double
+        let carbs: Double
+        let fat: Double
+
+        func scaled(to grams: Double) -> (calories: Int, protein: Double, carbs: Double, fat: Double) {
+            let factor = grams / self.grams
+            return (Int((Double(calories) * factor).rounded()), protein * factor, carbs * factor, fat * factor)
+        }
+
+        var per100g: OpenFoodFactsService.CorrectionData.Per100g {
+            let factor = 100 / grams
+            return .init(calories: Double(calories) * factor, protein: protein * factor, carbs: carbs * factor, fat: fat * factor)
+        }
+    }
+
+    /// True when the numbers are still what the starting values give for the current serving weight (the user hasn't typed over them).
+    private var nutritionUntouched: Bool {
+        guard let base = servingBase else {
+            return entry.calories == originalCalories
+                && abs(entry.proteinGrams - originalProtein) <= 0.01
+                && abs(entry.carbsGrams - originalCarbs) <= 0.01
+                && abs(entry.fatGrams - originalFat) <= 0.01
+        }
+        let expected = base.scaled(to: entry.servingGrams ?? base.grams)
+        return abs(entry.calories - expected.calories) <= 1
+            && abs(entry.proteinGrams - expected.protein) <= 0.1
+            && abs(entry.carbsGrams - expected.carbs) <= 0.1
+            && abs(entry.fatGrams - expected.fat) <= 0.1
+    }
+
+    /// Changing the serving weight rescales the numbers unless the user has typed their own.
+    private var servingGramsBinding: Binding<Double?> {
+        Binding(
+            get: { entry.servingGrams },
+            set: { newValue in
+                let rescale = nutritionUntouched
+                entry.servingGrams = newValue
+                if rescale, let base = servingBase, let grams = newValue, grams > 0 {
+                    let scaled = base.scaled(to: grams)
+                    entry.calories = scaled.calories
+                    entry.proteinGrams = scaled.protein
+                    entry.carbsGrams = scaled.carbs
+                    entry.fatGrams = scaled.fat
+                }
+            }
+        )
+    }
     @State private var originalPhotoData: Data?
     @State private var servings: Double = 1.0
     @State private var isFavorite = false
@@ -39,6 +95,8 @@ struct EditEntryView: View {
             || entry.fatGrams != originalFat
             || entry.date != originalDate
             || servings != originalServings
+            || entry.servingDescription != originalServingDescription
+            || entry.servingGrams != originalServingGrams
             || entry.photoData != originalPhotoData
     }
 
@@ -84,6 +142,13 @@ struct EditEntryView: View {
             return "\(Int(grams))g"
         }
         return nil
+    }
+
+    private var servingDescriptionBinding: Binding<String> {
+        Binding(
+            get: { entry.servingDescription ?? "" },
+            set: { entry.servingDescription = $0.isEmpty ? nil : $0 }
+        )
     }
 
     // Total-value bindings: display total (per-serving × servings), back-calculate per-serving on edit
@@ -203,7 +268,7 @@ struct EditEntryView: View {
                 )
             )
         }
-        .alert("Improve Nutrition Data?", isPresented: $showCorrectionAlert) {
+        .alert("Submit Correction to OpenFoodFacts?", isPresented: $showCorrectionAlert) {
             Button("Submit Correction") {
                 if let correction = pendingCorrection {
                     Task { await OpenFoodFactsService.shared.submitCorrection(correction) }
@@ -211,7 +276,7 @@ struct EditEntryView: View {
             }
             Button("No Thanks", role: .cancel) { }
         } message: {
-            Text("You corrected the nutrition data for a scanned product. Submit your correction to OpenFoodFacts to help other users?")
+            Text("You corrected a scanned product. This will be sent to the public database:\n\n" + (pendingCorrection?.summary ?? ""))
         }
     }
 
@@ -261,6 +326,13 @@ struct EditEntryView: View {
         originalFat = entry.fatGrams
         originalDate = entry.date
         originalServings = entry.servings
+        originalServingDescription = entry.servingDescription
+        originalServingGrams = entry.servingGrams
+        if let grams = entry.servingGrams, grams > 0 {
+            servingBase = ServingBase(grams: grams, calories: entry.calories, protein: entry.proteinGrams, carbs: entry.carbsGrams, fat: entry.fatGrams)
+        } else {
+            servingBase = nil
+        }
         originalPhotoData = entry.photoData
         originalIsGeneratedImage = entry.isGeneratedImage
         servings = entry.servings
@@ -276,6 +348,8 @@ struct EditEntryView: View {
         entry.date = originalDate
         entry.isGeneratedImage = originalIsGeneratedImage
         entry.servings = originalServings
+        entry.servingDescription = originalServingDescription
+        entry.servingGrams = originalServingGrams
         entry.photoData = originalPhotoData
         servings = originalServings
         if let photoData = originalPhotoData, let uiImage = UIImage(data: photoData) {
@@ -295,6 +369,16 @@ struct EditEntryView: View {
         entry.proteinGrams = entry.proteinGrams.roundedTo(1)
         entry.carbsGrams = entry.carbsGrams.roundedTo(1)
         entry.fatGrams = entry.fatGrams.roundedTo(1)
+        if let grams = entry.servingGrams, grams <= 0 {
+            entry.servingGrams = nil
+        }
+        // A new serving weight replaces the one written in the description, e.g. "1 bar (62 g)"
+        var servingText = entry.servingDescription ?? ""
+        if entry.servingGrams != originalServingGrams {
+            servingText = strippingServingWeight(servingText)
+        }
+        servingText = servingText.trimmingCharacters(in: .whitespacesAndNewlines)
+        entry.servingDescription = servingText.isEmpty ? nil : servingText
         // Clear generated image if name changed so a new one can be created
         if entry.isGeneratedImage && entry.name != originalName {
             entry.photoData = nil
@@ -303,15 +387,14 @@ struct EditEntryView: View {
         }
         lookup.reset()
 
-        // Correction detection for barcode entries
+        // Correction detection for barcode entries. Numbers rescaled by a serving-weight change don't count as edits.
+        let nutritionEdited = !nutritionUntouched
+        let servingChanged = entry.servingGrams != originalServingGrams
+            || entry.servingDescription != originalServingDescription?.trimmingCharacters(in: .whitespacesAndNewlines)
         if let barcode = entry.barcode {
-            let calChanged = entry.calories != originalCalories
-            let protChanged = abs(entry.proteinGrams - originalProtein) > 0.01
-            let carbsChanged = abs(entry.carbsGrams - originalCarbs) > 0.01
-            let fatChanged = abs(entry.fatGrams - originalFat) > 0.01
-
-            if calChanged || protChanged || carbsChanged || fatChanged {
-                pendingCorrection = OpenFoodFactsService.CorrectionData(
+            var correction: OpenFoodFactsService.CorrectionData?
+            if nutritionEdited {
+                correction = OpenFoodFactsService.CorrectionData(
                     barcode: barcode,
                     caloriesPerServing: entry.calories,
                     proteinPerServing: entry.proteinGrams,
@@ -320,6 +403,21 @@ struct EditEntryView: View {
                     servingDescription: entry.servingDescription,
                     servingGrams: entry.servingGrams
                 )
+            } else if servingChanged, let base = servingBase, let grams = entry.servingGrams, grams > 0 {
+                // Serving corrected only: send it with per-100g pinned to what the product had
+                correction = OpenFoodFactsService.CorrectionData(
+                    barcode: barcode,
+                    caloriesPerServing: entry.calories,
+                    proteinPerServing: entry.proteinGrams,
+                    carbsPerServing: entry.carbsGrams,
+                    fatPerServing: entry.fatGrams,
+                    servingDescription: entry.servingDescription,
+                    servingGrams: grams,
+                    per100g: base.per100g
+                )
+            }
+            if let correction {
+                pendingCorrection = correction
                 Task { await HealthKitService.shared.updateEntry(entry) }
                 withAnimation(.easeInOut(duration: 0.25)) { isEditing = false }
                 showCorrectionAlert = true
@@ -327,16 +425,13 @@ struct EditEntryView: View {
             }
         }
 
-        // Track correction for accuracy analysis
-        let calChanged = entry.calories != originalCalories
-        let protChanged = abs(entry.proteinGrams - originalProtein) > 0.01
-        let carbsChanged = abs(entry.carbsGrams - originalCarbs) > 0.01
-        let fatChanged = abs(entry.fatGrams - originalFat) > 0.01
-        if calChanged || protChanged || carbsChanged || fatChanged {
+        // Track corrections to AI-created entries for accuracy analysis
+        if nutritionEdited, let source = entry.entrySource.flatMap(EntrySource.init(rawValue:)), source.isAI {
+            let model = entry.aiModel
             Task {
                 await AccuracyTracker.shared.recordCorrection(
                     foodName: entry.name,
-                    source: entry.barcode != nil ? .barcode : .estimate,
+                    source: .estimate,
                     originalCalories: originalCalories,
                     originalProtein: originalProtein,
                     originalCarbs: originalCarbs,
@@ -344,7 +439,10 @@ struct EditEntryView: View {
                     correctedCalories: entry.calories,
                     correctedProtein: entry.proteinGrams,
                     correctedCarbs: entry.carbsGrams,
-                    correctedFat: entry.fatGrams
+                    correctedFat: entry.fatGrams,
+                    entrySource: source,
+                    model: model,
+                    stage: "edit"
                 )
             }
         }
@@ -562,15 +660,21 @@ struct EditEntryView: View {
             }
 
             groupedSection(header: "Servings") {
-                if let servingSizeText = servingSizeLabel {
-                    groupedRow {
-                        Text("Serving Size")
-                        Spacer()
-                        Text(servingSizeText)
-                            .foregroundStyle(DS.Color.textSecondary)
-                    }
-                    groupedDivider
+                groupedRow {
+                    Text("Serving Size")
+                    Spacer()
+                    TextField("1 serving", text: servingDescriptionBinding)
+                        .multilineTextAlignment(.trailing)
                 }
+                groupedDivider
+                groupedRow {
+                    Text("Serving Weight (g)")
+                    Spacer()
+                    TextField("Optional", value: servingGramsBinding, format: .number.precision(.fractionLength(0...1)))
+                        .keyboardType(.decimalPad)
+                        .multilineTextAlignment(.trailing)
+                }
+                groupedDivider
                 groupedRow {
                     ServingPicker(servings: $servings)
                 }

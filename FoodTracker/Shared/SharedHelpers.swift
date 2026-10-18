@@ -212,6 +212,18 @@ func perServingFromPer100g(
     )
 }
 
+// MARK: - Serving Descriptions
+
+/// Removes the weight from a serving description: "1 bar (62 g)" becomes "1 bar", and a bare "100g" becomes "".
+/// Used when the serving weight is edited, so the text doesn't keep stating the old one.
+func strippingServingWeight(_ description: String) -> String {
+    let weight = #"[\d.,]+\s*(g|ml)"#
+    return description
+        .replacingOccurrences(of: #"\s*\(\s*"# + weight + #"\s*\)\s*$"#, with: "", options: [.regularExpression, .caseInsensitive])
+        .replacingOccurrences(of: #"^\s*"# + weight + #"\s*$"#, with: "", options: [.regularExpression, .caseInsensitive])
+        .trimmingCharacters(in: .whitespacesAndNewlines)
+}
+
 // MARK: - Favorite Foods
 
 enum FavoriteFoods {

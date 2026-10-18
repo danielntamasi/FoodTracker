@@ -5,22 +5,21 @@ enum AppTab {
 }
 
 enum QuickAddAction {
-    case photo, barcode, search, browse, uploadPhoto, buildMeal, precisionPhoto
+    case chat, barcode, search, browse, buildMeal
 }
 
 struct ContentView: View {
     @Environment(\.scenePhase) private var scenePhase
+    @Environment(\.modelContext) private var modelContext
     @State private var activeTab: AppTab = .today
     @State private var todayViewID = Calendar.current.startOfDay(for: Date())
     @State private var showingRadialMenu = false
     @State private var showingAddEntry = false
-    @State private var showingPhotoCapture = false
-    @State private var showingPhotoUpload = false
+    @State private var showingChat = false
     @State private var showingBarcodeScanner = false
     @State private var showingBrowse = false
     @State private var showingSearch = false
     @State private var showingBuildMeal = false
-    @State private var showingPrecisionPhoto = false
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var layoutHeight: CGFloat = 700
     @State private var layoutWidth: CGFloat = 393
@@ -28,10 +27,8 @@ struct ContentView: View {
     private let radialItems: [(icon: String, label: String, action: QuickAddAction)] = [
         ("clock.arrow.circlepath", "Recent", .browse),
         ("magnifyingglass", "Search", .search),
+        ("sparkles", "AI Chat", .chat),
         ("square.stack.3d.up", "Build", .buildMeal),
-        ("camera", "Photo", .photo),
-        ("camera.metering.multispot", "Precision", .precisionPhoto),
-        ("photo.on.rectangle", "Upload", .uploadPhoto),
         ("barcode.viewfinder", "Barcode", .barcode),
     ]
 
@@ -87,11 +84,8 @@ struct ContentView: View {
         .sheet(isPresented: $showingAddEntry) {
             AddEntryView()
         }
-        .sheet(isPresented: $showingPhotoCapture) {
-            PhotoCaptureView()
-        }
-        .sheet(isPresented: $showingPhotoUpload) {
-            PhotoUploadView()
+        .sheet(isPresented: $showingChat) {
+            FoodChatView()
         }
         .sheet(isPresented: $showingBarcodeScanner) {
             BarcodeScannerView()
@@ -105,11 +99,13 @@ struct ContentView: View {
         .sheet(isPresented: $showingBuildMeal) {
             BuildMealView()
         }
-        .sheet(isPresented: $showingPrecisionPhoto) {
-            PrecisionPhotoCaptureView()
-        }
         .onOpenURL { url in
             handleDeepLink(url)
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .deviceDidShake)) { _ in
+            // Capture the screen before the feedback sheet covers it
+            let screenshot = FeedbackPresenter.screenshot()
+            FeedbackPresenter.present(context: FeedbackService.makeContext(screenshot: screenshot, modelContext: modelContext))
         }
     }
 
@@ -119,13 +115,11 @@ struct ContentView: View {
         guard url.scheme == "foodtracker", url.host == "add" else { return }
         activeTab = .today
         showingAddEntry = false
-        showingPhotoCapture = false
-        showingPhotoUpload = false
+        showingChat = false
         showingBarcodeScanner = false
         showingBrowse = false
         showingSearch = false
         showingBuildMeal = false
-        showingPrecisionPhoto = false
         showingRadialMenu = false
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) {
             withAnimation(.spring(duration: 0.4, bounce: 0.3)) {
@@ -194,13 +188,11 @@ struct ContentView: View {
 
     private func triggerAction(_ action: QuickAddAction) {
         switch action {
-        case .photo: showingPhotoCapture = true
+        case .chat: showingChat = true
         case .barcode: showingBarcodeScanner = true
         case .search: showingSearch = true
         case .browse: showingBrowse = true
-        case .uploadPhoto: showingPhotoUpload = true
         case .buildMeal: showingBuildMeal = true
-        case .precisionPhoto: showingPrecisionPhoto = true
         }
     }
 

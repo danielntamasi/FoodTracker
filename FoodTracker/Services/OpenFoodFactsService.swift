@@ -32,6 +32,30 @@ actor OpenFoodFactsService {
         let fatPerServing: Double
         let servingDescription: String?
         let servingGrams: Double?
+        /// Exact per-100g values to send. Set for serving-only corrections, so the product's nutrition
+        /// stays exactly as it was while the serving changes. Nil means derive per-100g from the per-serving values.
+        var per100g: Per100g? = nil
+
+        struct Per100g {
+            let calories: Double
+            let protein: Double
+            let carbs: Double
+            let fat: Double
+        }
+
+        /// What will be sent, shown in the confirmation prompt.
+        var summary: String {
+            var lines: [String] = []
+            if let serving = OpenFoodFactsService.servingSizeField(description: servingDescription, grams: servingGrams) {
+                lines.append("Serving: \(serving)")
+            }
+            if per100g != nil {
+                lines.append("Nutrition per 100 g: unchanged")
+            } else {
+                lines.append("Per serving: \(caloriesPerServing) kcal, \(formatMacro(proteinPerServing))g protein, \(formatMacro(carbsPerServing))g carbs, \(formatMacro(fatPerServing))g fat")
+            }
+            return lines.joined(separator: "\n")
+        }
     }
 
     struct Product {
@@ -146,6 +170,23 @@ actor OpenFoodFactsService {
 
     // MARK: - Submit Correction
 
+    /// The `serving_size` text for a correction. OFF reads the serving weight out of this text, so it has to
+    /// state the same weight the per-100g values were computed from. A description that already states it is
+    /// sent unchanged; otherwise any old weight is replaced.
+    static func servingSizeField(description: String?, grams: Double?) -> String? {
+        let text = (description ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+        guard let grams, grams > 0 else { return text.isEmpty ? nil : text }
+
+        let weight = grams == grams.rounded() ? String(Int(grams)) : String(format: "%.1f", grams)
+        let statesWeight = #"(^|[^\d.,])"# + NSRegularExpression.escapedPattern(for: weight) + #"\s*(g|ml)\b"#
+        if text.range(of: statesWeight, options: [.regularExpression, .caseInsensitive]) != nil {
+            return text
+        }
+
+        let name = strippingServingWeight(text)
+        return name.isEmpty ? "\(weight) g" : "\(name) (\(weight) g)"
+    }
+
     /// Submits corrected nutrition data back to OpenFoodFacts. Fire-and-forget: errors are logged, never thrown.
     func submitCorrection(_ correction: CorrectionData) async {
         guard let userID = KeychainService.load(account: Self.keychainAccountUserID),
@@ -159,7 +200,7 @@ actor OpenFoodFactsService {
 
         // Compute per-100g values from per-serving + serving weight for OFF
         // OFF works best with per-100g data since it can derive per-serving from serving_quantity
-        let sendPer100g = correction.servingGrams != nil && correction.servingGrams! > 0
+        let sendPer100g = correction.per100g != nil || (correction.servingGrams != nil && correction.servingGrams! > 0)
         let nutritionPer = sendPer100g ? "100g" : "serving"
 
         var queryItems = [
@@ -172,7 +213,14 @@ actor OpenFoodFactsService {
             URLQueryItem(name: "app_uuid", value: Self.deviceUUID),
         ]
 
-        if sendPer100g, let grams = correction.servingGrams {
+        if let per100g = correction.per100g {
+            queryItems.append(contentsOf: [
+                URLQueryItem(name: "nutriment_energy-kcal", value: String(format: "%.1f", per100g.calories)),
+                URLQueryItem(name: "nutriment_proteins", value: String(format: "%.1f", per100g.protein)),
+                URLQueryItem(name: "nutriment_carbohydrates", value: String(format: "%.1f", per100g.carbs)),
+                URLQueryItem(name: "nutriment_fat", value: String(format: "%.1f", per100g.fat)),
+            ])
+        } else if sendPer100g, let grams = correction.servingGrams {
             let scale = 100.0 / grams
             queryItems.append(contentsOf: [
                 URLQueryItem(name: "nutriment_energy-kcal", value: String(format: "%.1f", Double(correction.caloriesPerServing) * scale)),
@@ -190,8 +238,8 @@ actor OpenFoodFactsService {
         }
 
         // Always send serving info so OFF can properly associate serving data
-        if let servingDesc = correction.servingDescription, !servingDesc.isEmpty {
-            queryItems.append(URLQueryItem(name: "serving_size", value: servingDesc))
+        if let servingSize = Self.servingSizeField(description: correction.servingDescription, grams: correction.servingGrams) {
+            queryItems.append(URLQueryItem(name: "serving_size", value: servingSize))
         }
         if let grams = correction.servingGrams, grams > 0 {
             queryItems.append(URLQueryItem(name: "serving_quantity", value: String(format: "%.0f", grams)))

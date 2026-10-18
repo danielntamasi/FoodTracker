@@ -234,7 +234,7 @@ actor VisionAPIService {
 
         return [
             "model": ClaudeModel.selected.rawValue,
-            "max_tokens": 4096,
+            "max_tokens": 8192,
             "system": "You are an expert food identification and nutrition estimation assistant. Analyze carefully, reason through portion sizes and hidden calories step by step, then respond with valid JSON.",
             "messages": [
                 [
@@ -269,7 +269,7 @@ actor VisionAPIService {
     private func claudeEstimateBody(prompt: String) -> [String: Any] {
         [
             "model": ClaudeModel.selected.rawValue,
-            "max_tokens": 512,
+            "max_tokens": 4096,
             "system": "You are a nutrition estimation assistant. Always respond with valid JSON only.",
             "messages": [
                 [
@@ -301,9 +301,15 @@ actor VisionAPIService {
 
         switch provider {
         case .claude:
-            guard let content = json["content"] as? [[String: Any]],
-                  let firstBlock = content.first,
-                  let text = firstBlock["text"] as? String else {
+            if json["stop_reason"] as? String == "refusal" {
+                throw FoodAnalysisError.apiError("The model declined to answer. Please try again.")
+            }
+            // Newer models return thinking blocks ahead of the text, so collect text blocks only
+            guard let content = json["content"] as? [[String: Any]] else {
+                throw FoodAnalysisError.invalidResponse
+            }
+            let text = content.compactMap { $0["text"] as? String }.joined()
+            guard !text.isEmpty else {
                 throw FoodAnalysisError.invalidResponse
             }
             return text
@@ -466,7 +472,7 @@ private func decodeEstimateResponse(from text: String) throws -> AIEstimateResul
 // MARK: - Image Preparation
 
 /// Resizes and compresses an image to stay under the API size limit (~4MB JPEG).
-private func prepareImageForUpload(_ image: UIImage, maxDimension: CGFloat = AppConstants.API.maxImageDimension, maxBytes: Int = AppConstants.API.maxImageBytes) -> Data? {
+func prepareImageForUpload(_ image: UIImage, maxDimension: CGFloat = AppConstants.API.maxImageDimension, maxBytes: Int = AppConstants.API.maxImageBytes) -> Data? {
     let size = image.size
     let resized: UIImage
     if max(size.width, size.height) > maxDimension {

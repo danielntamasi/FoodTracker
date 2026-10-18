@@ -37,6 +37,25 @@ func foodIconName(for name: String) -> String {
     return "fork.knife"
 }
 
+/// Where an entry's numbers came from. Used to track how far off the AI tools are.
+enum EntrySource: String, Codable {
+    case aiChatPhoto   // AI Chat, conversation included a photo
+    case aiChatText    // AI Chat, text only
+    case aiPhoto       // older one-shot photo analysis
+    case barcode
+
+    var isAI: Bool { self != .barcode }
+
+    var label: String {
+        switch self {
+        case .aiChatPhoto: return "AI Chat (photo)"
+        case .aiChatText: return "AI Chat (text)"
+        case .aiPhoto: return "Photo analysis"
+        case .barcode: return "Barcode"
+        }
+    }
+}
+
 @Model
 final class FoodEntry {
     var id: UUID
@@ -57,6 +76,10 @@ final class FoodEntry {
     var servingGrams: Double?
     var barcode: String?
     var isGeneratedImage: Bool = false
+    /// How the entry was created (`EntrySource` raw value); nil for entries made before this was tracked.
+    var entrySource: String?
+    /// Claude/Gemini model that produced the numbers, for AI-created entries.
+    var aiModel: String?
 
     var totalCalories: Int { Int((Double(calories) * servings).rounded()) }
     var totalProteinGrams: Double { (proteinGrams * servings).roundedTo(1) }
@@ -81,7 +104,9 @@ final class FoodEntry {
         servingDescription: String? = nil,
         servingGrams: Double? = nil,
         barcode: String? = nil,
-        isGeneratedImage: Bool = false
+        isGeneratedImage: Bool = false,
+        entrySource: EntrySource? = nil,
+        aiModel: String? = nil
     ) {
         self.id = id
         self.name = name
@@ -101,5 +126,7 @@ final class FoodEntry {
         self.servingGrams = servingGrams
         self.barcode = barcode
         self.isGeneratedImage = isGeneratedImage
+        self.entrySource = entrySource?.rawValue
+        self.aiModel = aiModel
     }
 }
