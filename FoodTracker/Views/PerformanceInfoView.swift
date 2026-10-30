@@ -46,7 +46,7 @@ struct PerformanceInfoView: View {
             }
             .padding(12)
             .background(DS.Color.backgroundSecondary)
-            .clipShape(RoundedRectangle(cornerRadius: 12))
+            .clipShape(RoundedRectangle(cornerRadius: DS.Radius.m, style: .continuous))
         }
     }
 
@@ -94,7 +94,7 @@ struct PerformanceInfoView: View {
                     .padding(.bottom, 12)
             }
             .background(DS.Color.backgroundSecondary)
-            .clipShape(RoundedRectangle(cornerRadius: 12))
+            .clipShape(RoundedRectangle(cornerRadius: DS.Radius.m, style: .continuous))
         }
     }
 
@@ -171,7 +171,7 @@ struct PerformanceInfoView: View {
                 )
             }
             .background(DS.Color.backgroundSecondary)
-            .clipShape(RoundedRectangle(cornerRadius: 12))
+            .clipShape(RoundedRectangle(cornerRadius: DS.Radius.m, style: .continuous))
         }
     }
 

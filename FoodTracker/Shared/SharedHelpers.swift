@@ -21,7 +21,7 @@ func formatServings(_ value: Double) -> String {
     else if abs(frac - 0.5) < 0.001 { fracStr = "\u{00BD}" }
     else if abs(frac - 0.75) < 0.001 { fracStr = "\u{00BE}" }
     else if abs(frac) < 0.001 { fracStr = nil }
-    else { return String(format: "%.2g", value) }
+    else { return value.formatted(.number.precision(.fractionLength(0...2))) }
 
     if let f = fracStr {
         return whole > 0 ? "\(whole)\(f)" : f
@@ -114,9 +114,9 @@ func iconHeroColor(for iconName: String) -> Color {
 
     switch iconName {
     case "bird": return adaptive(darkR: 0.15, darkG: 0.10, darkB: 0.05, lightR: 0.95, lightG: 0.92, lightB: 0.88)
-    case "flame": return adaptive(darkR: 0.21, darkG: 0.09, darkB: 0.05, lightR: 0.96, lightG: 0.90, lightB: 0.88)
+    case "frying.pan", "cup.and.heat.waves.fill": return adaptive(darkR: 0.21, darkG: 0.09, darkB: 0.05, lightR: 0.96, lightG: 0.90, lightB: 0.88)
     case "fish": return adaptive(darkR: 0.05, darkG: 0.15, darkB: 0.15, lightR: 0.88, lightG: 0.95, lightB: 0.95)
-    case "egg": return adaptive(darkR: 0.22, darkG: 0.19, darkB: 0.08, lightR: 0.96, lightG: 0.95, lightB: 0.89)
+    case "oval.portrait.fill": return adaptive(darkR: 0.22, darkG: 0.19, darkB: 0.08, lightR: 0.96, lightG: 0.95, lightB: 0.89)
     case "cup.and.saucer": return adaptive(darkR: 0.14, darkG: 0.09, darkB: 0.05, lightR: 0.94, lightG: 0.91, lightB: 0.88)
     case "cup.and.saucer.fill": return adaptive(darkR: 0.10, darkG: 0.15, darkB: 0.20, lightR: 0.90, lightG: 0.93, lightB: 0.96)
     case "waterbottle": return adaptive(darkR: 0.05, darkG: 0.15, darkB: 0.18, lightR: 0.88, lightG: 0.94, lightB: 0.96)
@@ -127,9 +127,9 @@ func iconHeroColor(for iconName: String) -> Color {
     case "leaf": return adaptive(darkR: 0.05, darkG: 0.15, darkB: 0.05, lightR: 0.88, lightG: 0.95, lightB: 0.88)
     case "carrot": return adaptive(darkR: 0.24, darkG: 0.14, darkB: 0.05, lightR: 0.96, lightG: 0.93, lightB: 0.88)
     case "leaf.circle": return adaptive(darkR: 0.12, darkG: 0.15, darkB: 0.08, lightR: 0.92, lightG: 0.94, lightB: 0.89)
-    case "chart.bar": return adaptive(darkR: 0.10, darkG: 0.12, darkB: 0.18, lightR: 0.91, lightG: 0.92, lightB: 0.95)
+    case "bolt.fill": return adaptive(darkR: 0.10, darkG: 0.12, darkB: 0.18, lightR: 0.91, lightG: 0.92, lightB: 0.95)
     case "snowflake": return adaptive(darkR: 0.12, darkG: 0.19, darkB: 0.22, lightR: 0.92, lightG: 0.95, lightB: 0.96)
-    case "bowl": return adaptive(darkR: 0.20, darkG: 0.14, darkB: 0.06, lightR: 0.96, lightG: 0.93, lightB: 0.89)
+    case "sun.horizon": return adaptive(darkR: 0.20, darkG: 0.14, darkB: 0.06, lightR: 0.96, lightG: 0.93, lightB: 0.89)
     default: return adaptive(darkR: 0.12, darkG: 0.12, darkB: 0.14, lightR: 0.92, lightG: 0.92, lightB: 0.94)
     }
 }
@@ -147,7 +147,10 @@ func quickAddEntry(_ entry: FoodEntry, into modelContext: ModelContext) {
         iconName: entry.iconName ?? foodIconName(for: entry.name),
         servings: entry.servings,
         servingDescription: entry.servingDescription,
-        servingGrams: entry.servingGrams
+        servingGrams: entry.servingGrams,
+        barcode: entry.barcode,
+        entrySource: entry.entrySource.flatMap(EntrySource.init(rawValue:)),
+        aiModel: entry.aiModel
     )
     modelContext.insert(newEntry)
     Task { await HealthKitService.shared.syncEntry(newEntry) }
@@ -168,7 +171,10 @@ func quickAddMealGroup(_ entries: [FoodEntry], mealName: String?, into modelCont
             iconName: entry.iconName ?? foodIconName(for: entry.name),
             servings: entry.servings,
             servingDescription: entry.servingDescription,
-            servingGrams: entry.servingGrams
+            servingGrams: entry.servingGrams,
+            barcode: entry.barcode,
+            entrySource: entry.entrySource.flatMap(EntrySource.init(rawValue:)),
+            aiModel: entry.aiModel
         )
         modelContext.insert(newEntry)
         Task { await HealthKitService.shared.syncEntry(newEntry) }

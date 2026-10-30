@@ -74,7 +74,7 @@ struct PhotoAnalysisView: View {
                                 .resizable()
                                 .scaledToFit()
                                 .frame(maxHeight: 200)
-                                .clipShape(RoundedRectangle(cornerRadius: 12))
+                                .clipShape(RoundedRectangle(cornerRadius: DS.Radius.m, style: .continuous))
                         }
 
                         ProgressView(loadingStatus)
@@ -101,7 +101,7 @@ struct PhotoAnalysisView: View {
                                     .scaledToFit()
                                     .frame(maxHeight: 150)
                                     .frame(maxWidth: .infinity)
-                                    .clipShape(RoundedRectangle(cornerRadius: 12))
+                                    .clipShape(RoundedRectangle(cornerRadius: DS.Radius.m, style: .continuous))
                                     .listRowInsets(EdgeInsets())
                                     .padding()
                             }
@@ -147,14 +147,14 @@ struct PhotoAnalysisView: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") { dismiss() }
+                    CloseButton { dismiss() }
                 }
                 if !isLoading && errorMessage == nil {
                     ToolbarItem(placement: .confirmationAction) {
                         if isReEstimating {
                             ProgressView()
                         } else {
-                            Button("Save") { saveAll() }
+                            ConfirmButton("Save") { saveAll() }
                                 .disabled(identifiedFoods.isEmpty || identifiedFoods.contains {
                                     !isValidNutrition(calories: $0.calories, protein: $0.proteinGrams, carbs: $0.carbsGrams, fat: $0.fatGrams)
                                 })
@@ -691,7 +691,10 @@ struct PhotoAnalysisView: View {
                     fatGrams: perServingF,
                     servings: food.servings,
                     servingDescription: food.portionDescription.isEmpty ? nil : food.portionDescription,
-                    servingGrams: food.servingGrams
+                    servingGrams: food.servingGrams,
+                    barcode: food.barcode,
+                    entrySource: food.barcode != nil ? .barcode : .aiPhoto,
+                    aiModel: food.barcode != nil ? nil : currentAIModelID()
                 )
             }
             onIngredientsAdded(items)

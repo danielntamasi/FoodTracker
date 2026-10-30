@@ -57,7 +57,7 @@ struct SearchFoodView: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") { dismiss() }
+                    CloseButton { dismiss() }
                 }
             }
             .sheet(item: $prefillResult) { result in
@@ -189,16 +189,7 @@ struct SearchFoodView: View {
 
     private func quickAdd(_ entry: FoodEntry) {
         if let onIngredientAdded {
-            onIngredientAdded(IngredientItem(
-                name: entry.name,
-                calories: entry.calories,
-                proteinGrams: entry.proteinGrams,
-                carbsGrams: entry.carbsGrams,
-                fatGrams: entry.fatGrams,
-                servings: 1.0,
-                servingDescription: entry.servingDescription,
-                servingGrams: entry.servingGrams
-            ))
+            onIngredientAdded(IngredientItem(copying: entry))
             dismiss()
             return
         }
@@ -212,7 +203,10 @@ struct SearchFoodView: View {
             iconName: entry.iconName ?? foodIconName(for: entry.name),
             servings: 1.0,
             servingDescription: entry.servingDescription,
-            servingGrams: entry.servingGrams
+            servingGrams: entry.servingGrams,
+            barcode: entry.barcode,
+            entrySource: entry.entrySource.flatMap(EntrySource.init(rawValue:)),
+            aiModel: entry.aiModel
         )
         modelContext.insert(newEntry)
         Task { await HealthKitService.shared.syncEntry(newEntry) }

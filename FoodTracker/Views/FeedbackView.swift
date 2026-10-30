@@ -118,7 +118,7 @@ struct FeedbackView: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel", action: onClose)
+                    CloseButton(action: onClose)
                 }
             }
             .fullScreenCover(isPresented: $showingMarkup) {
@@ -289,14 +289,15 @@ struct FeedbackView: View {
         VStack(spacing: 10) {
             if isThinking {
                 ProgressView()
-                    .frame(maxWidth: .infinity, minHeight: 50)
+                    .frame(maxWidth: .infinity, minHeight: 44)
             } else {
                 Button(action: primaryAction) {
                     Text(primaryTitle)
                         .font(.headline)
-                        .frame(maxWidth: .infinity, minHeight: 50)
+                        .frame(maxWidth: .infinity)
                 }
-                .buttonStyle(.borderedProminent)
+                .glassButtonStyle(prominent: true)
+                .controlSize(.large)
                 .disabled(!primaryEnabled)
 
                 if stage == .asking {
@@ -522,20 +523,18 @@ private struct ScreenshotMarkupView: View {
             .background(Color.black)
             .navigationTitle("Circle the problem")
             .navigationBarTitleDisplayMode(.inline)
-            .toolbarBackground(.visible, for: .navigationBar)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") { dismiss() }
+                    CloseButton { dismiss() }
                 }
                 ToolbarItem(placement: .principal) {
                     Button("Clear") { canvas.drawing = PKDrawing() }
                 }
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("Done") {
+                    ConfirmButton("Done") {
                         onDone(merged())
                         dismiss()
                     }
-                    .fontWeight(.semibold)
                 }
             }
         }

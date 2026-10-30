@@ -6,6 +6,7 @@ struct AddEntryView: View {
     @Environment(\.dismiss) private var dismiss
 
     @State private var name = ""
+    @State private var filledFrom: USDAService.USDALookupResult?
     @State private var caloriesText = ""
     @State private var proteinText = ""
     @State private var carbsText = ""
@@ -98,7 +99,7 @@ struct AddEntryView: View {
                     } header: {
                         Text("AI Estimate")
                     } footer: {
-                        Text("Estimated by \(VisionProvider.selected.rawValue).")
+                        Text("Estimated by \(aiModelDisplayName(currentAIModelID())).")
                     }
                 }
 
@@ -173,10 +174,10 @@ struct AddEntryView: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") { dismiss() }
+                    CloseButton { dismiss() }
                 }
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("Save") { save() }
+                    ConfirmButton("Save") { save() }
                         .disabled(name.isEmpty || caloriesText.isEmpty || !isValidNutrition(
                             calories: Int(caloriesText) ?? 0,
                             protein: Double(proteinText) ?? 0,
@@ -200,6 +201,7 @@ struct AddEntryView: View {
     }
 
     private func applyPrefill(_ result: USDAService.USDALookupResult) {
+        filledFrom = result
         name = result.description.titleCased()
         let scaled = result.perServing
         caloriesText = "\(Int(scaled.calories))"
@@ -211,6 +213,7 @@ struct AddEntryView: View {
     }
 
     private func acceptResult(_ result: USDAService.USDALookupResult) {
+        filledFrom = result
         let scaled = result.perServing
         caloriesText = "\(Int(scaled.calories))"
         proteinText = "\(scaled.protein)"
@@ -218,6 +221,12 @@ struct AddEntryView: View {
         fatText = "\(scaled.fat)"
         servingDesc = result.servingDescription
         servingWeight = result.servingGrams
+    }
+
+    /// Where the saved numbers came from: the last database result or AI estimate applied, otherwise typed by hand.
+    private var source: (entrySource: EntrySource, aiModel: String?) {
+        guard let filledFrom else { return (.manual, nil) }
+        return filledFrom.isAIEstimate ? (.aiEstimate, currentAIModelID()) : (.database, nil)
     }
 
     private func save() {
@@ -230,7 +239,9 @@ struct AddEntryView: View {
                 fatGrams: Double(fatText) ?? 0,
                 servings: servings,
                 servingDescription: servingDesc,
-                servingGrams: servingWeight
+                servingGrams: servingWeight,
+                entrySource: source.entrySource,
+                aiModel: source.aiModel
             ))
             dismiss()
             return
@@ -246,7 +257,9 @@ struct AddEntryView: View {
             iconName: foodIconName(for: name),
             servings: servings,
             servingDescription: servingDesc,
-            servingGrams: servingWeight
+            servingGrams: servingWeight,
+            entrySource: source.entrySource,
+            aiModel: source.aiModel
         )
         modelContext.insert(entry)
         Task { await HealthKitService.shared.syncEntry(entry) }

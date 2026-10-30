@@ -478,7 +478,10 @@ func prepareImageForUpload(_ image: UIImage, maxDimension: CGFloat = AppConstant
     if max(size.width, size.height) > maxDimension {
         let scale = maxDimension / max(size.width, size.height)
         let newSize = CGSize(width: (size.width * scale).rounded(), height: (size.height * scale).rounded())
-        let renderer = UIGraphicsImageRenderer(size: newSize)
+        // Scale 1 so newSize is in pixels; the default screen scale (3x) would render 9x the pixels
+        let format = UIGraphicsImageRendererFormat.default()
+        format.scale = 1
+        let renderer = UIGraphicsImageRenderer(size: newSize, format: format)
         resized = renderer.image { _ in
             image.draw(in: CGRect(origin: .zero, size: newSize))
         }

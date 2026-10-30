@@ -118,6 +118,7 @@ struct MealSummaryView: View {
                 .background(DS.Color.backgroundSecondary)
                 .toolbar(.hidden, for: .navigationBar)
 
+                GlassGroup {
                 HStack {
                     Button {
                         isFavorite = FavoriteFoods.toggle(mealGroup.name)
@@ -128,8 +129,7 @@ struct MealSummaryView: View {
                             .frame(height: 20)
                             .padding(.horizontal, 14)
                             .padding(.vertical, 8)
-                            .background(.ultraThinMaterial.opacity(0.6))
-                            .clipShape(Capsule())
+                            .glassControl()
                     }
                     .accessibilityLabel(isFavorite ? "Remove from favorites" : "Add to favorites")
                     Spacer()
@@ -139,12 +139,12 @@ struct MealSummaryView: View {
                             .foregroundStyle(DS.Color.overlayText)
                             .padding(.horizontal, 16)
                             .padding(.vertical, 8)
-                            .background(.ultraThinMaterial.opacity(0.6))
-                            .clipShape(Capsule())
+                            .glassControl()
                     }
                 }
                 .padding(.horizontal, 16)
                 .padding(.top, 12)
+                }
             }
         }
         .onAppear {

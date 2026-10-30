@@ -194,6 +194,7 @@ struct HistoryView: View {
                 }
             }
             .contentMargins(.bottom, 88, for: .scrollContent)
+            .minimizesTabBarOnScroll()
             .listStyle(.plain)
             .scrollContentBackground(.hidden)
             .background(DS.Color.backgroundPrimary)

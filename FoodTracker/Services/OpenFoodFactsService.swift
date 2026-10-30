@@ -14,6 +14,12 @@ actor OpenFoodFactsService {
     private static let logger = Logger(subsystem: "com.DNT.foodtracker", category: "OpenFoodFacts")
 
     /// Stable per-device UUID for OFF moderation tracking
+    /// True when OFF username and password are saved, so contributions can be sent.
+    static var hasCredentials: Bool {
+        !(KeychainService.load(account: keychainAccountUserID) ?? "").isEmpty
+            && !(KeychainService.load(account: keychainAccountPassword) ?? "").isEmpty
+    }
+
     private static var deviceUUID: String {
         let key = AppConstants.Defaults.offDeviceUUID
         if let existing = UserDefaults.standard.string(forKey: key) {
@@ -35,6 +41,12 @@ actor OpenFoodFactsService {
         /// Exact per-100g values to send. Set for serving-only corrections, so the product's nutrition
         /// stays exactly as it was while the serving changes. Nil means derive per-100g from the per-serving values.
         var per100g: Per100g? = nil
+        /// Sends only the serving fields and no nutrition, so OFF keeps the product's nutrition as it is.
+        /// Used when the exact per-100g values aren't known (an entry edited after the scan).
+        var servingOnly = false
+        /// Set when adding a product OFF doesn't have yet: sent as `product_name` / `brands`.
+        var productName: String? = nil
+        var brand: String? = nil
 
         struct Per100g {
             let calories: Double
@@ -46,10 +58,13 @@ actor OpenFoodFactsService {
         /// What will be sent, shown in the confirmation prompt.
         var summary: String {
             var lines: [String] = []
+            if let productName {
+                lines.append("New product: " + [brand, productName].compactMap { $0?.isEmpty == false ? $0 : nil }.joined(separator: " "))
+            }
             if let serving = OpenFoodFactsService.servingSizeField(description: servingDescription, grams: servingGrams) {
                 lines.append("Serving: \(serving)")
             }
-            if per100g != nil {
+            if per100g != nil || servingOnly {
                 lines.append("Nutrition per 100 g: unchanged")
             } else {
                 lines.append("Per serving: \(caloriesPerServing) kcal, \(formatMacro(proteinPerServing))g protein, \(formatMacro(carbsPerServing))g carbs, \(formatMacro(fatPerServing))g fat")
@@ -188,15 +203,17 @@ actor OpenFoodFactsService {
     }
 
     /// Submits corrected nutrition data back to OpenFoodFacts. Fire-and-forget: errors are logged, never thrown.
-    func submitCorrection(_ correction: CorrectionData) async {
+    /// Returns true when OFF saved the fields; false if skipped (no login) or rejected.
+    @discardableResult
+    func submitCorrection(_ correction: CorrectionData) async -> Bool {
         guard let userID = KeychainService.load(account: Self.keychainAccountUserID),
               let password = KeychainService.load(account: Self.keychainAccountPassword),
               !userID.isEmpty, !password.isEmpty else {
             Self.logger.info("OFF correction skipped — no credentials configured")
-            return
+            return false
         }
 
-        guard let url = URL(string: Self.writeURL) else { return }
+        guard let url = URL(string: Self.writeURL) else { return false }
 
         // Compute per-100g values from per-serving + serving weight for OFF
         // OFF works best with per-100g data since it can derive per-serving from serving_quantity
@@ -207,13 +224,23 @@ actor OpenFoodFactsService {
             URLQueryItem(name: "code", value: correction.barcode),
             URLQueryItem(name: "user_id", value: userID),
             URLQueryItem(name: "password", value: password),
-            URLQueryItem(name: "nutrition_data_per", value: nutritionPer),
             URLQueryItem(name: "app_name", value: "FoodTracker"),
             URLQueryItem(name: "app_version", value: Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.0"),
             URLQueryItem(name: "app_uuid", value: Self.deviceUUID),
         ]
+        if !correction.servingOnly {
+            queryItems.append(URLQueryItem(name: "nutrition_data_per", value: nutritionPer))
+        }
+        if let productName = correction.productName, !productName.isEmpty {
+            queryItems.append(URLQueryItem(name: "product_name", value: productName))
+        }
+        if let brand = correction.brand, !brand.isEmpty {
+            queryItems.append(URLQueryItem(name: "brands", value: brand))
+        }
 
-        if let per100g = correction.per100g {
+        if correction.servingOnly {
+            // No nutriment fields: OFF leaves the product's nutrition untouched
+        } else if let per100g = correction.per100g {
             queryItems.append(contentsOf: [
                 URLQueryItem(name: "nutriment_energy-kcal", value: String(format: "%.1f", per100g.calories)),
                 URLQueryItem(name: "nutriment_proteins", value: String(format: "%.1f", per100g.protein)),
@@ -256,16 +283,20 @@ actor OpenFoodFactsService {
 
         do {
             let (data, response) = try await URLSession.shared.data(for: request)
-            if let httpResponse = response as? HTTPURLResponse {
-                let body = String(data: data, encoding: .utf8) ?? "(no body)"
-                if httpResponse.statusCode >= 200 && httpResponse.statusCode < 300 {
-                    Self.logger.info("OFF correction for \(correction.barcode): HTTP \(httpResponse.statusCode) — \(body)")
-                } else {
-                    Self.logger.warning("OFF correction for \(correction.barcode): HTTP \(httpResponse.statusCode) — \(body)")
-                }
+            let statusCode = (response as? HTTPURLResponse)?.statusCode ?? 0
+            let body = String(data: data, encoding: .utf8) ?? "(no body)"
+            // OFF answers 200 with {"status": 0} for a bad login, so check the body too
+            let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
+            let saved = (200..<300).contains(statusCode) && (json?["status"] as? Int ?? 1) == 1
+            if saved {
+                Self.logger.info("OFF correction for \(correction.barcode): HTTP \(statusCode) — \(body)")
+            } else {
+                Self.logger.warning("OFF correction for \(correction.barcode): HTTP \(statusCode) — \(body)")
             }
+            return saved
         } catch {
             Self.logger.error("OFF correction failed for \(correction.barcode): \(error.localizedDescription)")
+            return false
         }
     }
 

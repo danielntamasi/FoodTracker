@@ -27,6 +27,7 @@ enum AppConstants {
         static let reverseChronological = "reverseChronological"
         static let offDeviceUUID = "off-device-uuid"
         static let didMigrateNameCasing = "didMigrateEntryNameCasing"
+        static let didMigrateIconNames = "didMigrateEntryIconNames.v2"
         static let widgetCalories = "widgetCalories"
         static let widgetProtein = "widgetProtein"
         static let widgetCarbs = "widgetCarbs"
@@ -35,6 +36,7 @@ enum AppConstants {
         static let favoriteFoodNames = "favoriteFoodNames"
         static let imagePlaygroundEnabled = "imagePlaygroundEnabled"
         static let appearanceMode = "appearanceMode"
+        static let handedness = "handedness"
         static let claudeModel = "claudeModel"
         static let claudeModelList = "claudeModelList"
     }
@@ -114,6 +116,12 @@ struct ClaudeModel: Identifiable, Hashable, Codable {
             return nil
         }
         UserDefaults.standard.set(encoded, forKey: AppConstants.Defaults.claudeModelList)
+
+        // The selected model was retired or this key can't use it: move to the default, or the newest listed model
+        let selectedID = UserDefaults.standard.string(forKey: AppConstants.Defaults.claudeModel) ?? defaultID
+        if !models.contains(where: { $0.id == selectedID }) {
+            selected = models.first { $0.id == defaultID } ?? models[0]
+        }
         return available
     }
 }

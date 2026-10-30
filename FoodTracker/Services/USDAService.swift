@@ -34,6 +34,8 @@ actor USDAService {
         var nutrientsPer100g: NutrientsPer100g
         var servingDescription: String?
         var servingGrams: Double?
+        /// True for an AI estimate presented in the same shape as a database result.
+        var isAIEstimate = false
 
         /// Nutrients scaled to one serving (or per-100g if no serving info)
         var perServing: NutrientsPer100g {

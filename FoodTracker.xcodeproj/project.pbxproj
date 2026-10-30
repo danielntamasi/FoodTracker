@@ -50,11 +50,11 @@
 		E20001010000000000000003 /* BugReportView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E20002010000000000000003 /* BugReportView.swift */; };
 		E7A1B2C30000000000000001 /* ImagePlaygroundService.swift in Sources */ = {isa = PBXBuildFile; fileRef = E7A1B2C30000000000000002 /* ImagePlaygroundService.swift */; };
 		F30001010000000000000001 /* CSVImportService.swift in Sources */ = {isa = PBXBuildFile; fileRef = F30002010000000000000001 /* CSVImportService.swift */; };
-		F60001010000000000000001 /* FoodChatService.swift in Sources */ = {isa = PBXBuildFile; fileRef = F60002010000000000000001 /* FoodChatService.swift */; };
-		F60001010000000000000003 /* FeedbackService.swift in Sources */ = {isa = PBXBuildFile; fileRef = F60002010000000000000003 /* FeedbackService.swift */; };
-		F60001010000000000000002 /* FoodChatView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F60002010000000000000002 /* FoodChatView.swift */; };
-		F60001010000000000000004 /* FeedbackView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F60002010000000000000004 /* FeedbackView.swift */; };
 		F50001010000000000000001 /* AccuracyTracker.swift in Sources */ = {isa = PBXBuildFile; fileRef = F50002010000000000000001 /* AccuracyTracker.swift */; };
+		F60001010000000000000001 /* FoodChatService.swift in Sources */ = {isa = PBXBuildFile; fileRef = F60002010000000000000001 /* FoodChatService.swift */; };
+		F60001010000000000000002 /* FoodChatView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F60002010000000000000002 /* FoodChatView.swift */; };
+		F60001010000000000000003 /* FeedbackService.swift in Sources */ = {isa = PBXBuildFile; fileRef = F60002010000000000000003 /* FeedbackService.swift */; };
+		F60001010000000000000004 /* FeedbackView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F60002010000000000000004 /* FeedbackView.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -128,12 +128,12 @@
 		E20002010000000000000003 /* BugReportView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BugReportView.swift; sourceTree = "<group>"; };
 		E7A1B2C30000000000000002 /* ImagePlaygroundService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImagePlaygroundService.swift; sourceTree = "<group>"; };
 		F30002010000000000000001 /* CSVImportService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CSVImportService.swift; sourceTree = "<group>"; };
-		F60002010000000000000009 /* Config.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Config.xcconfig; sourceTree = "<group>"; };
-		F60002010000000000000001 /* FoodChatService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FoodChatService.swift; sourceTree = "<group>"; };
-		F60002010000000000000003 /* FeedbackService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FeedbackService.swift; sourceTree = "<group>"; };
-		F60002010000000000000002 /* FoodChatView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FoodChatView.swift; sourceTree = "<group>"; };
-		F60002010000000000000004 /* FeedbackView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FeedbackView.swift; sourceTree = "<group>"; };
 		F50002010000000000000001 /* AccuracyTracker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AccuracyTracker.swift; sourceTree = "<group>"; };
+		F60002010000000000000001 /* FoodChatService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FoodChatService.swift; sourceTree = "<group>"; };
+		F60002010000000000000002 /* FoodChatView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FoodChatView.swift; sourceTree = "<group>"; };
+		F60002010000000000000003 /* FeedbackService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FeedbackService.swift; sourceTree = "<group>"; };
+		F60002010000000000000004 /* FeedbackView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FeedbackView.swift; sourceTree = "<group>"; };
+		F60002010000000000000009 /* Config.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Config.xcconfig; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */

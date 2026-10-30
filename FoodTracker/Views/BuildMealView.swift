@@ -11,6 +11,28 @@ struct IngredientItem: Identifiable {
     var servings: Double = 1.0
     var servingDescription: String?
     var servingGrams: Double?
+    var barcode: String? = nil
+    var entrySource: EntrySource? = nil
+    var aiModel: String? = nil
+}
+
+extension IngredientItem {
+    /// One serving of an existing entry, keeping where it came from.
+    init(copying entry: FoodEntry) {
+        self.init(
+            name: entry.name,
+            calories: entry.calories,
+            proteinGrams: entry.proteinGrams,
+            carbsGrams: entry.carbsGrams,
+            fatGrams: entry.fatGrams,
+            servings: 1.0,
+            servingDescription: entry.servingDescription,
+            servingGrams: entry.servingGrams,
+            barcode: entry.barcode,
+            entrySource: entry.entrySource.flatMap(EntrySource.init(rawValue:)),
+            aiModel: entry.aiModel
+        )
+    }
 }
 
 enum IngredientSource: Identifiable {
@@ -100,10 +122,10 @@ struct BuildMealView: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") { dismiss() }
+                    CloseButton { dismiss() }
                 }
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("Save") { saveMeal() }
+                    ConfirmButton("Save") { saveMeal() }
                         .disabled(mealName.isEmpty || ingredients.isEmpty || ingredients.contains {
                             !isValidNutrition(calories: $0.calories, protein: $0.proteinGrams, carbs: $0.carbsGrams, fat: $0.fatGrams)
                         })
@@ -169,7 +191,10 @@ struct BuildMealView: View {
                 iconName: foodIconName(for: ingredient.name),
                 servings: ingredient.servings,
                 servingDescription: ingredient.servingDescription,
-                servingGrams: ingredient.servingGrams
+                servingGrams: ingredient.servingGrams,
+                barcode: ingredient.barcode,
+                entrySource: ingredient.entrySource,
+                aiModel: ingredient.aiModel
             )
             modelContext.insert(entry)
             Task { await HealthKitService.shared.syncEntry(entry) }

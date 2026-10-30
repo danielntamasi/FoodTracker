@@ -139,7 +139,8 @@ enum FoodAnalysisPipeline {
             description: estimate.name.isEmpty ? foodName : estimate.name,
             nutrientsPer100g: per100g,
             servingDescription: estimate.servingDescription,
-            servingGrams: estimate.servingGrams
+            servingGrams: estimate.servingGrams,
+            isAIEstimate: true
         )
     }
 
@@ -160,7 +161,7 @@ enum FoodAnalysisPipeline {
         plateSize: PlateSize = .medium
     ) async throws -> (foods: [IdentifiedFood], trace: PipelineTrace) {
         var trace = PipelineTrace()
-        trace.visionProvider = VisionProvider.selected.rawValue
+        trace.visionProvider = aiModelDisplayName(currentAIModelID())
         trace.plateSize = plateSize.rawValue
         trace.cookingMethodSelection = cookingMethod?.rawValue
 
@@ -190,7 +191,7 @@ enum FoodAnalysisPipeline {
         plateSize: PlateSize = .medium
     ) async throws -> (foods: [IdentifiedFood], trace: PipelineTrace) {
         var trace = PipelineTrace()
-        trace.visionProvider = VisionProvider.selected.rawValue
+        trace.visionProvider = aiModelDisplayName(currentAIModelID())
         trace.plateSize = plateSize.rawValue
         trace.cookingMethodSelection = cookingMethod?.rawValue
 

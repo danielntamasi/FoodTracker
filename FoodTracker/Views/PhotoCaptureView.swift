@@ -15,7 +15,7 @@ struct PhotoCaptureView: View {
                 .navigationBarTitleDisplayMode(.inline)
                 .toolbar {
                     ToolbarItem(placement: .cancellationAction) {
-                        Button("Cancel") { dismiss() }
+                        CloseButton { dismiss() }
                     }
                 }
                 .onChange(of: capturedImage) { _, newImage in
@@ -80,8 +80,7 @@ struct PrecisionPhotoCaptureView: View {
                                                 .fontWeight(.bold)
                                                 .padding(.horizontal, 6)
                                                 .padding(.vertical, 2)
-                                                .background(.ultraThinMaterial)
-                                                .clipShape(Capsule())
+                                                .glassControl(interactive: false)
                                                 .padding(4),
                                             alignment: .topLeading
                                         )
@@ -98,12 +97,9 @@ struct PrecisionPhotoCaptureView: View {
                                     Label("Add Angle", systemImage: "camera.fill")
                                         .font(.subheadline)
                                         .fontWeight(.medium)
-                                        .padding(.horizontal, DS.Spacing.m)
-                                        .padding(.vertical, DS.Spacing.s)
-                                        .background(DS.Color.backgroundElevated)
-                                        .foregroundStyle(DS.Color.textPrimary)
-                                        .clipShape(Capsule())
                                 }
+                                .glassButtonStyle()
+                                .controlSize(.large)
                             }
 
                             Button {
@@ -112,12 +108,9 @@ struct PrecisionPhotoCaptureView: View {
                                 Label("Analyze \(capturedImages.count) Photos", systemImage: "sparkles")
                                     .font(.subheadline)
                                     .fontWeight(.semibold)
-                                    .padding(.horizontal, DS.Spacing.m)
-                                    .padding(.vertical, DS.Spacing.s)
-                                    .background(DS.Color.protein)
-                                    .foregroundStyle(.white)
-                                    .clipShape(Capsule())
                             }
+                            .glassButtonStyle(prominent: true)
+                            .controlSize(.large)
                         }
                         .padding(.bottom, DS.Spacing.l)
                     }
@@ -127,7 +120,7 @@ struct PrecisionPhotoCaptureView: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") { dismiss() }
+                    CloseButton { dismiss() }
                 }
             }
             .onChange(of: currentImage) { _, newImage in
@@ -206,7 +199,7 @@ struct MultiAngleAnalysisView: View {
                 .navigationBarTitleDisplayMode(.inline)
                 .toolbar {
                     ToolbarItem(placement: .cancellationAction) {
-                        Button("Cancel") { dismiss() }
+                        CloseButton { dismiss() }
                     }
                 }
                 .task {
@@ -248,7 +241,7 @@ struct PhotoUploadView: View {
                 .navigationBarTitleDisplayMode(.inline)
                 .toolbar {
                     ToolbarItem(placement: .cancellationAction) {
-                        Button("Cancel") { dismiss() }
+                        CloseButton { dismiss() }
                     }
                 }
                 .onChange(of: selectedImage) { _, newImage in
