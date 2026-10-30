@@ -115,6 +115,16 @@ enum DS {
         static let caption2  = Font.system(.caption2, design: .rounded, weight: .regular)
     }
 
+    // MARK: Icons
+
+    /// One symbol per nutrient, shown in its color wherever totals or goals appear
+    enum Icon {
+        static let calories = "flame.fill"
+        static let protein = "dumbbell.fill"   // muscle
+        static let carbs = "bolt.fill"         // quick energy
+        static let fat = "drop.fill"           // oil
+    }
+
     // MARK: Gradient
 
     enum Gradient {
@@ -226,6 +236,54 @@ struct MacroPill: View {
     }
 }
 
+/// Icon and title with a small gap (the default label spacing is wide for inline status text)
+struct TightLabelStyle: LabelStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        HStack(spacing: 3) {
+            configuration.icon
+            configuration.title
+        }
+    }
+}
+
+// MARK: - Goal Tone
+
+/// How a running daily total sits against its goal. Landing within ±10% is a win (green
+/// with a check); only clearly overshooting is flagged: orange up to 20% over, red beyond.
+/// Below the band the total is just in progress and keeps its normal color.
+enum GoalTone: Equatable {
+    case inProgress, onTarget, over, wayOver
+
+    init(current: Double, goal: Double) {
+        guard goal > 0 else { self = .inProgress; return }
+        let ratio = current / goal
+        if ratio < PerformanceThresholds.onTargetLow {
+            self = .inProgress
+        } else if ratio <= PerformanceThresholds.onTargetHigh {
+            self = .onTarget
+        } else if ratio <= PerformanceThresholds.severeOverThreshold {
+            self = .over
+        } else {
+            self = .wayOver
+        }
+    }
+
+    /// Rings keep their own color; only way over turns them red. The check/X marks
+    /// and status text use `color(normal:)`.
+    func ringColor(normal: SwiftUI.Color) -> SwiftUI.Color {
+        self == .wayOver ? DS.Color.danger : normal
+    }
+
+    func color(normal: SwiftUI.Color) -> SwiftUI.Color {
+        switch self {
+        case .inProgress: return normal
+        case .onTarget: return DS.Color.success
+        case .over: return DS.Color.carbs
+        case .wayOver: return DS.Color.danger
+        }
+    }
+}
+
 // MARK: - Calorie Ring
 
 struct CalorieRing: View {
@@ -243,6 +301,39 @@ struct CalorieRing: View {
     }
 
     private var remaining: Int { goal - consumed }
+    private var tone: GoalTone { GoalTone(current: Double(consumed), goal: Double(goal)) }
+
+    /// Blue-to-purple; red only when way over the goal
+    private var ringColors: [SwiftUI.Color] {
+        tone == .wayOver
+            ? [DS.Color.danger.opacity(0.7), DS.Color.danger]
+            : [DS.Color.protein, DS.Color.protein, DS.Color.fat, DS.Color.fat]
+    }
+
+    /// "734 left", "✓ On target" or "✗ 350 over" in the tone's color
+    @ViewBuilder
+    private var statusLabel: some View {
+        switch tone {
+        case .onTarget:
+            Label("On target", systemImage: "checkmark.seal.fill")
+                .labelStyle(TightLabelStyle())
+                .foregroundStyle(DS.Color.success)
+                .symbolEffect(.bounce, value: tone)
+        case .over, .wayOver:
+            Label("\(abs(remaining)) over", systemImage: "xmark.circle.fill")
+                .labelStyle(TightLabelStyle())
+                .foregroundStyle(tone.color(normal: DS.Color.protein))
+                .contentTransition(.numericText())
+        case .inProgress:
+            Text("\(remaining) left")
+                .foregroundStyle(DS.Color.protein)
+                .contentTransition(.numericText())
+        }
+    }
+
+    private var glowColors: (SwiftUI.Color, SwiftUI.Color) {
+        tone == .wayOver ? (DS.Color.danger, DS.Color.danger) : (DS.Color.protein, DS.Color.fat)
+    }
 
     var body: some View {
         ZStack {
@@ -255,7 +346,7 @@ struct CalorieRing: View {
                 .trim(from: 0, to: animatedProgress)
                 .stroke(
                     AngularGradient(
-                        colors: [DS.Color.protein, DS.Color.protein, DS.Color.fat, DS.Color.fat],
+                        colors: ringColors,
                         center: .center,
                         startAngle: .degrees(0),
                         endAngle: .degrees(360 * animatedProgress)
@@ -263,24 +354,33 @@ struct CalorieRing: View {
                     style: StrokeStyle(lineWidth: lineWidth, lineCap: .round)
                 )
                 .rotationEffect(.degrees(-90))
-                .shadow(color: DS.Color.protein.opacity(0.5), radius: 10)
-                .shadow(color: DS.Color.fat.opacity(0.3), radius: 16)
+                .shadow(color: glowColors.0.opacity(0.5), radius: 10)
+                .shadow(color: glowColors.1.opacity(0.3), radius: 16)
+                .animation(.easeInOut(duration: 0.4), value: tone)
 
             // Center content
             VStack(spacing: 2) {
+                Image(systemName: DS.Icon.calories)
+                    .font(.title3)
+                    .foregroundStyle(LinearGradient(colors: [DS.Color.protein, DS.Color.fat], startPoint: .top, endPoint: .bottom))
+                    .accessibilityHidden(true)
                 Text("\(consumed)")
                     .font(.system(size: 48, weight: .bold, design: .default))
                     .monospacedDigit()
                     .foregroundStyle(DS.Color.textPrimary)
                     .contentTransition(.numericText())
                 if goal > 0 {
-                    Text("/ \(goal) cal")
-                        .font(DS.Typography.labelM)
-                        .foregroundStyle(DS.Color.textSecondary)
-                    Text("\(abs(remaining)) \(remaining >= 0 ? "left" : "over")")
-                        .font(DS.Typography.caption)
-                        .foregroundStyle(remaining >= 0 ? DS.Color.protein : DS.Color.danger)
-                        .contentTransition(.numericText())
+                    // Goal and status share one line to keep the ring's center light
+                    HStack(spacing: 4) {
+                        Text("of \(goal.formatted())")
+                            .foregroundStyle(DS.Color.textSecondary)
+                        Text("·")
+                            .foregroundStyle(DS.Color.textTertiary)
+                        statusLabel
+                    }
+                    .font(DS.Typography.labelM)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.8)
                 } else {
                     Text("calories")
                         .font(DS.Typography.labelM)
@@ -314,6 +414,7 @@ struct CalorieRing: View {
 
 struct MacroArc: View {
     let label: String
+    var icon: String? = nil
     let current: Double
     let goal: Double
     let color: SwiftUI.Color
@@ -327,7 +428,7 @@ struct MacroArc: View {
         return min(current / goal, 1.0)
     }
 
-    private var isOver: Bool { goal > 0 && current > goal }
+    private var tone: GoalTone { GoalTone(current: current, goal: goal) }
 
     var body: some View {
         VStack(spacing: 6) {
@@ -339,29 +440,48 @@ struct MacroArc: View {
                 Circle()
                     .trim(from: 0, to: animatedProgress)
                     .stroke(
-                        isOver ? DS.Color.danger : color,
+                        tone.ringColor(normal: color),
                         style: StrokeStyle(lineWidth: 5, lineCap: .round)
                     )
                     .rotationEffect(.degrees(-90))
                     .frame(width: arcSize, height: arcSize)
-                    .shadow(color: color.opacity(0.4), radius: 4)
+                    .shadow(color: tone.ringColor(normal: color).opacity(0.4), radius: 4)
 
                 VStack(spacing: 0) {
                     Text("\(Int(current))")
                         .font(.system(size: 15, weight: .bold, design: .rounded))
                         .monospacedDigit()
-                        .foregroundStyle(isOver ? DS.Color.danger : DS.Color.textPrimary)
-                    Text("g")
-                        .font(.system(size: 10, weight: .medium, design: .rounded))
-                        .foregroundStyle(DS.Color.textSecondary)
+                        .foregroundStyle(tone == .wayOver ? DS.Color.danger : DS.Color.textPrimary)
+                    // The unit turns into a mark once the goal is settled: a green check
+                    // in the goal band, an X in orange/red when over
+                    if tone != .inProgress {
+                        Image(systemName: tone == .onTarget ? "checkmark" : "xmark")
+                            .font(.system(size: 10, weight: .heavy))
+                            .foregroundStyle(tone.color(normal: color))
+                            .frame(height: 13)
+                            .transition(.scale.combined(with: .opacity))
+                            .accessibilityLabel(tone == .onTarget ? "On target" : "Over goal")
+                    } else {
+                        Text("g")
+                            .font(.system(size: 10, weight: .medium, design: .rounded))
+                            .foregroundStyle(DS.Color.textSecondary)
+                            .frame(height: 13)
+                    }
                 }
+                .animation(.spring(duration: 0.4, bounce: 0.4), value: tone)
             }
 
-            Text(label)
-                .font(DS.Typography.labelS)
-                .foregroundStyle(DS.Color.textSecondary)
-                .textCase(.uppercase)
-                .tracking(0.5)
+            HStack(spacing: 4) {
+                if let icon {
+                    Image(systemName: icon)
+                        .foregroundStyle(color)
+                }
+                Text(label)
+                    .foregroundStyle(DS.Color.textSecondary)
+                    .textCase(.uppercase)
+                    .tracking(0.5)
+            }
+            .font(DS.Typography.labelS)
 
             if goal > 0 {
                 Text("/ \(Int(goal))g")

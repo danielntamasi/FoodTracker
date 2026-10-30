@@ -37,6 +37,7 @@ enum AppConstants {
         static let imagePlaygroundEnabled = "imagePlaygroundEnabled"
         static let appearanceMode = "appearanceMode"
         static let handedness = "handedness"
+        static let performanceExcludedDays = "performanceExcludedDays"
         static let claudeModel = "claudeModel"
         static let claudeModelList = "claudeModelList"
     }

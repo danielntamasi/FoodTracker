@@ -31,6 +31,8 @@ struct HistoryView: View {
                 if !entries.isEmpty {
                     Section {
                         PerformanceTileView(entries: entries)
+                            // Same side margins as the summary card on Today
+                            .padding(.horizontal, DS.Spacing.m)
                             .listRowInsets(EdgeInsets())
                             .listRowBackground(Color.clear)
                             .listRowSeparator(.hidden)
@@ -194,7 +196,6 @@ struct HistoryView: View {
                 }
             }
             .contentMargins(.bottom, 88, for: .scrollContent)
-            .minimizesTabBarOnScroll()
             .listStyle(.plain)
             .scrollContentBackground(.hidden)
             .background(DS.Color.backgroundPrimary)

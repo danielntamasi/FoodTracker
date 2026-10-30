@@ -1,7 +1,23 @@
 import SwiftUI
 
-enum AppTab {
+enum AppTab: CaseIterable {
     case today, history, settings
+
+    var title: String {
+        switch self {
+        case .today: return "Today"
+        case .history: return "History"
+        case .settings: return "Settings"
+        }
+    }
+
+    var systemImage: String {
+        switch self {
+        case .today: return "fork.knife"
+        case .history: return "calendar"
+        case .settings: return "gearshape"
+        }
+    }
 }
 
 enum QuickAddAction {
@@ -33,7 +49,8 @@ struct ContentView: View {
     ]
 
     @Namespace private var glassNamespace
-    @State private var tabBarMinimized = false
+    /// When the + last toggled the menu, so a double selection callback can't undo it
+    @State private var lastAddToggle = Date.distantPast
     @AppStorage(AppConstants.Defaults.handedness, store: sharedDefaults)
     private var handedness: String = Handedness.right.rawValue
 
@@ -105,125 +122,103 @@ struct ContentView: View {
             }
     }
 
-    // MARK: - Liquid Glass Layout (iOS 26)
+    // MARK: - Native Tab Bar (iOS 26)
 
-    /// Tabs in a glass capsule, the + as its own tinted glass button, and the add menu
-    /// morphing out of the + as glass pills, drawn in a ZStack above the content.
+    /// The system tab bar: Liquid Glass with the selection lens, shrinks on scroll, scroll
+    /// edge blur. The + is a `.search`-role tab, which iOS draws as the separate round glass
+    /// button at the trailing end; selecting it toggles the add menu instead of switching
+    /// tabs. For left-handed users only the bar is laid out right-to-left, which puts that
+    /// trailing button on the left; tab contents stay left-to-right.
     @available(iOS 26, *)
     private var glassLayout: some View {
-        ZStack(alignment: .bottom) {
-            activeTabContent
-                .safeAreaInset(edge: .bottom, spacing: 0) {
-                    Color.clear.frame(height: glassBarHeight)
+        TabView(selection: nativeSelection) {
+            // Right-to-left lays tabs out from the right, so reverse them to keep
+            // Today, History, Settings reading left to right
+            ForEach(isLeftHanded ? AppTab.allCases.reversed() : AppTab.allCases, id: \.self) { tab in
+                Tab(tab.title, systemImage: tab.systemImage, value: NativeTab.tab(tab)) {
+                    tabContent(tab)
+                        .environment(\.layoutDirection, .leftToRight)
                 }
-                .environment(\.tabBarScrollDirection) { scrollingDown in
-                    guard tabBarMinimized != scrollingDown else { return }
-                    withAnimation(.spring(duration: 0.4, bounce: 0.2)) {
-                        tabBarMinimized = scrollingDown
-                    }
-                }
-
+            }
+            // Static label and icon: changing them while the menu is open makes iOS
+            // re-run the selection, which would close the menu again
+            Tab("Add Food", systemImage: "plus", value: NativeTab.add, role: .search) {
+                Color.clear
+            }
+        }
+        .tabBarMinimizeBehavior(.onScrollDown)
+        .environment(\.layoutDirection, isLeftHanded ? .rightToLeft : .leftToRight)
+        .onChange(of: scenePhase) { _, newPhase in
+            if newPhase == .active {
+                let newStart = Calendar.current.startOfDay(for: Date())
+                if newStart != todayViewID { todayViewID = newStart }
+            }
+        }
+        .overlay {
             if showingRadialMenu {
                 radialDimming.transition(.opacity)
             }
-
-            glassTabBar
         }
-        .onChange(of: activeTab) { _, _ in
-            tabBarMinimized = false
+        .overlay(alignment: isLeftHanded ? .bottomLeading : .bottomTrailing) {
+            glassAddMenu
         }
     }
 
-    /// 60pt controls + 4pt bottom padding
-    private let glassBarHeight: CGFloat = 64
+    @ViewBuilder
+    private func tabContent(_ tab: AppTab) -> some View {
+        switch tab {
+        case .today:
+            DailySummaryView()
+                .id(todayViewID)
+        case .history:
+            HistoryView()
+        case .settings:
+            SettingsView()
+        }
+    }
 
+    private enum NativeTab: Hashable {
+        case tab(AppTab)
+        case add
+    }
+
+    /// Selecting a tab switches to it; selecting the + toggles the add menu and leaves the
+    /// current tab selected
+    private var nativeSelection: Binding<NativeTab> {
+        Binding(
+            get: { .tab(activeTab) },
+            set: { newValue in
+                switch newValue {
+                case .tab(let tab):
+                    showingRadialMenu = false
+                    activeTab = tab
+                case .add:
+                    let sinceLast = Date().timeIntervalSince(lastAddToggle)
+                    guard sinceLast > 0.4 else { return }
+                    lastAddToggle = Date()
+                    withAnimation(.spring(duration: 0.4, bounce: 0.25)) {
+                        showingRadialMenu.toggle()
+                    }
+                }
+            }
+        )
+    }
+
+    /// Glass pills stacked above the system + button
     @available(iOS 26, *)
-    private var glassTabBar: some View {
+    private var glassAddMenu: some View {
         GlassEffectContainer(spacing: 8) {
-            // The menu stacks above the +, on whichever side Settings > Handedness puts it
             VStack(alignment: isLeftHanded ? .leading : .trailing, spacing: 12) {
                 if showingRadialMenu {
                     ForEach(radialItems, id: \.label) { item in
                         glassMenuItem(item)
                     }
                 }
-
-                HStack(spacing: 12) {
-                    if isLeftHanded { plusButton }
-                    tabsCluster
-                    if !isLeftHanded { plusButton }
-                }
             }
         }
-        .padding(.horizontal, DS.Spacing.screenEdge)
-        .padding(.bottom, 4)
-    }
-
-    /// The tabs capsule, or when minimized a single bubble for the current tab
-    /// (tap to expand), pushed to the side away from the +.
-    @available(iOS 26, *)
-    @ViewBuilder
-    private var tabsCluster: some View {
-        if tabBarMinimized {
-            HStack(spacing: 0) {
-                if isLeftHanded { Spacer(minLength: 0) }
-                Button {
-                    withAnimation(.spring(duration: 0.4, bounce: 0.2)) {
-                        tabBarMinimized = false
-                    }
-                } label: {
-                    Image(systemName: activeTabIcon)
-                        .font(.title3)
-                        .foregroundStyle(DS.Color.protein)
-                        .frame(width: 60, height: 60)
-                        .glassEffect(.regular.interactive(), in: Circle())
-                        .glassEffectID("tabs", in: glassNamespace)
-                        .contentShape(Circle())
-                }
-                .buttonStyle(.plain)
-                .accessibilityLabel("Show tabs")
-                if !isLeftHanded { Spacer(minLength: 0) }
-            }
-        } else {
-            HStack(spacing: 0) {
-                glassTabItem(icon: "fork.knife", label: "Today", tab: .today)
-                glassTabItem(icon: "calendar", label: "History", tab: .history)
-                glassTabItem(icon: "gearshape", filledIcon: "gearshape.fill", label: "Settings", tab: .settings)
-            }
-            .padding(4)
-            .glassEffect(.regular.interactive(), in: Capsule())
-            .glassEffectID("tabs", in: glassNamespace)
-        }
-    }
-
-    @available(iOS 26, *)
-    private var plusButton: some View {
-        Button {
-            withAnimation(.spring(duration: 0.4, bounce: 0.25)) {
-                showingRadialMenu.toggle()
-            }
-        } label: {
-            Image(systemName: "plus")
-                .font(.title2.weight(.semibold))
-                .foregroundStyle(.white)
-                .rotationEffect(.degrees(showingRadialMenu ? 45 : 0))
-                .frame(width: 60, height: 60)
-                .glassEffect(.regular.tint(DS.Color.protein).interactive(), in: Circle())
-                .glassEffectID("plus", in: glassNamespace)
-                // Glass isn't hit-testable: without this only the glyph takes taps
-                // and the rest of the circle passes them to the content behind
-                .contentShape(Circle())
-        }
-        .buttonStyle(.plain)
-        .accessibilityLabel(showingRadialMenu ? "Close menu" : "Add food")
-    }
-
-    private var activeTabIcon: String {
-        switch activeTab {
-        case .today: "fork.knife"
-        case .history: "calendar"
-        case .settings: "gearshape.fill"
-        }
+        .padding(.horizontal, DS.Spacing.screenEdge + 4)
+        // Clears the system tab bar
+        .padding(.bottom, 76)
     }
 
     @available(iOS 26, *)
@@ -234,7 +229,10 @@ struct ContentView: View {
             let action = item.action
             withAnimation(.spring(duration: 0.3, bounce: 0.2)) {
                 showingRadialMenu = false
-            } completion: {
+            }
+            // Present once the menu has started closing; no dependency on an
+            // animation completion callback
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) {
                 triggerAction(action)
             }
         } label: {
@@ -245,42 +243,12 @@ struct ContentView: View {
                 .frame(height: 48)
                 .glassEffect(.regular.tint(isPrimary ? DS.Color.protein : nil).interactive(), in: Capsule())
                 .glassEffectID(item.label, in: glassNamespace)
+                .glassEffectTransition(.materialize)
+                // Glass isn't hit-testable: without this only the text and icon take taps
                 .contentShape(Capsule())
         }
         .buttonStyle(.plain)
         .accessibilityLabel(item.label)
-    }
-
-    private func glassTabItem(icon: String, filledIcon: String? = nil, label: String, tab: AppTab) -> some View {
-        let isActive = activeTab == tab
-        return Button {
-            withAnimation(.spring(duration: 0.35, bounce: 0.2)) {
-                activeTab = tab
-            }
-        } label: {
-            VStack(spacing: 2) {
-                Image(systemName: isActive ? (filledIcon ?? icon) : icon)
-                    .font(.title3)
-                    .symbolEffect(.bounce, value: isActive)
-                Text(label)
-                    .font(.caption2.weight(.medium))
-            }
-            .foregroundStyle(isActive ? DS.Color.protein : DS.Color.textPrimary)
-            .frame(maxWidth: .infinity)
-            .frame(height: 52)
-            .background {
-                if isActive {
-                    // Selection lives inside the bar's glass, so a plain fill rather than glass on glass
-                    Capsule()
-                        .fill(DS.Color.protein.opacity(0.14))
-                        .matchedGeometryEffect(id: "tabSelection", in: glassNamespace)
-                }
-            }
-            .contentShape(Capsule())
-        }
-        .buttonStyle(.plain)
-        .accessibilityLabel(label)
-        .accessibilityAddTraits(isActive ? .isSelected : [])
     }
 
     // MARK: - Classic Layout (before iOS 26)
@@ -478,46 +446,5 @@ struct ScaleButtonStyle: ButtonStyle {
         configuration.label
             .scaleEffect(configuration.isPressed ? 0.9 : 1.0)
             .animation(.spring(duration: 0.2), value: configuration.isPressed)
-    }
-}
-
-
-// MARK: - Tab Bar Minimize
-
-extension EnvironmentValues {
-    /// Set by `ContentView` on iOS 26; called with `true` when a tab's list scrolls down, `false` when it scrolls up.
-    @Entry var tabBarScrollDirection: ((Bool) -> Void)? = nil
-}
-
-extension View {
-    /// Lets the glass tab bar shrink while this tab's scroll view scrolls down (iOS 26).
-    @ViewBuilder
-    func minimizesTabBarOnScroll() -> some View {
-        if #available(iOS 26, *) {
-            modifier(TabBarScrollReporter())
-        } else {
-            self
-        }
-    }
-}
-
-@available(iOS 26, *)
-private struct TabBarScrollReporter: ViewModifier {
-    @Environment(\.tabBarScrollDirection) private var report
-
-    func body(content: Content) -> some View {
-        content.onScrollGeometryChange(for: CGFloat.self) { geo in
-            geo.contentOffset.y + geo.contentInsets.top
-        } action: { old, new in
-            guard let report else { return }
-            let delta = new - old
-            if new <= 20 {
-                report(false)        // back near the top
-            } else if delta > 6 {
-                report(true)
-            } else if delta < -6 {
-                report(false)
-            }
-        }
     }
 }

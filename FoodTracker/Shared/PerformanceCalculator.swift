@@ -1,23 +1,31 @@
 import SwiftUI
 
-// MARK: - Trend Direction
+// MARK: - Performance Window
 
-enum TrendDirection {
-    case improving, declining, steady
+/// How far back the History performance card averages.
+enum PerformanceWindow: Int, CaseIterable, Identifiable {
+    case week = 7
+    case month = 30
+    case quarter = 90
+    case year = 365
 
-    var label: String {
+    var id: Int { rawValue }
+
+    var shortLabel: String {
         switch self {
-        case .improving: return "▲ Improving vs last month"
-        case .declining: return "▼ Declining vs last month"
-        case .steady: return "▸ Steady vs last month"
+        case .week: return "7D"
+        case .month: return "30D"
+        case .quarter: return "90D"
+        case .year: return "1Y"
         }
     }
 
-    var color: Color {
+    var title: String {
         switch self {
-        case .improving: return DS.Color.success
-        case .declining: return DS.Color.danger
-        case .steady: return DS.Color.textSecondary
+        case .week: return "Last 7 days"
+        case .month: return "Last 30 days"
+        case .quarter: return "Last 90 days"
+        case .year: return "Last year"
         }
     }
 }
@@ -28,314 +36,228 @@ enum PerformanceThresholds {
     /// Ratio bounds for "on target" (±10%)
     static let onTargetLow = 0.9
     static let onTargetHigh = 1.1
-    /// Ratio bounds for "slightly off" (10-20% off)
+    /// Beyond ±20% is "way off"
     static let severeOverThreshold = 1.2
     static let severeUnderThreshold = 0.8
-    /// Monthly dot adherence thresholds
-    static let monthDotGood = 0.7
-    static let monthDotFair = 0.5
-    /// Overall adherence color thresholds (percentage)
-    static let adherenceGood = 70
-    static let adherenceFair = 50
-    /// Trend sensitivity (5% difference)
-    static let trendSensitivity = 0.05
+}
+
+// MARK: - Target Status
+
+enum TargetStatus: Equatable {
+    case noTarget
+    case onTarget
+    case over(percent: Int, severe: Bool)
+    case under(percent: Int, severe: Bool)
+
+    init(average: Double, target: Int) {
+        guard target > 0 else { self = .noTarget; return }
+        let ratio = average / Double(target)
+        let percent = Int((abs(ratio - 1) * 100).rounded())
+        if ratio > PerformanceThresholds.onTargetHigh {
+            self = .over(percent: percent, severe: ratio > PerformanceThresholds.severeOverThreshold)
+        } else if ratio < PerformanceThresholds.onTargetLow {
+            self = .under(percent: percent, severe: ratio < PerformanceThresholds.severeUnderThreshold)
+        } else {
+            self = .onTarget
+        }
+    }
+
+    /// Compact chip text: nothing when on target (the checkmark says it), else the percent
+    var shortLabel: String? {
+        switch self {
+        case .noTarget, .onTarget: return nil
+        case .over(let percent, _), .under(let percent, _): return "\(percent)%"
+        }
+    }
+
+    var label: String {
+        switch self {
+        case .noTarget: return "No goal"
+        case .onTarget: return "On target"
+        case .over(let percent, _): return "\(percent)% over"
+        case .under(let percent, _): return "\(percent)% under"
+        }
+    }
+
+    var color: Color {
+        switch self {
+        case .noTarget: return DS.Color.textTertiary
+        case .onTarget: return DS.Color.success
+        case .over(_, let severe), .under(_, let severe):
+            return severe ? DS.Color.danger : DS.Color.carbs
+        }
+    }
+
+    var iconName: String {
+        switch self {
+        case .noTarget: return "minus"
+        case .onTarget: return "checkmark"
+        case .over: return "arrow.up"
+        case .under: return "arrow.down"
+        }
+    }
+}
+
+// MARK: - Day Log
+
+enum DayStatus {
+    case empty, complete, partial, excluded
+}
+
+/// One logged day in the window, with whether it looks partially logged.
+struct DayLog: Identifiable {
+    let date: Date
+    let calories: Int
+    /// Why the day looks partial; empty when it looks complete
+    let partialReasons: [String]
+    /// Left out of the averages by the user
+    let isExcluded: Bool
+
+    var id: Date { date }
+    var isPartial: Bool { !partialReasons.isEmpty }
+}
+
+/// Days the user left out of the performance averages, kept as "yyyy-MM-dd" keys.
+enum ExcludedDays {
+    private static let formatter: DateFormatter = {
+        let f = DateFormatter()
+        f.locale = Locale(identifier: "en_US_POSIX")
+        f.dateFormat = "yyyy-MM-dd"
+        return f
+    }()
+
+    static func key(for date: Date) -> String { formatter.string(from: date) }
+
+    static func load() -> Set<String> {
+        Set(sharedDefaults.stringArray(forKey: AppConstants.Defaults.performanceExcludedDays) ?? [])
+    }
+
+    static func save(_ keys: Set<String>) {
+        sharedDefaults.set(Array(keys).sorted(), forKey: AppConstants.Defaults.performanceExcludedDays)
+    }
+}
+
+// MARK: - Summary
+
+struct MacroAverage: Identifiable {
+    let macro: MacroType
+    let average: Double
+    let target: Int
+
+    var id: MacroType { macro }
+    var status: TargetStatus { TargetStatus(average: average, target: target) }
+}
+
+struct PerformanceSummary {
+    let window: PerformanceWindow
+    /// Days in the window with at least one entry that count toward the averages
+    /// (logged and not left out)
+    let loggedDays: Int
+    /// Every logged day in the window, newest first, including left-out ones
+    let days: [DayLog]
+    /// One status per day in the window, oldest first
+    let dayStatuses: [DayStatus]
+    let averages: [MacroAverage]
+
+    var missingDays: Int { window.rawValue - days.count }
+    var excludedCount: Int { days.filter(\.isExcluded).count }
+    var partialDays: [DayLog] { days.filter { $0.isPartial || $0.isExcluded } }
+    var partialCountedCount: Int { days.filter { $0.isPartial && !$0.isExcluded }.count }
+    var coverage: Double { Double(loggedDays) / Double(window.rawValue) }
+
+    var hasTargets: Bool { averages.contains { $0.target > 0 } }
+    var onTargetCount: Int { averages.filter { $0.status == .onTarget }.count }
+    var targetedCount: Int { averages.filter { $0.target > 0 }.count }
 }
 
 // MARK: - Performance Calculator
 
-struct PerformanceCalculator {
-    let entries: [FoodEntry]
-    let activeMacroTypes: [MacroType]
+enum PerformanceCalculator {
+    /// A day under this share of the calorie goal (or of the typical day, without a goal) looks partial
+    static let lowCalorieShare = 0.6
+    /// A day missing lunch or dinner looks partial when it's also under this share
+    static let missingMealShare = 0.85
 
-    var hasTargets: Bool { !activeMacroTypes.isEmpty }
-
-    // MARK: - Data Builders
-
-    func buildDailyRecords(days: Int) -> [DayRecord] {
+    /// Average daily totals over the `window` complete days before today. Days with nothing
+    /// logged are skipped, as are days the user left out (`excluded` day keys). Today is left
+    /// out because a half-logged day drags every average down.
+    static func summary(
+        entries: [FoodEntry],
+        window: PerformanceWindow,
+        excluded: Set<String> = [],
+        now: Date = Date()
+    ) -> PerformanceSummary {
         let calendar = Calendar.current
-        let now = Date()
+        let end = calendar.startOfDay(for: now)
+        let start = calendar.date(byAdding: .day, value: -window.rawValue, to: end)!
 
-        let startDate = calendar.startOfDay(for: calendar.date(byAdding: .day, value: -(days - 1), to: now)!)
-        var buckets: [Int: [FoodEntry]] = [:]
-        for entry in entries {
-            let dayStart = calendar.startOfDay(for: entry.date)
-            let offset = calendar.dateComponents([.day], from: startDate, to: dayStart).day ?? -1
-            guard offset >= 0 && offset < days else { continue }
-            buckets[offset, default: []].append(entry)
+        var byDay: [Date: [FoodEntry]] = [:]
+        for entry in entries where entry.date >= start && entry.date < end {
+            byDay[calendar.startOfDay(for: entry.date), default: []].append(entry)
         }
 
-        var records: [DayRecord] = []
-        records.reserveCapacity(days)
-        for offset in 0..<days {
-            guard let date = calendar.date(byAdding: .day, value: offset, to: startDate) else { continue }
-            let dayEntries = buckets[offset] ?? []
-            records.append(DayRecord(
-                date: date,
-                calories: dayEntries.reduce(0) { $0 + $1.totalCalories },
-                protein: dayEntries.reduce(0) { $0 + $1.totalProteinGrams },
-                carbs: dayEntries.reduce(0) { $0 + $1.totalCarbsGrams },
-                fat: dayEntries.reduce(0) { $0 + $1.totalFatGrams },
-                hasData: !dayEntries.isEmpty
-            ))
+        let dailyCalories = byDay.mapValues { $0.reduce(0) { $0 + $1.totalCalories } }
+        let reference = referenceCalories(dailyCalories: Array(dailyCalories.values))
+
+        let days = byDay.keys.sorted(by: >).map { day in
+            let dayEntries = byDay[day] ?? []
+            let calories = dailyCalories[day] ?? 0
+            return DayLog(
+                date: day,
+                calories: calories,
+                partialReasons: partialReasons(entries: dayEntries, calories: calories, reference: reference),
+                isExcluded: excluded.contains(ExcludedDays.key(for: day))
+            )
         }
-        return records
-    }
 
-    var yearDayCount: Int {
-        let calendar = Calendar.current
-        let now = Date()
-        guard let yearStart = calendar.date(from: calendar.dateComponents([.year], from: now)) else { return 1 }
-        return (calendar.dateComponents([.day], from: yearStart, to: now).day ?? 0) + 1
-    }
-
-    func dailyRecords(for period: PerformancePeriod) -> [DayRecord] {
-        switch period {
-        case .week: return buildDailyRecords(days: 7)
-        case .month: return buildDailyRecords(days: 28)
-        case .year: return buildDailyRecords(days: yearDayCount)
-        }
-    }
-
-    // MARK: - Dot Status
-
-    func dotStatus(for macro: MacroType, record: DayRecord) -> DotStatus {
-        guard record.hasData else { return .noData }
-        let tgt = Double(macro.target)
-        guard tgt > 0 else { return .noTarget }
-        let val = macro.value(from: record)
-        let pct = val / tgt
-        if pct >= PerformanceThresholds.onTargetLow && pct <= PerformanceThresholds.onTargetHigh { return .onTarget }
-        if pct > PerformanceThresholds.onTargetHigh { return pct > PerformanceThresholds.severeOverThreshold ? .over(severe: true) : .over(severe: false) }
-        return pct < PerformanceThresholds.severeUnderThreshold ? .under(severe: true) : .under(severe: false)
-    }
-
-    // MARK: - All-Macro Adherence
-
-    func isDayFullyOnTarget(_ record: DayRecord) -> Bool {
-        guard record.hasData else { return false }
-        guard !activeMacroTypes.isEmpty else { return false }
-        return activeMacroTypes.allSatisfy { macro in
-            let val = macro.value(from: record)
-            let tgt = Double(macro.target)
-            guard tgt > 0 else { return true }
-            let pct = val / tgt
-            return pct >= PerformanceThresholds.onTargetLow && pct <= PerformanceThresholds.onTargetHigh
-        }
-    }
-
-    func dayOverallStatus(_ record: DayRecord) -> DotStatus {
-        guard record.hasData else { return .noData }
-        guard !activeMacroTypes.isEmpty else { return .noTarget }
-
-        var worstSeverity = 0
-        var isOver = false
-
-        for macro in activeMacroTypes {
-            let val = macro.value(from: record)
-            let tgt = Double(macro.target)
-            guard tgt > 0 else { continue }
-            let pct = val / tgt
-            if pct >= PerformanceThresholds.onTargetLow && pct <= PerformanceThresholds.onTargetHigh {
-                continue
-            }
-            let severe = pct > PerformanceThresholds.severeOverThreshold || pct < PerformanceThresholds.severeUnderThreshold
-            let severity = severe ? 2 : 1
-            if severity > worstSeverity {
-                worstSeverity = severity
-                isOver = pct > PerformanceThresholds.onTargetHigh
+        var calories = 0.0, protein = 0.0, carbs = 0.0, fat = 0.0
+        let countedDays = Set(days.filter { !$0.isExcluded }.map(\.date))
+        for (day, dayEntries) in byDay where countedDays.contains(day) {
+            for entry in dayEntries {
+                calories += Double(entry.totalCalories)
+                protein += entry.totalProteinGrams
+                carbs += entry.totalCarbsGrams
+                fat += entry.totalFatGrams
             }
         }
 
-        switch worstSeverity {
-        case 0: return .onTarget
-        case 1: return isOver ? .over(severe: false) : .under(severe: false)
-        default: return isOver ? .over(severe: true) : .under(severe: true)
+        let daysByDate = Dictionary(uniqueKeysWithValues: days.map { ($0.date, $0) })
+        let dayStatuses: [DayStatus] = (0..<window.rawValue).map { offset in
+            guard let day = daysByDate[calendar.date(byAdding: .day, value: offset, to: start)!] else { return .empty }
+            if day.isExcluded { return .excluded }
+            return day.isPartial ? .partial : .complete
         }
-    }
-
-    func daysOnTarget(in records: [DayRecord]) -> Int {
-        records.filter { isDayFullyOnTarget($0) }.count
-    }
-
-    func daysWithData(in records: [DayRecord]) -> Int {
-        records.filter { $0.hasData }.count
-    }
-
-    func currentStreak(in records: [DayRecord], excludeToday: Bool = false) -> Int {
-        let calendar = Calendar.current
-        let today = calendar.startOfDay(for: Date())
-        var streak = 0
-        var started = false
-        for record in records.reversed() {
-            // Skip today — the day isn't over yet so it shouldn't break a streak
-            if excludeToday && calendar.isDate(record.date, inSameDayAs: today) {
-                continue
-            }
-            if isDayFullyOnTarget(record) {
-                streak += 1
-                started = true
-            } else if !record.hasData && !started {
-                continue
-            } else {
-                break
-            }
+        let divisor = Double(max(countedDays.count, 1))
+        let totals: [MacroType: Double] = [.calories: calories, .protein: protein, .carbs: carbs, .fat: fat]
+        let averages = MacroType.allCases.map { macro in
+            MacroAverage(macro: macro, average: (totals[macro] ?? 0) / divisor, target: macro.target)
         }
-        return streak
+        return PerformanceSummary(window: window, loggedDays: countedDays.count, days: days, dayStatuses: dayStatuses, averages: averages)
     }
 
-    /// Computes the current streak looking back from yesterday across ALL entries,
-    /// not limited to the selected period. Today is excluded because it's still in progress.
-    func globalCurrentStreak(allEntries: [FoodEntry]) -> Int {
-        let calendar = Calendar.current
-        let now = Date()
-        guard let earliest = allEntries.map(\.date).min() else { return 0 }
-        let startDay = calendar.startOfDay(for: earliest)
-        let today = calendar.startOfDay(for: now)
-        let totalDays = (calendar.dateComponents([.day], from: startDay, to: today).day ?? 0) + 1
-        guard totalDays > 0 else { return 0 }
-
-        let globalCalc = PerformanceCalculator(entries: allEntries, activeMacroTypes: activeMacroTypes)
-        let records = globalCalc.buildDailyRecords(days: totalDays)
-        return globalCalc.currentStreak(in: records, excludeToday: true)
+    /// The calorie goal, or without one the median logged day
+    private static func referenceCalories(dailyCalories: [Int]) -> Double {
+        if DailyTarget.calories > 0 { return Double(DailyTarget.calories) }
+        let sorted = dailyCalories.sorted()
+        guard !sorted.isEmpty else { return 0 }
+        return Double(sorted[sorted.count / 2])
     }
 
-    func bestStreak(in records: [DayRecord]) -> Int {
-        var best = 0
-        var current = 0
-        for record in records {
-            if isDayFullyOnTarget(record) {
-                current += 1
-                best = max(best, current)
-            } else {
-                current = 0
-            }
+    /// Why a day looks partially logged: very low calories, or no lunch/dinner on a lowish day.
+    /// A missing breakfast alone isn't flagged, since plenty of people skip it.
+    private static func partialReasons(entries: [FoodEntry], calories: Int, reference: Double) -> [String] {
+        guard reference > 0 else { return [] }
+        let share = Double(calories) / reference
+        let periods = Set(entries.map { TimeOfDay.from($0.date) })
+
+        var reasons: [String] = []
+        if share < lowCalorieShare {
+            reasons.append("Only \(calories.formatted()) kcal")
         }
-        return best
-    }
-
-    func avgDelta(in records: [DayRecord]) -> Int {
-        let calTarget = DailyTarget.calories
-        guard calTarget > 0 else { return 0 }
-        let withData = records.filter { $0.hasData }
-        guard !withData.isEmpty else { return 0 }
-        return withData.reduce(0) { $0 + ($1.calories - calTarget) } / withData.count
-    }
-
-    func avgCalories(in records: [DayRecord]) -> Int {
-        let withData = records.filter { $0.hasData }
-        guard !withData.isEmpty else { return 0 }
-        return withData.reduce(0) { $0 + $1.calories } / withData.count
-    }
-
-    // MARK: - Year Monthly Dots
-
-    func yearMonthlyDotsFrom(_ records: [DayRecord]) -> [(label: String, hasData: Bool, adherencePct: Double?)] {
-        let calendar = Calendar.current
-        let now = Date()
-        let currentMonth = calendar.component(.month, from: now)
-
-        let grouped = Dictionary(grouping: records) { record in
-            calendar.component(.month, from: record.date)
+        if share < missingMealShare {
+            if !periods.contains(.afternoon) { reasons.append("No lunch logged") }
+            if !periods.contains(.evening) { reasons.append("No dinner logged") }
         }
-
-        var dots: [(label: String, hasData: Bool, adherencePct: Double?)] = []
-        for month in 1...12 {
-            let label = calendar.veryShortMonthSymbols[month - 1]
-
-            if month > currentMonth {
-                dots.append((label: label, hasData: false, adherencePct: nil))
-                continue
-            }
-
-            guard let monthRecords = grouped[month] else {
-                dots.append((label: label, hasData: false, adherencePct: nil))
-                continue
-            }
-
-            let withData = monthRecords.filter { $0.hasData }
-            if withData.isEmpty {
-                dots.append((label: label, hasData: false, adherencePct: nil))
-                continue
-            }
-
-            guard hasTargets else {
-                dots.append((label: label, hasData: true, adherencePct: nil))
-                continue
-            }
-
-            let onTarget = withData.filter { isDayFullyOnTarget($0) }.count
-            let adherence = Double(onTarget) / Double(withData.count)
-            dots.append((label: label, hasData: true, adherencePct: adherence))
-        }
-
-        return dots
-    }
-
-    func monthDotColor(hasData: Bool, adherencePct: Double?) -> Color {
-        guard hasData else { return DS.Color.textTertiary }
-        guard let adherence = adherencePct else { return DS.Color.protein }
-        if adherence >= PerformanceThresholds.monthDotGood { return DS.Color.success }
-        if adherence >= PerformanceThresholds.monthDotFair { return DS.Color.carbs }
-        return DS.Color.danger
-    }
-
-    // MARK: - Month Weekly Dots
-
-    func monthWeeklyDotsFrom(_ records: [DayRecord]) -> [(label: String, hasData: Bool, adherencePct: Double?)] {
-        var dots: [(label: String, hasData: Bool, adherencePct: Double?)] = []
-        for week in 0..<4 {
-            let start = week * 7
-            let end = min(start + 7, records.count)
-            guard start < records.count else {
-                dots.append((label: "W\(week + 1)", hasData: false, adherencePct: nil))
-                continue
-            }
-            let weekRecords = Array(records[start..<end])
-            let withData = weekRecords.filter { $0.hasData }
-
-            if withData.isEmpty {
-                dots.append((label: "W\(week + 1)", hasData: false, adherencePct: nil))
-                continue
-            }
-
-            guard hasTargets else {
-                dots.append((label: "W\(week + 1)", hasData: true, adherencePct: nil))
-                continue
-            }
-
-            let onTarget = withData.filter { isDayFullyOnTarget($0) }.count
-            let adherence = Double(onTarget) / Double(withData.count)
-            dots.append((label: "W\(week + 1)", hasData: true, adherencePct: adherence))
-        }
-        return dots
-    }
-
-    // MARK: - Month Trend
-
-    func monthTrend() -> TrendDirection {
-        let all56 = buildDailyRecords(days: 56)
-        let previous = Array(all56.prefix(28))
-        let current = Array(all56.suffix(28))
-
-        let currentWithData = daysWithData(in: current)
-        let previousWithData = daysWithData(in: previous)
-
-        guard currentWithData > 0, previousWithData > 0 else { return .steady }
-
-        let currentPct = Double(daysOnTarget(in: current)) / Double(currentWithData)
-        let previousPct = Double(daysOnTarget(in: previous)) / Double(previousWithData)
-
-        let diff = currentPct - previousPct
-        if diff > PerformanceThresholds.trendSensitivity { return .improving }
-        if diff < -PerformanceThresholds.trendSensitivity { return .declining }
-        return .steady
-    }
-
-    // MARK: - Adherence Color
-
-    func adherenceColor(_ pct: Int) -> Color {
-        if pct >= PerformanceThresholds.adherenceGood { return DS.Color.success }
-        if pct >= PerformanceThresholds.adherenceFair { return DS.Color.carbs }
-        return DS.Color.danger
+        return reasons
     }
 }

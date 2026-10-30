@@ -1,36 +1,36 @@
-import Charts
 import SwiftUI
-
-// MARK: - Performance Period
-
-enum PerformancePeriod: String, CaseIterable {
-    case week = "Week"
-    case month = "Month"
-    case year = "Year"
-}
-
-// MARK: - Day Record
-
-struct DayRecord {
-    let date: Date
-    let calories: Int
-    let protein: Double
-    let carbs: Double
-    let fat: Double
-    let hasData: Bool
-}
 
 // MARK: - Macro Type
 
 enum MacroType: CaseIterable {
     case calories, protein, carbs, fat
 
-    var label: String {
+    var name: String {
         switch self {
-        case .calories: return "Cal"
-        case .protein: return "Pro"
-        case .carbs: return "Carb"
+        case .calories: return "Calories"
+        case .protein: return "Protein"
+        case .carbs: return "Carbs"
         case .fat: return "Fat"
+        }
+    }
+
+    var unit: String { self == .calories ? "kcal" : "g" }
+
+    var iconName: String {
+        switch self {
+        case .calories: return DS.Icon.calories
+        case .protein: return DS.Icon.protein
+        case .carbs: return DS.Icon.carbs
+        case .fat: return DS.Icon.fat
+        }
+    }
+
+    var color: Color {
+        switch self {
+        case .calories: return DS.Color.textPrimary
+        case .protein: return DS.Color.protein
+        case .carbs: return DS.Color.carbs
+        case .fat: return DS.Color.fat
         }
     }
 
@@ -42,524 +42,433 @@ enum MacroType: CaseIterable {
         case .fat: return DailyTarget.fat
         }
     }
-
-    func value(from record: DayRecord) -> Double {
-        switch self {
-        case .calories: return Double(record.calories)
-        case .protein: return record.protein
-        case .carbs: return record.carbs
-        case .fat: return record.fat
-        }
-    }
-}
-
-// MARK: - Dot Status
-
-enum DotStatus {
-    case noData
-    case noTarget
-    case onTarget
-    case over(severe: Bool)
-    case under(severe: Bool)
-
-    var color: Color {
-        switch self {
-        case .noData: return DS.Color.textTertiary
-        case .noTarget: return DS.Color.protein.opacity(0.3)
-        case .onTarget: return DS.Color.success
-        case .over(let severe), .under(let severe):
-            return severe ? DS.Color.danger : DS.Color.carbs
-        }
-    }
-
-    var arrowName: String? {
-        switch self {
-        case .over: return "chevron.up"
-        case .under: return "chevron.down"
-        default: return nil
-        }
-    }
 }
 
 // MARK: - Performance Tile
 
+/// History's performance card: average daily calories and macros over the last
+/// 7/30/90/365 days, each compared against its goal's ±10% band, plus how many
+/// days the averages are based on.
 struct PerformanceTileView: View {
     let entries: [FoodEntry]
-    @State private var selectedPeriod: PerformancePeriod = .week
+    @State private var window: PerformanceWindow = .week
     @State private var showingInfo = false
-    @State private var useBarChart = true
+    @State private var showingPartialDays = false
+    @State private var excludedDays = ExcludedDays.load()
 
-    private var calc: PerformanceCalculator {
-        PerformanceCalculator(
-            entries: entries,
-            activeMacroTypes: MacroType.allCases.filter { $0.target > 0 }
-        )
+    private var summary: PerformanceSummary {
+        PerformanceCalculator.summary(entries: entries, window: window, excluded: excludedDays)
     }
 
-    // MARK: - Body
-
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack {
-                Text("Performance")
-                    .font(.headline)
-                Button {
-                    showingInfo = true
-                } label: {
-                    Image(systemName: "info.circle")
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
-                        .frame(minWidth: 44, minHeight: 44)
+        let summary = summary
+        VStack(alignment: .leading, spacing: DS.Spacing.m) {
+            header(summary)
+
+            Picker("Period", selection: $window) {
+                ForEach(PerformanceWindow.allCases) { window in
+                    Text(window.shortLabel).tag(window)
                 }
-                .accessibilityLabel("Performance info")
-                .buttonStyle(.plain)
-                if selectedPeriod == .week && calc.hasTargets {
-                    Button {
-                        withAnimation(.easeInOut(duration: 0.25)) {
-                            useBarChart.toggle()
-                        }
-                    } label: {
-                        Image(systemName: useBarChart ? "chart.bar.fill" : "circle.grid.3x3.fill")
-                            .font(.subheadline)
-                            .foregroundStyle(.secondary)
-                            .frame(minWidth: 44, minHeight: 44)
-                    }
-                    .accessibilityLabel(useBarChart ? "Show dot matrix" : "Show bar chart")
-                    .buttonStyle(.plain)
-                }
-                Spacer()
-                Picker("Period", selection: $selectedPeriod) {
-                    ForEach(PerformancePeriod.allCases, id: \.self) { period in
-                        Text(period.rawValue).tag(period)
-                    }
-                }
-                .pickerStyle(.segmented)
-                .frame(maxWidth: 200)
+            }
+            .pickerStyle(.segmented)
+
+            DataCoverageRow(summary: summary) {
+                showingPartialDays = true
             }
 
-            if calc.hasTargets {
-                switch selectedPeriod {
-                case .week: weekContent
-                case .month: monthContent
-                case .year: yearContent
-                }
+            if summary.loggedDays == 0 {
+                Label("Nothing logged yet", systemImage: "tray")
+                    .font(DS.Typography.subhead)
+                    .foregroundStyle(DS.Color.textSecondary)
+                    .frame(maxWidth: .infinity, alignment: .center)
+                    .padding(.vertical, DS.Spacing.l)
             } else {
-                noTargetsContent
+                VStack(spacing: DS.Spacing.l) {
+                    ForEach(summary.averages) { average in
+                        MacroAverageRow(average: average)
+                    }
+                }
+
+                if !summary.hasTargets {
+                    Label("Set daily targets in Settings to compare", systemImage: "target")
+                        .font(DS.Typography.caption)
+                        .foregroundStyle(DS.Color.textTertiary)
+                }
             }
         }
         .padding(DS.Spacing.m)
         .appCard()
+        .animation(.easeInOut(duration: 0.25), value: window)
         .sheet(isPresented: $showingInfo) {
             PerformanceInfoView()
         }
-    }
-
-    // MARK: - Week Content
-
-    @ViewBuilder
-    private var weekContent: some View {
-        let records = calc.dailyRecords(for: .week)
-        let onTarget = calc.daysOnTarget(in: records)
-        let withData = calc.daysWithData(in: records)
-        let pct = withData > 0 ? Int(round(Double(onTarget) / Double(withData) * 100)) : 0
-        let streak = calc.globalCurrentStreak(allEntries: entries)
-        let delta = calc.avgDelta(in: records)
-
-        VStack(spacing: 10) {
-            heroStat(onTarget: onTarget, total: withData, pct: pct)
-
-            if useBarChart {
-                weekBarChart(records: records)
-                weekStatusDotsRow(records: records)
-            } else {
-                macroDotsMatrix(records: records)
-            }
-
-            HStack {
-                if withData > 0 && DailyTarget.calories > 0 {
-                    let sign = delta >= 0 ? "+" : ""
-                    Text("Avg \(sign)\(delta.formatted()) cal/day")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-                Spacer()
-                streakLabel(count: streak, isBest: false)
-            }
+        .sheet(isPresented: $showingPartialDays) {
+            PartialDaysView(days: summary.partialDays, excludedDays: $excludedDays)
+        }
+        .onChange(of: excludedDays) { _, newValue in
+            ExcludedDays.save(newValue)
         }
     }
 
-    // MARK: - Week Macro Bar Chart
-
-    private struct MacroBarEntry: Identifiable {
-        let id = UUID()
-        let xPos: Double
-        let macro: String
-        let pct: Double
-        let color: Color
-    }
-
-    private func macroColor(for macro: MacroType) -> Color {
-        switch macro {
-        case .calories: return .gray
-        case .protein: return DS.Color.protein
-        case .carbs: return DS.Color.carbs
-        case .fat: return DS.Color.fat
-        }
-    }
-
-    private static let macroOffsets: [MacroType: Double] = [
-        .calories: -0.27, .protein: -0.09, .carbs: 0.09, .fat: 0.27
-    ]
-
-    private func weekBarChart(records: [DayRecord]) -> some View {
-        let calendar = Calendar.current
-
-        let dayLabels: [Int: String] = Dictionary(
-            uniqueKeysWithValues: records.enumerated().map { i, record in
-                let weekday = calendar.component(.weekday, from: record.date)
-                return (i, calendar.veryShortWeekdaySymbols[weekday - 1])
-            }
-        )
-
-        var barEntries: [MacroBarEntry] = []
-        for (i, record) in records.enumerated() {
-            for macro in MacroType.allCases {
-                let target = Double(macro.target)
-                let pct: Double
-                if target > 0 {
-                    pct = record.hasData ? (macro.value(from: record) / target) * 100 : 0
-                } else {
-                    pct = 0
-                }
-                let offset = Self.macroOffsets[macro] ?? 0
-                barEntries.append(MacroBarEntry(
-                    xPos: Double(i) + offset,
-                    macro: macro.label,
-                    pct: pct,
-                    color: macroColor(for: macro)
-                ))
-            }
-        }
-
-        let maxPct = barEntries.map(\.pct).max() ?? 100
-        let yMax = max(150, maxPct * 1.1)
-        let barWidth: MarkDimension = .fixed(6)
-
-        return Chart {
-            RectangleMark(
-                yStart: .value("Low", 90),
-                yEnd: .value("High", 110)
-            )
-            .foregroundStyle(DS.Color.success.opacity(0.08))
-
-            RuleMark(y: .value("Target", 100))
-                .lineStyle(StrokeStyle(lineWidth: 1, dash: [4, 3]))
-                .foregroundStyle(.secondary.opacity(0.5))
-
-            ForEach(barEntries) { entry in
-                BarMark(
-                    x: .value("Day", entry.xPos),
-                    y: .value("% of Target", entry.pct),
-                    width: barWidth
-                )
-                .foregroundStyle(entry.color)
-                .cornerRadius(1.5)
-            }
-        }
-        .chartXAxis {
-            AxisMarks(values: Array(0..<records.count).map { Double($0) }) { value in
-                if let dbl = value.as(Double.self), let label = dayLabels[Int(dbl)] {
-                    AxisValueLabel {
-                        Text(label)
-                            .font(.caption2)
-                            .foregroundStyle(.secondary)
-                    }
-                }
-            }
-        }
-        .chartXScale(domain: -0.5...6.5)
-        .chartYAxis {
-            AxisMarks(values: [0, 50, 100, 150]) { value in
-                AxisGridLine()
-                AxisValueLabel {
-                    if let v = value.as(Int.self) {
-                        Text("\(v)%")
-                            .font(.caption2)
-                            .foregroundStyle(.secondary)
-                    }
-                }
-            }
-        }
-        .chartYScale(domain: 0...yMax)
-        .chartLegend(position: .bottom, spacing: 4) {
-            HStack(spacing: 12) {
-                ForEach(MacroType.allCases, id: \.label) { macro in
-                    HStack(spacing: 4) {
-                        Circle().fill(macroColor(for: macro)).frame(width: 6, height: 6)
-                        Text(macro.label)
-                            .font(.caption2)
-                            .foregroundStyle(.secondary)
-                    }
-                }
-            }
-        }
-        .chartPlotStyle { plot in
-            plot.clipped()
-        }
-        .frame(height: 140)
-    }
-
-    // MARK: - Week Status Dots Row
-
-    private func weekStatusDotsRow(records: [DayRecord]) -> some View {
-        HStack(spacing: 0) {
-            ForEach(Array(records.enumerated()), id: \.offset) { _, record in
-                let status = calc.dayOverallStatus(record)
-                ZStack {
-                    Circle()
-                        .fill(status.color)
-                        .frame(width: 10, height: 10)
-                    if let arrow = status.arrowName {
-                        Image(systemName: arrow)
-                            .font(.system(size: 5, weight: .bold))
-                            .foregroundStyle(.white)
-                    }
-                }
-                .frame(maxWidth: .infinity)
-            }
-        }
-        // Align with chart plot area (offset for Y-axis labels on trailing edge)
-        .padding(.trailing, 38)
-    }
-
-    // MARK: - Month Content
-
-    @ViewBuilder
-    private var monthContent: some View {
-        let records = calc.dailyRecords(for: .month)
-        let onTarget = calc.daysOnTarget(in: records)
-        let withData = calc.daysWithData(in: records)
-        let pct = withData > 0 ? Int(round(Double(onTarget) / Double(withData) * 100)) : 0
-        let avg = calc.avgCalories(in: records)
-        let best = calc.bestStreak(in: records)
-        let streak = calc.globalCurrentStreak(allEntries: entries)
-        let trend = calc.monthTrend()
-
-        VStack(spacing: 10) {
-            heroStat(onTarget: onTarget, total: withData, pct: pct)
-            weeklyDotsRow(dots: calc.monthWeeklyDotsFrom(records))
-
-            HStack {
-                VStack(alignment: .leading, spacing: 4) {
-                    if withData > 0 && DailyTarget.calories > 0 {
-                        HStack(spacing: 0) {
-                            Text("Avg \(avg.formatted()) cal/day")
-                            Text("  \u{00B7}  Target \(DailyTarget.calories.formatted())")
-                        }
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                    }
-
-                    Text(trend.label)
-                        .font(.caption)
-                        .fontWeight(.medium)
-                        .foregroundStyle(trend.color)
-                }
-                Spacer()
-                VStack(alignment: .trailing, spacing: 4) {
-                    if streak > 0 {
-                        streakLabel(count: streak, isBest: false)
-                    }
-                    if best > 0 {
-                        streakLabel(count: best, isBest: true)
-                    }
-                }
-            }
-        }
-    }
-
-    // MARK: - Year Content
-
-    @ViewBuilder
-    private var yearContent: some View {
-        let records = calc.dailyRecords(for: .year)
-        let onTarget = calc.daysOnTarget(in: records)
-        let withData = calc.daysWithData(in: records)
-        let pct = withData > 0 ? Int(round(Double(onTarget) / Double(withData) * 100)) : 0
-        let best = calc.bestStreak(in: records)
-        let streak = calc.globalCurrentStreak(allEntries: entries)
-        let dots = calc.yearMonthlyDotsFrom(records)
-
-        VStack(spacing: 10) {
-            heroStat(onTarget: onTarget, total: withData, pct: pct)
-            monthDotsRow(dots: dots)
-
-            HStack {
-                if streak > 0 {
-                    streakLabel(count: streak, isBest: false)
-                }
-                Spacer()
-                if best > 0 {
-                    streakLabel(count: best, isBest: true)
-                }
-            }
-        }
-    }
-
-    // MARK: - No Targets Content
-
-    @ViewBuilder
-    private var noTargetsContent: some View {
-        let records = calc.dailyRecords(for: selectedPeriod)
-        let logged = calc.daysWithData(in: records)
-        let avg = calc.avgCalories(in: records)
-
-        VStack(spacing: 10) {
-            HStack {
-                Text("This \(selectedPeriod.rawValue)")
-                    .font(.subheadline)
-                    .fontWeight(.medium)
-                Spacer()
-            }
-
-            if selectedPeriod == .week {
-                noTargetDayDotsRow(records: records)
-            } else if selectedPeriod == .month {
-                weeklyDotsRow(dots: calc.monthWeeklyDotsFrom(records))
-            } else if selectedPeriod == .year {
-                monthDotsRow(dots: calc.yearMonthlyDotsFrom(records))
-            }
-
-            HStack {
-                if logged > 0 {
-                    Text("Avg \(avg.formatted()) cal/day")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-                Spacer()
-                Text("\(logged) \(logged == 1 ? "day" : "days") logged")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
-        }
-    }
-
-    // MARK: - Shared Components
-
-    private func heroStat(onTarget: Int, total: Int, pct: Int) -> some View {
-        HStack(alignment: .firstTextBaseline) {
-            Text("\(onTarget) of \(total) on target")
-                .font(.subheadline)
-                .fontWeight(.medium)
+    private func header(_ summary: PerformanceSummary) -> some View {
+        HStack(spacing: DS.Spacing.s) {
+            Text("Performance")
+                .font(DS.Typography.headline)
+                .foregroundStyle(DS.Color.textPrimary)
             Spacer()
-            Text("\(pct)%")
-                .font(.title2)
-                .fontWeight(.bold)
-                .foregroundStyle(calc.adherenceColor(pct))
+            if summary.hasTargets && summary.loggedDays > 0 {
+                let allOn = summary.onTargetCount == summary.targetedCount
+                Label("\(summary.onTargetCount)/\(summary.targetedCount)", systemImage: "target")
+                    .font(DS.Typography.labelL)
+                    .monospacedDigit()
+                    .foregroundStyle(allOn ? DS.Color.success : DS.Color.textSecondary)
+                    .contentTransition(.numericText())
+                    .accessibilityLabel("\(summary.onTargetCount) of \(summary.targetedCount) goals on target")
+            }
+            Button {
+                showingInfo = true
+            } label: {
+                Image(systemName: "info.circle")
+                    .font(.subheadline)
+                    .foregroundStyle(DS.Color.textSecondary)
+                    .frame(minWidth: 44, minHeight: 44)
+            }
+            .accessibilityLabel("Performance info")
+            .buttonStyle(.plain)
+        }
+    }
+}
+
+// MARK: - Data Coverage Row
+
+/// How many days the averages rest on: "5 of 7 days · 2 missing", with a dot per day
+/// (7D, 30D) or a fill bar (90D, 1Y), colored by coverage so thin data stands out.
+/// Days that look partially logged get a faded dot and a button to review them;
+/// days left out of the averages get a hollow dot.
+private struct DataCoverageRow: View {
+    let summary: PerformanceSummary
+    let onShowPartialDays: () -> Void
+
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var shownCoverage: Double = 0
+
+    private var color: Color {
+        switch summary.coverage {
+        case 0.8...: return DS.Color.success
+        case 0.5..<0.8: return DS.Color.carbs
+        default: return DS.Color.danger
         }
     }
 
-    private func macroDotsMatrix(records: [DayRecord]) -> some View {
-        let calendar = Calendar.current
-        return VStack(spacing: 6) {
-            HStack(spacing: 0) {
-                Color.clear.frame(width: 34, height: 1)
-                ForEach(Array(records.enumerated()), id: \.offset) { _, record in
-                    let weekday = calendar.component(.weekday, from: record.date)
-                    let symbol = calendar.veryShortWeekdaySymbols[weekday - 1]
-                    Text(symbol)
-                        .font(.caption2)
-                        .foregroundStyle(.secondary)
-                        .frame(maxWidth: .infinity)
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(spacing: 6) {
+                Image(systemName: "calendar")
+                    .foregroundStyle(color)
+                Text("\(summary.loggedDays) of \(summary.window.rawValue) days")
+                    .foregroundStyle(DS.Color.textPrimary)
+                    .contentTransition(.numericText())
+                if summary.missingDays > 0 {
+                    Text("· \(summary.missingDays) missing")
+                        .foregroundStyle(color)
+                        .contentTransition(.numericText())
+                }
+                Spacer(minLength: 0)
+                if !summary.partialDays.isEmpty {
+                    partialButton
                 }
             }
+            .font(DS.Typography.labelM)
+            .monospacedDigit()
+            .accessibilityElement(children: .combine)
 
-            ForEach(MacroType.allCases, id: \.label) { macro in
-                HStack(spacing: 0) {
-                    Text(macro.label)
-                        .font(.caption2)
-                        .foregroundStyle(macro.target > 0 ? .secondary : .quaternary)
-                        .frame(width: 34, alignment: .leading)
-                    ForEach(Array(records.enumerated()), id: \.offset) { _, record in
-                        matrixDot(status: calc.dotStatus(for: macro, record: record))
-                            .frame(maxWidth: .infinity)
+            Group {
+                if summary.window.rawValue <= PerformanceWindow.month.rawValue {
+                    dayDots
+                } else {
+                    coverageBar
+                }
+            }
+            .accessibilityHidden(true)
+        }
+    }
+
+    /// "2 look partial" while flagged days still count, else "1 left out"
+    private var partialButton: some View {
+        let counted = summary.partialCountedCount
+        let text = counted > 0
+            ? "\(counted) look\(counted == 1 ? "s" : "") partial"
+            : "\(summary.excludedCount) left out"
+        return Button(action: onShowPartialDays) {
+            HStack(spacing: 3) {
+                Image(systemName: counted > 0 ? "exclamationmark.triangle.fill" : "line.3.horizontal.decrease.circle")
+                Text(text)
+                Image(systemName: "chevron.right")
+                    .font(.caption2.weight(.semibold))
+            }
+            .foregroundStyle(counted > 0 ? DS.Color.carbs : DS.Color.textSecondary)
+        }
+        .buttonStyle(.plain)
+        .accessibilityHint("Review days that look partially logged")
+    }
+
+    /// One dot per day, oldest on the left
+    private var dayDots: some View {
+        HStack(spacing: summary.window == .week ? 6 : 3) {
+            ForEach(Array(summary.dayStatuses.enumerated()), id: \.offset) { index, status in
+                dot(status)
+                    .transition(.scale(scale: 0.2, anchor: .leading).combined(with: .opacity))
+                    .animation(reduceMotion ? nil : .spring(duration: 0.4).delay(Double(index) * 0.015), value: summary.window)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func dot(_ status: DayStatus) -> some View {
+        switch status {
+        case .empty:
+            Capsule().fill(DS.Color.ringTrack).frame(height: 6)
+        case .complete:
+            Capsule().fill(color).frame(height: 6)
+        case .partial:
+            Capsule().fill(color.opacity(0.35)).frame(height: 6)
+        case .excluded:
+            Capsule().strokeBorder(DS.Color.textTertiary, lineWidth: 1).frame(height: 6)
+        }
+    }
+
+    private var coverageBar: some View {
+        GeometryReader { geo in
+            ZStack(alignment: .leading) {
+                Capsule().fill(DS.Color.ringTrack)
+                Capsule()
+                    .fill(color)
+                    .frame(width: geo.size.width * shownCoverage)
+            }
+        }
+        .frame(height: 6)
+        .onAppear { animateCoverage(to: summary.coverage) }
+        .onChange(of: summary.coverage) { _, newValue in animateCoverage(to: newValue) }
+    }
+
+    private func animateCoverage(to value: Double) {
+        if reduceMotion {
+            shownCoverage = value
+        } else {
+            withAnimation(.spring(response: 0.8, dampingFraction: 0.8)) {
+                shownCoverage = value
+            }
+        }
+    }
+}
+
+// MARK: - Partial Days
+
+/// Days in the window that look partially logged (or were left out), with why, and
+/// a button per day to leave it out of the averages or count it again.
+private struct PartialDaysView: View {
+    let days: [DayLog]
+    @Binding var excludedDays: Set<String>
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        NavigationStack {
+            List {
+                Section {
+                    ForEach(days) { day in
+                        row(day)
+                    }
+                } footer: {
+                    Text("Days with very few calories, or no lunch or dinner logged on a light day, probably weren't fully logged. Leaving them out keeps them from pulling your averages down. Entries aren't touched.")
+                }
+            }
+            .navigationTitle("Partial Days")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    CloseButton(title: "Close") { dismiss() }
+                }
+                if days.contains(where: { $0.isPartial && !$0.isExcluded }) {
+                    ToolbarItem(placement: .primaryAction) {
+                        Button("Leave All Out") {
+                            for day in days where day.isPartial {
+                                excludedDays.insert(ExcludedDays.key(for: day.date))
+                            }
+                        }
                     }
                 }
             }
         }
+        .presentationDetents([.medium, .large])
     }
 
-    private func matrixDot(status: DotStatus) -> some View {
-        ZStack {
-            Circle()
-                .fill(status.color)
-                .frame(width: 14, height: 14)
-            if let arrow = status.arrowName {
-                Image(systemName: arrow)
-                    .font(.system(size: 7, weight: .bold))
-                    .foregroundStyle(.white)
-            }
-        }
-    }
-
-    private func noTargetDayDotsRow(records: [DayRecord]) -> some View {
-        let calendar = Calendar.current
-        return HStack(spacing: 0) {
-            ForEach(Array(records.enumerated()), id: \.offset) { _, record in
-                let weekday = calendar.component(.weekday, from: record.date)
-                let symbol = calendar.veryShortWeekdaySymbols[weekday - 1]
-                VStack(spacing: 4) {
-                    Circle()
-                        .fill(record.hasData ? DS.Color.protein : DS.Color.textTertiary)
-                        .frame(width: 12, height: 12)
-                    Text(symbol)
-                        .font(.caption2)
-                        .foregroundStyle(.secondary)
+    private func row(_ day: DayLog) -> some View {
+        let key = ExcludedDays.key(for: day.date)
+        return HStack(spacing: DS.Spacing.m) {
+            VStack(alignment: .leading, spacing: 3) {
+                HStack(spacing: 6) {
+                    Text(day.date.formatted(.dateTime.weekday(.abbreviated).month(.abbreviated).day()))
+                        .font(DS.Typography.labelL)
+                        .foregroundStyle(day.isExcluded ? DS.Color.textTertiary : DS.Color.textPrimary)
+                    Text("\(day.calories.formatted()) kcal")
+                        .font(DS.Typography.caption)
+                        .monospacedDigit()
+                        .foregroundStyle(DS.Color.textTertiary)
                 }
-                .frame(maxWidth: .infinity)
+                Label(day.isPartial ? day.partialReasons.joined(separator: " · ") : "Left out by you",
+                      systemImage: day.isPartial ? "exclamationmark.triangle.fill" : "line.3.horizontal.decrease.circle")
+                    .font(DS.Typography.caption)
+                    .foregroundStyle(day.isPartial ? DS.Color.carbs : DS.Color.textSecondary)
             }
-        }
-    }
-
-    private func weeklyDotsRow(dots: [(label: String, hasData: Bool, adherencePct: Double?)]) -> some View {
-        HStack(spacing: 0) {
-            ForEach(Array(dots.enumerated()), id: \.offset) { _, dot in
-                VStack(spacing: 4) {
-                    Circle()
-                        .fill(calc.monthDotColor(hasData: dot.hasData, adherencePct: dot.adherencePct))
-                        .frame(width: 14, height: 14)
-                    Text(dot.label)
-                        .font(.caption2)
-                        .foregroundStyle(.secondary)
+            Spacer(minLength: 0)
+            Button(day.isExcluded ? "Count It" : "Leave Out") {
+                if day.isExcluded {
+                    excludedDays.remove(key)
+                } else {
+                    excludedDays.insert(key)
                 }
-                .frame(maxWidth: .infinity)
             }
+            .glassButtonStyle(prominent: !day.isExcluded)
+            .controlSize(.small)
         }
     }
+}
 
-    private func monthDotsRow(dots: [(label: String, hasData: Bool, adherencePct: Double?)]) -> some View {
-        HStack(spacing: 0) {
-            ForEach(Array(dots.enumerated()), id: \.offset) { _, dot in
-                VStack(spacing: 4) {
-                    Circle()
-                        .fill(calc.monthDotColor(hasData: dot.hasData, adherencePct: dot.adherencePct))
-                        .frame(width: 12, height: 12)
-                    Text(dot.label)
-                        .font(.caption2)
-                        .foregroundStyle(.secondary)
+// MARK: - Macro Average Row
+
+private struct MacroAverageRow: View {
+    let average: MacroAverage
+
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    /// What the bar fill shows: grows from 0 on appear and slides when the period changes
+    @State private var shownAverage: Double = 0
+
+    /// The bar spans 0–150% of the goal; anything past that pins to the end
+    private let scaleMax = 1.5
+
+    var body: some View {
+        let status = average.status
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(alignment: .firstTextBaseline, spacing: 6) {
+                macroLabel
+                Spacer(minLength: 0)
+                Text(Int(average.average.rounded()).formatted())
+                    .font(DS.Typography.numberM)
+                    .monospacedDigit()
+                    .foregroundStyle(DS.Color.textPrimary)
+                    .contentTransition(.numericText())
+                Text(average.macro.unit)
+                    .font(DS.Typography.caption)
+                    .foregroundStyle(DS.Color.textTertiary)
+                if average.target > 0 {
+                    statusChip(status)
                 }
-                .frame(maxWidth: .infinity)
+            }
+
+            if average.target > 0 {
+                goalBar
+            }
+        }
+        .onAppear { animate(to: average.average) }
+        .onChange(of: average.average) { _, newValue in animate(to: newValue) }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(accessibilityText(status))
+    }
+
+    /// Calories is just its flame; the macros get their icon plus name, in their P/C/F color
+    @ViewBuilder
+    private var macroLabel: some View {
+        if average.macro == .calories {
+            Image(systemName: average.macro.iconName)
+                .font(.body)
+                .foregroundStyle(DS.Color.textPrimary)
+        } else {
+            HStack(spacing: 6) {
+                Image(systemName: average.macro.iconName)
+                    .font(.subheadline)
+                    .frame(width: 20)
+                Text(average.macro.name)
+                    .font(DS.Typography.labelL)
+            }
+            .foregroundStyle(average.macro.color)
+        }
+    }
+
+    /// Track with the ±10% goal band shaded, a tick at the goal labeled with its value,
+    /// and the average as a fill
+    private var goalBar: some View {
+        GeometryReader { geo in
+            let width = geo.size.width
+            let target = Double(average.target)
+            let x = { (value: Double) in CGFloat(min(value / (target * scaleMax), 1)) * width }
+
+            VStack(alignment: .leading, spacing: 2) {
+                ZStack(alignment: .leading) {
+                    Capsule().fill(DS.Color.ringTrack)
+
+                    Capsule()
+                        .fill(average.macro.color.opacity(0.85))
+                        .frame(width: max(x(shownAverage), 8))
+
+                    // On top of the fill so the band stays visible when the average is past it
+                    Rectangle()
+                        .fill(DS.Color.success.opacity(0.35))
+                        .frame(width: x(target * PerformanceThresholds.onTargetHigh) - x(target * PerformanceThresholds.onTargetLow))
+                        .offset(x: x(target * PerformanceThresholds.onTargetLow))
+
+                    Rectangle()
+                        .fill(DS.Color.textSecondary)
+                        .frame(width: 2)
+                        .offset(x: x(target) - 1)
+                }
+                .frame(height: 10)
+                .clipShape(Capsule())
+
+                Text(average.target.formatted())
+                    .font(DS.Typography.caption2)
+                    .monospacedDigit()
+                    .foregroundStyle(DS.Color.textTertiary)
+                    .fixedSize()
+                    .frame(width: 60)
+                    .offset(x: x(target) - 30)
+            }
+        }
+        .frame(height: 26)
+    }
+
+    private func animate(to value: Double) {
+        if reduceMotion {
+            shownAverage = value
+        } else {
+            withAnimation(.spring(response: 0.8, dampingFraction: 0.8)) {
+                shownAverage = value
             }
         }
     }
 
-    private func streakLabel(count: Int, isBest: Bool) -> some View {
-        HStack(spacing: 3) {
-            Image(systemName: "flame.fill")
-                .foregroundStyle(.orange)
-            Text("\(isBest ? "Best streak" : "Streak"): \(count) \(count == 1 ? "day" : "days")")
+    private func statusChip(_ status: TargetStatus) -> some View {
+        HStack(spacing: 2) {
+            Image(systemName: status.iconName)
+                .font(.caption2.weight(.bold))
+            if let text = status.shortLabel {
+                Text(text)
+                    .font(DS.Typography.labelS)
+                    .monospacedDigit()
+            }
         }
-        .font(.caption)
-        .foregroundStyle(.secondary)
+        .foregroundStyle(status.color)
+        .lineLimit(1)
+        .padding(.horizontal, 7)
+        .padding(.vertical, 3)
+        .background(Capsule().fill(status.color.opacity(0.12)))
+        .fixedSize()
+        // Same slot width on every row so the values line up
+        .frame(width: 56, alignment: .trailing)
+    }
+
+    private func accessibilityText(_ status: TargetStatus) -> String {
+        let value = "\(Int(average.average.rounded())) \(average.macro.unit)"
+        guard average.target > 0 else { return "\(average.macro.name), average \(value)" }
+        return "\(average.macro.name), average \(value) of \(average.target) goal, \(status.label)"
     }
 }

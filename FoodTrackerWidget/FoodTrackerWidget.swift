@@ -33,6 +33,7 @@ private enum W {
     static let textTertiary  = adaptive(light: "AEAEB2", dark: "4E566A")
     static let protein       = adaptive(light: "3478F6", dark: "4D8CF5")
     static let carbs         = adaptive(light: "E09500", dark: "F5A623")
+    static let success       = adaptive(light: "28A060", dark: "34C77B")
     static let fat           = adaptive(light: "8F5DE0", dark: "A776F5")
     static let danger        = adaptive(light: "D93030", dark: "F05A5A")
     static let ringTrack     = adaptiveOpacity(lightBase: .black, lightAlpha: 0.06, darkBase: .white, darkAlpha: 0.06)
@@ -187,9 +188,12 @@ struct FoodTrackerWidgetView: View {
                     .minimumScaleFactor(0.7)
 
                 if entry.calorieTarget > 0 {
-                    Text("\(abs(remaining)) \(remaining >= 0 ? "left" : "over")")
+                    // Same tones as the app: within ±10% of the goal is a win,
+                    // orange up to 20% over, red beyond
+                    let ratio = Double(entry.calories) / Double(entry.calorieTarget)
+                    Text(ratio >= 0.9 && ratio <= 1.1 ? "On target" : "\(abs(remaining)) \(remaining >= 0 ? "left" : "over")")
                         .font(.system(size: 8, weight: .medium, design: .rounded))
-                        .foregroundStyle(remaining >= 0 ? W.protein : W.danger)
+                        .foregroundStyle(ratio < 0.9 ? W.protein : ratio <= 1.1 ? W.success : ratio <= 1.2 ? W.carbs : W.danger)
                 } else {
                     Text("cal")
                         .font(.system(size: 9, weight: .medium, design: .rounded))
