@@ -1,7 +1,9 @@
 import Foundation
 import SwiftData
+import os
 
 enum CSVImportService {
+    private static let logger = Logger(subsystem: "com.DNT.foodtracker", category: "CSV")
 
     struct ParsedEntry {
         var name: String
@@ -102,7 +104,8 @@ enum CSVImportService {
                 date: entry.date,
                 iconName: foodIconName(for: entry.name),
                 servings: 1.0,
-                servingDescription: entry.servingDescription
+                servingDescription: entry.servingDescription,
+                entrySource: .imported
             )
             context.insert(food)
             count += 1
@@ -120,10 +123,6 @@ enum CSVImportService {
         let timeFormatter = DateFormatter()
         timeFormatter.dateFormat = "HH:mm"
 
-        func field(_ text: String) -> String {
-            guard text.contains(where: { ",\"\n".contains($0) }) else { return text }
-            return "\"" + text.replacingOccurrences(of: "\"", with: "'") + "\""
-        }
         func num(_ value: Double) -> String {
             value == value.rounded() ? String(Int(value)) : String(format: "%.1f", value)
         }
@@ -135,24 +134,38 @@ enum CSVImportService {
                 serving = "\(formatServings(entry.servings)) × \(serving.isEmpty ? "serving" : serving)"
             }
             lines.append([
-                field(entry.name),
+                csvField(entry.name),
                 "\(entry.totalCalories)",
                 num(entry.totalProteinGrams),
                 num(entry.totalFatGrams),
                 num(entry.totalCarbsGrams),
                 dayFormatter.string(from: entry.date),
-                field(serving),
+                csvField(serving),
                 timeFormatter.string(from: entry.date),
-                field(entry.mealName ?? "")
+                csvField(entry.mealName ?? "")
             ].joined(separator: ","))
         }
 
-        let url = FileManager.default.temporaryDirectory
-            .appendingPathComponent("FoodTracker_Export_\(dayFormatter.string(from: Date())).csv")
+        return writeCSV(lines, fileName: "FoodTracker_Export_\(dayFormatter.string(from: Date())).csv")
+    }
+
+    // MARK: - CSV Writing (shared by every export)
+
+    /// One CSV field: quoted only when needed, embedded quotes doubled. Line breaks become spaces because the importer reads one row per line.
+    static func csvField(_ text: String) -> String {
+        let flat = text.replacingOccurrences(of: "\r\n", with: " ").replacingOccurrences(of: "\n", with: " ")
+        guard flat.contains(where: { ",\"".contains($0) }) else { return flat }
+        return "\"" + flat.replacingOccurrences(of: "\"", with: "\"\"") + "\""
+    }
+
+    /// Writes the lines to a temp CSV for sharing; nil if the write fails.
+    static func writeCSV(_ lines: [String], fileName: String) -> URL? {
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent(fileName)
         do {
             try lines.joined(separator: "\n").write(to: url, atomically: true, encoding: .utf8)
             return url
         } catch {
+            logger.error("Failed to write \(fileName): \(error.localizedDescription)")
             return nil
         }
     }
@@ -163,10 +176,16 @@ enum CSVImportService {
         var fields: [String] = []
         var current = ""
         var inQuotes = false
+        var chars = Array(row)[...]
 
-        for char in row {
+        while let char = chars.popFirst() {
             if char == "\"" {
-                inQuotes.toggle()
+                if inQuotes, chars.first == "\"" {
+                    current.append("\"") // "" inside quotes is an escaped quote
+                    chars.removeFirst()
+                } else {
+                    inQuotes.toggle()
+                }
             } else if char == "," && !inQuotes {
                 fields.append(current)
                 current = ""

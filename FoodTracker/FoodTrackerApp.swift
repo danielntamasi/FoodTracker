@@ -3,6 +3,19 @@ import SwiftData
 
 // MARK: - Appearance Mode
 
+/// Which side the + button sits on in the iOS 26 tab bar, so it's under the thumb.
+enum Handedness: String, CaseIterable, Identifiable {
+    case right, left
+    var id: String { rawValue }
+
+    var label: String {
+        switch self {
+        case .right: return "Right-handed"
+        case .left: return "Left-handed"
+        }
+    }
+}
+
 enum AppearanceMode: String, CaseIterable, Identifiable {
     case system, light, dark
     var id: String { rawValue }
@@ -52,6 +65,7 @@ struct FoodTrackerApp: App {
                 .tint(DS.Color.protein)
                 .onAppear {
                     migrateEntryNames()
+                    migrateEntryIcons()
                     if isUsingInMemoryStore { showDatabaseAlert = true }
                 }
                 .alert("Database Error", isPresented: $showDatabaseAlert) {
@@ -82,6 +96,23 @@ struct FoodTrackerApp: App {
                 if mealName != titleMeal {
                     entry.mealName = titleMeal
                 }
+            }
+        }
+    }
+
+    /// One-time migration: icons are stored per entry, so recompute them after the keyword list changes
+    /// (meat no longer shows a flame, and egg/cereal pointed at symbols that don't exist).
+    private func migrateEntryIcons() {
+        let key = AppConstants.Defaults.didMigrateIconNames
+        guard !UserDefaults.standard.bool(forKey: key) else { return }
+        UserDefaults.standard.set(true, forKey: key)
+
+        let context = sharedModelContainer.mainContext
+        guard let entries = try? context.fetch(FetchDescriptor<FoodEntry>()) else { return }
+        for entry in entries {
+            let icon = foodIconName(for: entry.name)
+            if entry.iconName != icon {
+                entry.iconName = icon
             }
         }
     }

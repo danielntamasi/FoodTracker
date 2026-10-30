@@ -85,11 +85,18 @@ enum DS {
 
     // MARK: Radius
 
+    /// Rounder on iOS 26 so cards sit concentric with the glass controls and the
+    /// larger sheet and list-section corners.
     enum Radius {
-        static let s: CGFloat  = 10
-        static let m: CGFloat  = 16
-        static let l: CGFloat  = 24
-        static let xl: CGFloat = 32
+        static var s: CGFloat  { isGlass ? 14 : 10 }
+        static var m: CGFloat  { isGlass ? 22 : 16 }
+        static var l: CGFloat  { isGlass ? 28 : 24 }
+        static var xl: CGFloat { isGlass ? 36 : 32 }
+
+        private static var isGlass: Bool {
+            if #available(iOS 26, *) { return true }
+            return false
+        }
     }
 
     // MARK: Typography
@@ -379,6 +386,119 @@ struct MacroArc: View {
                     animatedProgress = newValue
                 }
             }
+        }
+    }
+}
+
+// MARK: - Liquid Glass
+
+// Liquid Glass (iOS 26) is for the controls layer floating above content: bars,
+// floating buttons, camera/photo overlays. Content (cards, rows) stays on solid
+// DS colors. Before iOS 26 these fall back to the ultra-thin material look.
+
+extension View {
+    /// Glass behind a floating control. `clear` is for controls over photos or the camera.
+    /// Also makes the whole shape tappable: glass isn't hit-testable, so a button label
+    /// would otherwise only take taps on its text or glyph.
+    func glassControl<S: Shape>(in shape: S, tint: SwiftUI.Color? = nil, clear: Bool = false, interactive: Bool = true) -> some View {
+        glassBackground(in: shape, tint: tint, clear: clear, interactive: interactive)
+            .contentShape(shape)
+    }
+
+    @ViewBuilder
+    private func glassBackground<S: Shape>(in shape: S, tint: SwiftUI.Color?, clear: Bool, interactive: Bool) -> some View {
+        if #available(iOS 26, *) {
+            glassEffect((clear ? Glass.clear : .regular).tint(tint).interactive(interactive), in: shape)
+        } else if let tint {
+            background(tint, in: shape)
+        } else {
+            background(.ultraThinMaterial.opacity(clear ? 0.6 : 1), in: shape)
+        }
+    }
+
+    func glassControl(tint: SwiftUI.Color? = nil, clear: Bool = false, interactive: Bool = true) -> some View {
+        glassControl(in: Capsule(), tint: tint, clear: clear, interactive: interactive)
+    }
+
+    /// Identity for morphing between glass shapes inside a `GlassGroup`.
+    @ViewBuilder
+    func glassID(_ id: some Hashable & Sendable, in namespace: Namespace.ID) -> some View {
+        if #available(iOS 26, *) {
+            glassEffectID(id, in: namespace)
+        } else {
+            self
+        }
+    }
+
+    /// `.glass` / `.glassProminent` button style, `.bordered` / `.borderedProminent` before iOS 26.
+    @ViewBuilder
+    func glassButtonStyle(prominent: Bool = false) -> some View {
+        if #available(iOS 26, *) {
+            if prominent { buttonStyle(.glassProminent) } else { buttonStyle(.glass) }
+        } else {
+            if prominent { buttonStyle(.borderedProminent) } else { buttonStyle(.bordered) }
+        }
+    }
+}
+
+extension View {
+    /// A bar pinned to the bottom edge. On iOS 26 it's a `safeAreaBar`, so content scrolling
+    /// under it gets the scroll edge effect; before, a `safeAreaInset` on `fallbackBackground`.
+    @ViewBuilder
+    func bottomBar<Bar: View>(fallbackBackground: some ShapeStyle = .ultraThinMaterial, @ViewBuilder _ bar: () -> Bar) -> some View {
+        if #available(iOS 26, *) {
+            safeAreaBar(edge: .bottom) { bar() }
+        } else {
+            safeAreaInset(edge: .bottom, spacing: 0) { bar().background(fallbackBackground) }
+        }
+    }
+}
+
+/// `GlassEffectContainer` on iOS 26 (shared rendering + morphing), a plain wrapper before.
+struct GlassGroup<Content: View>: View {
+    var spacing: CGFloat? = nil
+    @ViewBuilder var content: Content
+
+    var body: some View {
+        if #available(iOS 26, *) {
+            GlassEffectContainer(spacing: spacing) { content }
+        } else {
+            content
+        }
+    }
+}
+
+/// Toolbar dismiss button: the system glass xmark on iOS 26, "Cancel" before.
+struct CloseButton: View {
+    var title: String = "Cancel"
+    let action: () -> Void
+
+    var body: some View {
+        if #available(iOS 26, *) {
+            Button(role: .close, action: action)
+                .accessibilityLabel(title)
+        } else {
+            Button(title, action: action)
+        }
+    }
+}
+
+/// Toolbar confirm button: the system prominent checkmark on iOS 26, the title before.
+struct ConfirmButton: View {
+    let title: String
+    let action: () -> Void
+
+    init(_ title: String, action: @escaping () -> Void) {
+        self.title = title
+        self.action = action
+    }
+
+    var body: some View {
+        if #available(iOS 26, *) {
+            Button(role: .confirm, action: action)
+                .accessibilityLabel(title)
+        } else {
+            Button(title, action: action)
         }
     }
 }

@@ -181,16 +181,7 @@ struct BrowseFoodsView: View {
                                 Button {
                                     if let onIngredientAdded {
                                         for entry in entries {
-                                            onIngredientAdded(IngredientItem(
-                                                name: entry.name,
-                                                calories: entry.calories,
-                                                proteinGrams: entry.proteinGrams,
-                                                carbsGrams: entry.carbsGrams,
-                                                fatGrams: entry.fatGrams,
-                                                servings: 1.0,
-                                                servingDescription: entry.servingDescription,
-                                                servingGrams: entry.servingGrams
-                                            ))
+                                            onIngredientAdded(IngredientItem(copying: entry))
                                         }
                                         dismiss()
                                     } else {
@@ -265,16 +256,7 @@ struct BrowseFoodsView: View {
                             Button {
                                 if let onIngredientAdded {
                                     for entry in meal.entries {
-                                        onIngredientAdded(IngredientItem(
-                                            name: entry.name,
-                                            calories: entry.calories,
-                                            proteinGrams: entry.proteinGrams,
-                                            carbsGrams: entry.carbsGrams,
-                                            fatGrams: entry.fatGrams,
-                                            servings: 1.0,
-                                            servingDescription: entry.servingDescription,
-                                            servingGrams: entry.servingGrams
-                                        ))
+                                        onIngredientAdded(IngredientItem(copying: entry))
                                     }
                                     dismiss()
                                 } else {
@@ -313,16 +295,7 @@ struct BrowseFoodsView: View {
                         ForEach(recentFoods) { entry in
                             Button {
                                 if let onIngredientAdded {
-                                    onIngredientAdded(IngredientItem(
-                                        name: entry.name,
-                                        calories: entry.calories,
-                                        proteinGrams: entry.proteinGrams,
-                                        carbsGrams: entry.carbsGrams,
-                                        fatGrams: entry.fatGrams,
-                                        servings: 1.0,
-                                        servingDescription: entry.servingDescription,
-                                        servingGrams: entry.servingGrams
-                                    ))
+                                    onIngredientAdded(IngredientItem(copying: entry))
                                     dismiss()
                                 } else {
                                     quickAddEntry(entry, into: modelContext)
@@ -367,13 +340,16 @@ struct BrowseFoodsView: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") { dismiss() }
+                    CloseButton { dismiss() }
                 }
             }
         }
     }
 
     private func addFood(name: String, calories: Int, protein: Double, carbs: Double, fat: Double, iconName: String?, photoData: Data? = nil, servings: Double = 1.0, servingDescription: String? = nil, servingGrams: Double? = nil) {
+        // Keep where the food came from (barcode, source, model) so later corrections still work on the copy
+        let key = name.lowercased().trimmingCharacters(in: .whitespaces)
+        let origin = allEntries.filter { $0.name.lowercased().trimmingCharacters(in: .whitespaces) == key }.max { $0.date < $1.date }
         if let onIngredientAdded {
             onIngredientAdded(IngredientItem(
                 name: name,
@@ -383,7 +359,10 @@ struct BrowseFoodsView: View {
                 fatGrams: fat,
                 servings: servings,
                 servingDescription: servingDescription,
-                servingGrams: servingGrams
+                servingGrams: servingGrams,
+                barcode: origin?.barcode,
+                entrySource: origin?.entrySource.flatMap(EntrySource.init(rawValue:)),
+                aiModel: origin?.aiModel
             ))
             dismiss()
             return
@@ -398,7 +377,10 @@ struct BrowseFoodsView: View {
             iconName: iconName ?? foodIconName(for: name),
             servings: servings,
             servingDescription: servingDescription,
-            servingGrams: servingGrams
+            servingGrams: servingGrams,
+            barcode: origin?.barcode,
+            entrySource: origin?.entrySource.flatMap(EntrySource.init(rawValue:)),
+            aiModel: origin?.aiModel
         )
         modelContext.insert(entry)
         Task { await HealthKitService.shared.syncEntry(entry) }

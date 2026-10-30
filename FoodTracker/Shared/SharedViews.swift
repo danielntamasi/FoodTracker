@@ -159,10 +159,17 @@ struct ServingPicker: View {
 
     init(servings: Binding<Double>) {
         self._servings = servings
-        let snapped = max(0.25, (servings.wrappedValue * 4).rounded() / 4)
+        let current = servings.wrappedValue
+        let snapped = max(0.25, (current * 4).rounded() / 4)
         let maxValue = max(20.0, (snapped * 4).rounded(.up) / 4 * 4)
         let count = Int(maxValue / 0.25)
-        values = (1...count).map { Double($0) * 0.25 }
+        var values = (1...count).map { Double($0) * 0.25 }
+        // A count set from grams eaten (e.g. 1.37) gets its own row, so the picker has a matching tag
+        if current > 0, !values.contains(where: { abs($0 - current) < 0.001 }) {
+            values.append(current)
+            values.sort()
+        }
+        self.values = values
     }
 
     var body: some View {
@@ -173,13 +180,38 @@ struct ServingPicker: View {
         }
         .pickerStyle(.wheel)
         .frame(height: 120)
-        .onAppear {
-            // Snap to nearest quarter so the picker always has a matching tag
-            let snapped = max(0.25, (servings * 4).rounded() / 4)
-            if abs(servings - snapped) > 0.001 {
-                servings = snapped
+    }
+}
+
+/// Number field that updates its value on every keystroke. `TextField(value:format:)` only commits
+/// on Return or losing focus, and the decimal pad has no Return key, so dependent numbers lagged behind.
+struct LiveNumberField: View {
+    let placeholder: String
+    @Binding var value: Double?
+    @State private var text = ""
+    @FocusState private var isFocused: Bool
+
+    var body: some View {
+        TextField(placeholder, text: $text)
+            .keyboardType(.decimalPad)
+            .multilineTextAlignment(.trailing)
+            .focused($isFocused)
+            .onAppear { text = Self.format(value) }
+            .onChange(of: text) { _, newText in
+                guard isFocused else { return }
+                let parsed = newText.isEmpty ? nil : try? Double(newText, format: .number)
+                if parsed != value { value = parsed }
             }
-        }
+            .onChange(of: value) { _, newValue in
+                if !isFocused { text = Self.format(newValue) }
+            }
+            .onChange(of: isFocused) { _, focused in
+                if !focused { text = Self.format(value) }
+            }
+    }
+
+    private static func format(_ value: Double?) -> String {
+        value.map { $0.formatted(.number.precision(.fractionLength(0...1)).grouping(.never)) } ?? ""
     }
 }
 

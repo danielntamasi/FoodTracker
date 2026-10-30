@@ -62,14 +62,14 @@ struct FoodChatView: View {
                 .onChange(of: errorMessage) { scrollToBottom(proxy) }
             }
             .background(DS.Color.backgroundPrimary)
-            .safeAreaInset(edge: .bottom, spacing: 0) {
+            .bottomBar {
                 composer
             }
             .navigationTitle("Log with AI")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") { dismiss() }
+                    CloseButton { dismiss() }
                 }
             }
             .interactiveDismissDisabled(!messages.isEmpty)
@@ -117,11 +117,16 @@ struct FoodChatView: View {
         VStack(alignment: isUser ? .trailing : .leading, spacing: DS.Spacing.s) {
             if !message.images.isEmpty {
                 HStack(spacing: DS.Spacing.s) {
+                    // Square thumbnails up to 120pt that shrink to fit, so 4 photos never push the row past the screen
                     ForEach(Array(message.images.enumerated()), id: \.offset) { _, image in
-                        Image(uiImage: image)
-                            .resizable()
-                            .scaledToFill()
-                            .frame(width: 120, height: 120)
+                        Color.clear
+                            .aspectRatio(1, contentMode: .fit)
+                            .frame(maxWidth: 120)
+                            .overlay {
+                                Image(uiImage: image)
+                                    .resizable()
+                                    .scaledToFill()
+                            }
                             .clipShape(RoundedRectangle(cornerRadius: DS.Radius.s, style: .continuous))
                     }
                 }
@@ -278,46 +283,49 @@ struct FoodChatView: View {
             }
 
             HStack(alignment: .bottom, spacing: DS.Spacing.s) {
-                Button {
-                    composerFocused = false
-                    showingCamera = true
-                } label: {
-                    Image(systemName: "camera")
-                        .font(.title3)
-                        .frame(width: 36, height: 36)
-                }
-                .accessibilityLabel("Take photo")
-                .disabled(pendingImages.count >= maxImagesPerMessage)
+                HStack(spacing: 0) {
+                    Button {
+                        composerFocused = false
+                        showingCamera = true
+                    } label: {
+                        Image(systemName: "camera")
+                            .font(.title3)
+                            .frame(width: 36, height: 36)
+                    }
+                    .accessibilityLabel("Take photo")
+                    .disabled(pendingImages.count >= maxImagesPerMessage)
 
-                PhotosPicker(
-                    selection: $pickerItems,
-                    maxSelectionCount: max(1, maxImagesPerMessage - pendingImages.count),
-                    matching: .images
-                ) {
-                    Image(systemName: "photo.on.rectangle")
-                        .font(.title3)
-                        .frame(width: 36, height: 36)
+                    PhotosPicker(
+                        selection: $pickerItems,
+                        maxSelectionCount: max(1, maxImagesPerMessage - pendingImages.count),
+                        matching: .images
+                    ) {
+                        Image(systemName: "photo.on.rectangle")
+                            .font(.title3)
+                            .frame(width: 36, height: 36)
+                    }
+                    .accessibilityLabel("Choose photos")
+                    .disabled(pendingImages.count >= maxImagesPerMessage)
                 }
-                .accessibilityLabel("Choose photos")
-                .disabled(pendingImages.count >= maxImagesPerMessage)
+                .padding(.horizontal, 4)
+                .glassControl()
 
                 TextField("Describe your food...", text: $draft, axis: .vertical)
                     .lineLimit(1...5)
                     .font(DS.Typography.subhead)
                     .textInputAutocapitalization(.sentences)
                     .focused($composerFocused)
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 8)
-                    .background(
-                        RoundedRectangle(cornerRadius: DS.Radius.m, style: .continuous)
-                            .fill(DS.Color.backgroundSubtle)
-                    )
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 10)
+                    .composerFieldBackground()
 
                 Button {
                     send()
                 } label: {
                     Image(systemName: "arrow.up.circle.fill")
-                        .font(.system(size: 32))
+                        .font(.system(size: 36))
+                        .symbolRenderingMode(.palette)
+                        .foregroundStyle(.white, canSend ? DS.Color.protein : DS.Color.textTertiary)
                 }
                 .accessibilityLabel("Send")
                 .disabled(!canSend)
@@ -325,7 +333,6 @@ struct FoodChatView: View {
         }
         .padding(.horizontal, DS.Spacing.m)
         .padding(.vertical, DS.Spacing.s)
-        .background(.ultraThinMaterial)
     }
 
     // MARK: - Actions
@@ -391,10 +398,12 @@ struct FoodChatView: View {
     }
 
     private func save(_ foodLog: ChatFoodLog) {
-        let items = foodLog.items.filter {
+        // All or nothing, so what gets logged always matches the card the user approved
+        let items = foodLog.items
+        let allValid = items.allSatisfy {
             isValidNutrition(calories: Int($0.calories.rounded()), protein: $0.protein_grams, carbs: $0.carbs_grams, fat: $0.fat_grams)
         }
-        guard !items.isEmpty else {
+        guard !items.isEmpty, allValid else {
             errorMessage = "That estimate has invalid values. Ask the assistant to correct it."
             return
         }
@@ -457,6 +466,22 @@ struct FoodChatView: View {
                     stage: "chat"
                 )
             }
+        }
+    }
+}
+
+private extension View {
+    /// Glass field on iOS 26, the subtle filled field before
+    @ViewBuilder
+    func composerFieldBackground() -> some View {
+        if #available(iOS 26, *) {
+            glassEffect(.regular.interactive(), in: RoundedRectangle(cornerRadius: 22, style: .continuous))
+                .contentShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
+        } else {
+            background(
+                RoundedRectangle(cornerRadius: DS.Radius.m, style: .continuous)
+                    .fill(DS.Color.backgroundSubtle)
+            )
         }
     }
 }

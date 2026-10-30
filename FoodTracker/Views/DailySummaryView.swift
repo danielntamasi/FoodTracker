@@ -13,7 +13,9 @@ struct DailySummaryView: View {
 
     init() {
         let startOfToday = Calendar.current.startOfDay(for: Date())
-        _todayEntriesRaw = Query(filter: #Predicate<FoodEntry> { $0.date >= startOfToday })
+        // Upper bound so entries dated ahead (planned meals) stay off today
+        let startOfTomorrow = Calendar.current.date(byAdding: .day, value: 1, to: startOfToday)!
+        _todayEntriesRaw = Query(filter: #Predicate<FoodEntry> { $0.date >= startOfToday && $0.date < startOfTomorrow })
     }
 
     private var orderedPeriods: [TimeOfDay] {
@@ -189,6 +191,7 @@ struct DailySummaryView: View {
                     }
                 }
             }
+            .minimizesTabBarOnScroll()
             .listStyle(.plain)
             .scrollContentBackground(.hidden)
             .contentMargins(.bottom, 88, for: .scrollContent)
@@ -317,7 +320,7 @@ struct DailySummaryView: View {
                 FoodEntryRow(entry: entry)
                     .padding(12)
                     .background(DS.Color.backgroundSecondary)
-                    .clipShape(RoundedRectangle(cornerRadius: 12))
+                    .clipShape(RoundedRectangle(cornerRadius: DS.Radius.m, style: .continuous))
                     .contentShape(Rectangle())
             }
             .buttonStyle(PressableButtonStyle())
@@ -369,7 +372,7 @@ struct DailySummaryView: View {
             }
             .padding(12)
             .background(DS.Color.backgroundSecondary)
-            .clipShape(RoundedRectangle(cornerRadius: 12))
+            .clipShape(RoundedRectangle(cornerRadius: DS.Radius.m, style: .continuous))
             .swipeActions(edge: .trailing, allowsFullSwipe: false) {
                 Button(role: .destructive) {
                     for entry in entries {
@@ -406,7 +409,7 @@ struct DailySummaryView: View {
                 .padding(.vertical, 8)
                 .padding(.horizontal, 12)
                 .background(DS.Color.backgroundSecondary.opacity(0.7))
-                .clipShape(RoundedRectangle(cornerRadius: 10))
+                .clipShape(RoundedRectangle(cornerRadius: DS.Radius.s, style: .continuous))
                 .contentShape(Rectangle())
         }
         .buttonStyle(PressableButtonStyle())
@@ -555,9 +558,9 @@ func coloredMacroText(protein: Double, carbs: Double, fat: Double) -> Text {
 func foodIconColor(for iconName: String?) -> Color {
     switch iconName {
     case "bird": return Color(red: 0.6, green: 0.4, blue: 0.2)
-    case "flame": return Color(red: 0.85, green: 0.35, blue: 0.2)
+    case "frying.pan": return Color(red: 0.85, green: 0.35, blue: 0.2)
     case "fish": return .teal
-    case "egg": return Color(red: 0.9, green: 0.75, blue: 0.3)
+    case "oval.portrait.fill": return Color(red: 0.9, green: 0.75, blue: 0.3)
     case "cup.and.saucer": return Color(red: 0.55, green: 0.35, blue: 0.2)
     case "cup.and.saucer.fill": return Color(red: 0.4, green: 0.6, blue: 0.8)
     case "waterbottle": return .cyan
@@ -568,9 +571,10 @@ func foodIconColor(for iconName: String?) -> Color {
     case "leaf": return .green
     case "carrot": return Color(red: 0.95, green: 0.55, blue: 0.2)
     case "leaf.circle": return Color(red: 0.5, green: 0.6, blue: 0.3)
-    case "chart.bar": return Color(red: 0.4, green: 0.5, blue: 0.7)
+    case "bolt.fill": return Color(red: 0.4, green: 0.5, blue: 0.7)
     case "snowflake": return Color(red: 0.5, green: 0.75, blue: 0.9)
-    case "bowl": return Color(red: 0.8, green: 0.55, blue: 0.25)
+    case "cup.and.heat.waves.fill": return Color(red: 0.85, green: 0.35, blue: 0.2)
+    case "sun.horizon": return Color(red: 0.8, green: 0.55, blue: 0.25)
     default: return .secondary
     }
 }

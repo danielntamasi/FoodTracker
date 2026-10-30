@@ -4,25 +4,26 @@ import SwiftData
 /// Maps food name keywords to SF Symbol icons
 private let iconMappings: [(keywords: [String], icon: String)] = [
     (["chicken", "turkey", "poultry"], "bird"),
-    (["beef", "steak", "burger", "meat", "pork", "lamb", "bacon", "sausage"], "flame"),
+    (["beef", "steak", "burger", "meat", "pork", "lamb", "bacon", "sausage"], "frying.pan"),
     (["fish", "salmon", "tuna", "shrimp", "seafood", "sushi"], "fish"),
-    (["egg"], "egg"),
+    // Before "egg" so "veggie" doesn't match it
+    (["salad", "vegetable", "veggie", "broccoli", "spinach", "kale", "lettuce", "greens", "tomato", "cucumber"], "leaf"),
+    (["egg"], "oval.portrait.fill"),
     (["coffee", "espresso", "latte", "cappuccino"], "cup.and.saucer"),
     (["tea"], "cup.and.saucer"),
+    (["protein bar", "energy bar", "granola bar"], "bolt.fill"),
     (["milk", "yogurt", "cheese", "dairy"], "cup.and.saucer.fill"),
-    (["water", "juice", "smoothie", "drink", "soda", "cola"], "waterbottle"),
+    (["water", "juice", "smoothie", "shake", "drink", "soda", "cola"], "waterbottle"),
     (["beer", "wine", "cocktail", "alcohol"], "wineglass"),
-    (["bread", "toast", "bagel", "muffin", "croissant", "pastry", "cake", "cookie", "donut"], "birthday.cake"),
+    (["bread", "toast", "bagel", "muffin", "croissant", "pastry", "cake", "cookie", "donut", "tortilla", "pretzel"], "birthday.cake"),
     (["rice", "noodle", "pasta", "ramen", "pho"], "takeoutbag.and.cup.and.straw"),
     (["pizza"], "triangle"),
-    (["salad", "vegetable", "broccoli", "spinach", "kale", "lettuce", "greens"], "leaf"),
-    (["fruit", "apple", "banana", "orange", "berry", "grape", "mango", "peach", "pear", "melon", "strawberry"], "carrot"),
+    (["fruit", "apple", "banana", "orange", "berry", "berries", "grape", "mango", "peach", "pear", "melon", "strawberry"], "carrot"),
     (["nut", "almond", "peanut", "walnut", "cashew"], "leaf.circle"),
-    (["protein bar", "energy bar", "granola bar"], "chart.bar"),
     (["ice cream", "frozen"], "snowflake"),
-    (["soup", "stew", "chili"], "flame"),
+    (["soup", "stew", "chili"], "cup.and.heat.waves.fill"),
     (["sandwich", "wrap", "burrito", "taco"], "takeoutbag.and.cup.and.straw"),
-    (["cereal", "oatmeal", "granola"], "bowl"),
+    (["cereal", "oatmeal", "granola"], "sun.horizon"),
 ]
 
 func foodIconName(for name: String) -> String {
@@ -43,8 +44,17 @@ enum EntrySource: String, Codable {
     case aiChatText    // AI Chat, text only
     case aiPhoto       // older one-shot photo analysis
     case barcode
+    case aiEstimate    // Search / Add Entry "AI Estimate" (text only)
+    case database      // USDA database result
+    case manual        // typed in by hand
+    case imported      // CSV import
 
-    var isAI: Bool { self != .barcode }
+    var isAI: Bool {
+        switch self {
+        case .aiChatPhoto, .aiChatText, .aiPhoto, .aiEstimate: return true
+        case .barcode, .database, .manual, .imported: return false
+        }
+    }
 
     var label: String {
         switch self {
@@ -52,6 +62,10 @@ enum EntrySource: String, Codable {
         case .aiChatText: return "AI Chat (text)"
         case .aiPhoto: return "Photo analysis"
         case .barcode: return "Barcode"
+        case .aiEstimate: return "AI estimate"
+        case .database: return "USDA database"
+        case .manual: return "Manual entry"
+        case .imported: return "CSV import"
         }
     }
 }

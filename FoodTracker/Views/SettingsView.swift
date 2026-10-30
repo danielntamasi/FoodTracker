@@ -50,6 +50,8 @@ struct SettingsView: View {
     @State private var imagePlaygroundEnabled = ImagePlaygroundService.isEnabled
     @AppStorage(AppConstants.Defaults.appearanceMode, store: sharedDefaults)
     private var appearanceMode: String = "system"
+    @AppStorage(AppConstants.Defaults.handedness, store: sharedDefaults)
+    private var handedness: String = Handedness.right.rawValue
     @State private var showImportPicker = false
     @State private var isImporting = false
     @State private var importSummary: String?
@@ -65,17 +67,26 @@ struct SettingsView: View {
                         }
                     }
                     .pickerStyle(.segmented)
+                    if #available(iOS 26, *) {
+                        // Only the iOS 26 tab bar has the + at the side; the older bar centers it
+                        Picker("Handedness", selection: $handedness) {
+                            ForEach(Handedness.allCases) { hand in
+                                Text(hand.label).tag(hand.rawValue)
+                            }
+                        }
+                    }
                 } header: {
-                    Text("APPEARANCE")
-                        .font(DS.Typography.labelS)
-                        .foregroundStyle(DS.Color.textTertiary)
-                        .tracking(0.8)
+                    Text("Appearance")
+                } footer: {
+                    if #available(iOS 26, *) {
+                        Text("Puts the + button on the side of the hand you hold your phone with.")
+                    }
                 }
 
                 Section {
                     Picker("Provider", selection: $selectedProvider) {
                         ForEach(VisionProvider.allCases) { provider in
-                            Text(provider.rawValue).tag(provider)
+                            Text(provider.name).tag(provider)
                         }
                     }
                     .onChange(of: selectedProvider) { _, newValue in
@@ -85,7 +96,7 @@ struct SettingsView: View {
                     if selectedProvider == .claude {
                         Picker("Model", selection: $selectedClaudeModel) {
                             ForEach(claudeModels) { model in
-                                Text(model.displayName).tag(model)
+                                Text(aiModelDisplayName(model.id)).tag(model)
                             }
                         }
                         .onChange(of: selectedClaudeModel) { _, newValue in
@@ -94,12 +105,11 @@ struct SettingsView: View {
                         .task {
                             await refreshClaudeModels()
                         }
+                    } else {
+                        LabeledContent("Model", value: aiModelDisplayName(AppConstants.API.geminiModel))
                     }
                 } header: {
-                    Text("VISION PROVIDER")
-                        .font(DS.Typography.labelS)
-                        .foregroundStyle(DS.Color.textTertiary)
-                        .tracking(0.8)
+                    Text("Vision Provider")
                 }
 
                 Section {
@@ -133,7 +143,7 @@ struct SettingsView: View {
                     .foregroundStyle(DS.Color.protein)
                     .disabled(apiKey.isEmpty)
                 } header: {
-                    Text("\(selectedProvider.rawValue) API Key".uppercased())
+                    Text("\(selectedProvider.name) API Key".uppercased())
                         .font(DS.Typography.labelS)
                         .foregroundStyle(DS.Color.textTertiary)
                         .tracking(0.8)
@@ -230,10 +240,7 @@ struct SettingsView: View {
                     targetRow("Carbs (g)", value: $carbsTarget, key: DailyTarget.carbsKey)
                     targetRow("Fat (g)", value: $fatTarget, key: DailyTarget.fatKey)
                 } header: {
-                    Text("DAILY TARGETS")
-                        .font(DS.Typography.labelS)
-                        .foregroundStyle(DS.Color.textTertiary)
-                        .tracking(0.8)
+                    Text("Daily Targets")
                 } footer: {
                     Text("Set to 0 to disable a target. Targets are shown on the Today screen.")
                         .font(DS.Typography.caption)
@@ -258,10 +265,7 @@ struct SettingsView: View {
                             }
                         }
                 } header: {
-                    Text("APPLE HEALTH")
-                        .font(DS.Typography.labelS)
-                        .foregroundStyle(DS.Color.textTertiary)
-                        .tracking(0.8)
+                    Text("Apple Health")
                 } footer: {
                     Text("When enabled, food entries are written to Apple Health as nutrition data.")
                         .font(DS.Typography.caption)
@@ -275,10 +279,7 @@ struct SettingsView: View {
                                 ImagePlaygroundService.isEnabled = newValue
                             }
                     } header: {
-                        Text("IMAGE PLAYGROUND")
-                            .font(DS.Typography.labelS)
-                            .foregroundStyle(DS.Color.textTertiary)
-                            .tracking(0.8)
+                        Text("Image Playground")
                     } footer: {
                         Text("Automatically generate food images for entries without photos using Apple Intelligence.")
                             .font(DS.Typography.caption)
@@ -305,10 +306,7 @@ struct SettingsView: View {
                             .foregroundStyle(DS.Color.success)
                     }
                 } header: {
-                    Text("DATA")
-                        .font(DS.Typography.labelS)
-                        .foregroundStyle(DS.Color.textTertiary)
-                        .tracking(0.8)
+                    Text("Data")
                 } footer: {
                     Text("Import food entries from a CSV file. Expected columns: Name, Calories, Protein, Fat, Carbs. Optional: Date, Serving Size. Export writes your whole log in the same format.")
                         .font(DS.Typography.caption)
@@ -322,10 +320,7 @@ struct SettingsView: View {
                         Label("Send Feedback", systemImage: "bubble.left.and.text.bubble.right")
                     }
                 } header: {
-                    Text("FEEDBACK")
-                        .font(DS.Typography.labelS)
-                        .foregroundStyle(DS.Color.textTertiary)
-                        .tracking(0.8)
+                    Text("Feedback")
                 } footer: {
                     Text("Report a problem or suggest a feature. Tip: shake your phone on any screen to report what's on it, with a screenshot.")
                         .font(DS.Typography.caption)
@@ -346,10 +341,7 @@ struct SettingsView: View {
                             .foregroundStyle(DS.Color.textSecondary)
                     }
                 } header: {
-                    Text("ABOUT")
-                        .font(DS.Typography.labelS)
-                        .foregroundStyle(DS.Color.textTertiary)
-                        .tracking(0.8)
+                    Text("About")
                 }
             }
             .contentMargins(.bottom, 88, for: .scrollContent)
@@ -362,6 +354,7 @@ struct SettingsView: View {
                     Button("Done") { isTargetFieldFocused = false }
                 }
             }
+            .minimizesTabBarOnScroll()
             .navigationTitle("Settings")
             .onAppear {
                 loadKeyForCurrentProvider()
@@ -419,6 +412,7 @@ struct SettingsView: View {
     private func refreshClaudeModels() async {
         if let models = await ClaudeModel.refreshAvailable() {
             claudeModels = models
+            selectedClaudeModel = ClaudeModel.selected // refresh may have moved off a retired model
         }
     }
 
@@ -442,10 +436,7 @@ struct SettingsView: View {
                 }
             }
         } header: {
-            Text("ACCURACY")
-                .font(DS.Typography.labelS)
-                .foregroundStyle(DS.Color.textTertiary)
-                .tracking(0.8)
+            Text("Accuracy")
         }
     }
 
@@ -507,10 +498,7 @@ struct AccuracyDetailView: View {
                             .foregroundStyle(summary.systematicBias == "balanced" ? DS.Color.success : DS.Color.carbs)
                     }
                 } header: {
-                    Text("OVERVIEW")
-                        .font(DS.Typography.labelS)
-                        .foregroundStyle(DS.Color.textTertiary)
-                        .tracking(0.8)
+                    Text("Overview")
                 }
 
                 if !summary.bySource.isEmpty {
@@ -530,10 +518,7 @@ struct AccuracyDetailView: View {
                             }
                         }
                     } header: {
-                        Text("BY SOURCE")
-                            .font(DS.Typography.labelS)
-                            .foregroundStyle(DS.Color.textTertiary)
-                            .tracking(0.8)
+                        Text("By Source")
                     } footer: {
                         Text("Average calorie change from the AI's estimate to what you corrected it to. Negative means the AI guessed too high.")
                             .font(DS.Typography.caption)
@@ -553,10 +538,7 @@ struct AccuracyDetailView: View {
                             }
                         }
                     } header: {
-                        Text("MOST CORRECTED FOODS")
-                            .font(DS.Typography.labelS)
-                            .foregroundStyle(DS.Color.textTertiary)
-                            .tracking(0.8)
+                        Text("Most Corrected Foods")
                     }
                 }
 
@@ -589,10 +571,7 @@ struct AccuracyDetailView: View {
                             .padding(.vertical, 2)
                         }
                     } header: {
-                        Text("RECENT CORRECTIONS")
-                            .font(DS.Typography.labelS)
-                            .foregroundStyle(DS.Color.textTertiary)
-                            .tracking(0.8)
+                        Text("Recent Corrections")
                     }
                 }
 

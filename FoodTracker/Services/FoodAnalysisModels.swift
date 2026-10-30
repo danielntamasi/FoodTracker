@@ -153,6 +153,14 @@ enum VisionProvider: String, CaseIterable, Identifiable {
 
     var id: String { rawValue }
 
+    /// Provider name for display. The raw value is stored in UserDefaults, so it stays as is.
+    var name: String {
+        switch self {
+        case .claude: return "Claude"
+        case .gemini: return "Gemini"
+        }
+    }
+
     var keychainAccount: String {
         switch self {
         case .claude: return AppConstants.Keychain.claudeAPIKey
