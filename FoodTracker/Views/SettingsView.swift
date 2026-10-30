@@ -354,7 +354,6 @@ struct SettingsView: View {
                     Button("Done") { isTargetFieldFocused = false }
                 }
             }
-            .minimizesTabBarOnScroll()
             .navigationTitle("Settings")
             .onAppear {
                 loadKeyForCurrentProvider()

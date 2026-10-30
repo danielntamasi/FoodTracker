@@ -191,7 +191,6 @@ struct DailySummaryView: View {
                     }
                 }
             }
-            .minimizesTabBarOnScroll()
             .listStyle(.plain)
             .scrollContentBackground(.hidden)
             .contentMargins(.bottom, 88, for: .scrollContent)
@@ -224,15 +223,15 @@ struct DailySummaryView: View {
 
             if DailyTarget.hasTargets {
                 HStack(spacing: DS.Spacing.xl) {
-                    MacroArc(label: "Protein", current: totalProtein, goal: Double(DailyTarget.protein), color: DS.Color.protein)
-                    MacroArc(label: "Carbs", current: totalCarbs, goal: Double(DailyTarget.carbs), color: DS.Color.carbs)
-                    MacroArc(label: "Fat", current: totalFat, goal: Double(DailyTarget.fat), color: DS.Color.fat)
+                    MacroArc(label: "Protein", icon: DS.Icon.protein, current: totalProtein, goal: Double(DailyTarget.protein), color: DS.Color.protein)
+                    MacroArc(label: "Carbs", icon: DS.Icon.carbs, current: totalCarbs, goal: Double(DailyTarget.carbs), color: DS.Color.carbs)
+                    MacroArc(label: "Fat", icon: DS.Icon.fat, current: totalFat, goal: Double(DailyTarget.fat), color: DS.Color.fat)
                 }
             } else {
                 HStack(spacing: DS.Spacing.l) {
-                    MacroLabel(label: "Protein", value: totalProtein, color: DS.Color.protein)
-                    MacroLabel(label: "Carbs", value: totalCarbs, color: DS.Color.carbs)
-                    MacroLabel(label: "Fat", value: totalFat, color: DS.Color.fat)
+                    MacroLabel(label: "Protein", icon: DS.Icon.protein, value: totalProtein, color: DS.Color.protein)
+                    MacroLabel(label: "Carbs", icon: DS.Icon.carbs, value: totalCarbs, color: DS.Color.carbs)
+                    MacroLabel(label: "Fat", icon: DS.Icon.fat, value: totalFat, color: DS.Color.fat)
                 }
             }
         }
@@ -782,6 +781,7 @@ struct MacroProgressLabel: View {
 
 struct MacroLabel: View {
     let label: String
+    var icon: String? = nil
     let value: Double
     let color: Color
 
@@ -792,9 +792,15 @@ struct MacroLabel: View {
                 .foregroundStyle(color)
                 .contentTransition(.numericText())
                 .animation(.spring(duration: 0.4), value: value)
-            Text(label)
-                .font(.caption)
-                .foregroundStyle(DS.Color.textSecondary)
+            HStack(spacing: 4) {
+                if let icon {
+                    Image(systemName: icon)
+                        .foregroundStyle(color)
+                }
+                Text(label)
+                    .foregroundStyle(DS.Color.textSecondary)
+            }
+            .font(.caption)
         }
     }
 }

@@ -1,196 +1,79 @@
 import SwiftUI
 
+/// Explains History's performance card
 struct PerformanceInfoView: View {
     @Environment(\.dismiss) private var dismiss
 
     var body: some View {
         NavigationStack {
-            ScrollView {
-                VStack(alignment: .leading, spacing: 20) {
-                    dotColorsSection
-                    weeklyMatrixSection
-                    statsSection
+            List {
+                Section {
+                    Text("Each row is your average per day over the chosen period: the last 7, 30 or 90 days, or the last year.")
+                    Text("Only days you logged something count, so a missed day doesn't pull the average down. Today isn't counted until it's over.")
+                } header: {
+                    Text("Averages")
                 }
-                .padding(16)
+
+                Section {
+                    Label("The days row shows how many days the averages rest on. Each dot is a day; filled means something was logged.", systemImage: "calendar")
+                    legendRow(.onTarget, "80% or more of days logged")
+                    legendRow(.over(percent: 15, severe: false), "50–80% logged")
+                    legendRow(.over(percent: 25, severe: true), "Under half logged: take the averages with a grain of salt")
+                    iconRow("exclamationmark.triangle.fill", DS.Color.carbs, "Faded dot: the day looks partially logged (very few calories, or no lunch or dinner on a light day). Tap \"looks partial\" to review and leave it out.")
+                    iconRow("line.3.horizontal.decrease.circle", DS.Color.textSecondary, "Hollow dot: you left the day out of the averages")
+                } header: {
+                    Text("Days Counted")
+                }
+
+                Section {
+                    iconRow("checkmark", DS.Color.success, "Within 10% of your goal")
+                    iconRow("arrow.up", DS.Color.carbs, "Over by 10–20% (the number is how much)")
+                    iconRow("arrow.down", DS.Color.carbs, "Under by 10–20%")
+                    iconRow("arrow.up", DS.Color.danger, "More than 20% over or under")
+                    iconRow("target", DS.Color.textSecondary, "Goals on target, in the card's header")
+                    iconRow(DS.Icon.calories, DS.Color.textPrimary, "Calories")
+                    iconRow(DS.Icon.protein, DS.Color.protein, "Protein")
+                    iconRow(DS.Icon.carbs, DS.Color.carbs, "Carbs")
+                    iconRow(DS.Icon.fat, DS.Color.fat, "Fat")
+                } header: {
+                    Text("Icons and Colors")
+                } footer: {
+                    Text("The shaded band on each bar is the on-target range (goal ±10%), and the line under the number marks the goal itself.")
+                }
+
+                Section {
+                    Text("Goals come from your daily targets in Settings. A macro with no target shows its average without a comparison.")
+                } header: {
+                    Text("Goals")
+                }
             }
-            .background(DS.Color.backgroundPrimary)
+            .font(DS.Typography.subhead)
             .navigationTitle("How to Read Performance")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button {
-                        dismiss()
-                    } label: {
-                        Image(systemName: "xmark.circle.fill")
-                            .foregroundStyle(.secondary)
-                    }
+                ToolbarItem(placement: .cancellationAction) {
+                    CloseButton(title: "Close") { dismiss() }
                 }
             }
         }
     }
 
-    // MARK: - Dot Colors Section
-
-    private var dotColorsSection: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text("Dot Colors")
-                .font(.headline)
-
-            VStack(spacing: 8) {
-                dotLegendRow(status: .onTarget, label: "On target", description: "within ±10% of goal")
-                dotLegendRow(status: .over(severe: false), label: "Slightly over", description: "10–20% above")
-                dotLegendRow(status: .under(severe: false), label: "Slightly under", description: "10–20% below")
-                dotLegendRow(status: .over(severe: true), label: "Way over", description: "more than 20% above")
-                dotLegendRow(status: .under(severe: true), label: "Way under", description: "more than 20% below")
-                dotLegendRow(status: .noData, label: "No data", description: "nothing logged")
-            }
-            .padding(12)
-            .background(DS.Color.backgroundSecondary)
-            .clipShape(RoundedRectangle(cornerRadius: DS.Radius.m, style: .continuous))
+    private func iconRow(_ icon: String, _ color: Color, _ text: String) -> some View {
+        HStack(spacing: DS.Spacing.m) {
+            Image(systemName: icon)
+                .font(.body.weight(.semibold))
+                .foregroundStyle(color)
+                .frame(width: 20)
+            Text(text)
         }
     }
 
-    private func dotLegendRow(status: DotStatus, label: String, description: String) -> some View {
-        HStack(spacing: 10) {
-            infoDot(status: status)
-            Text(label)
-                .font(.subheadline.weight(.semibold))
-                .frame(width: 100, alignment: .leading)
-            Text(description)
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
-            Spacer()
-        }
-    }
-
-    private func infoDot(status: DotStatus) -> some View {
-        ZStack {
+    private func legendRow(_ status: TargetStatus, _ text: String) -> some View {
+        HStack(spacing: DS.Spacing.m) {
             Circle()
                 .fill(status.color)
-                .frame(width: 14, height: 14)
-            if let arrow = status.arrowName {
-                Image(systemName: arrow)
-                    .font(.system(size: 7, weight: .bold))
-                    .foregroundStyle(.white)
-            }
-        }
-    }
-
-    // MARK: - Weekly Matrix Section
-
-    private var weeklyMatrixSection: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text("Weekly Matrix")
-                .font(.headline)
-
-            VStack(spacing: 0) {
-                exampleMatrix
-                    .padding(12)
-
-                Text("Rows = macros you're tracking. Columns = days. A day is \"on target\" when every row is green.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .padding(.horizontal, 12)
-                    .padding(.bottom, 12)
-            }
-            .background(DS.Color.backgroundSecondary)
-            .clipShape(RoundedRectangle(cornerRadius: DS.Radius.m, style: .continuous))
-        }
-    }
-
-    private var exampleMatrix: some View {
-        let days = ["M", "T", "W", "T", "F"]
-        let rows: [(String, [DotStatus])] = [
-            ("Cal",  [.onTarget, .onTarget, .onTarget, .over(severe: false), .onTarget]),
-            ("Pro",  [.onTarget, .under(severe: false), .onTarget, .onTarget, .onTarget]),
-            ("Carb", [.onTarget, .onTarget, .over(severe: false), .onTarget, .under(severe: true)]),
-            ("Fat",  [.onTarget, .onTarget, .onTarget, .onTarget, .onTarget]),
-        ]
-
-        return VStack(spacing: 6) {
-            // Day headers
-            HStack(spacing: 0) {
-                Text("")
-                    .frame(width: 34, alignment: .leading)
-                ForEach(Array(days.enumerated()), id: \.offset) { _, day in
-                    Text(day)
-                        .font(.caption2.weight(.medium))
-                        .foregroundStyle(.secondary)
-                        .frame(maxWidth: .infinity)
-                }
-            }
-
-            // Macro rows
-            ForEach(Array(rows.enumerated()), id: \.offset) { _, row in
-                HStack(spacing: 0) {
-                    Text(row.0)
-                        .font(.caption2.weight(.medium))
-                        .foregroundStyle(.secondary)
-                        .frame(width: 34, alignment: .leading)
-                    ForEach(Array(row.1.enumerated()), id: \.offset) { _, status in
-                        infoDot(status: status)
-                            .frame(maxWidth: .infinity)
-                    }
-                }
-            }
-        }
-    }
-
-    // MARK: - Stats Section
-
-    private var statsSection: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text("Stats Explained")
-                .font(.headline)
-
-            VStack(spacing: 0) {
-                statRow(
-                    label: "X of Y on target",
-                    description: "Days where every tracked macro was within ±10%. Days with no food logged are excluded.",
-                    isFirst: true
-                )
-                statRow(
-                    label: "Streak",
-                    description: "Consecutive on-target days ending today.",
-                    isFirst: false
-                )
-                statRow(
-                    label: "Best streak",
-                    description: "Longest run of on-target days in the selected period.",
-                    isFirst: false
-                )
-                statRow(
-                    label: "Avg ±X cal/day",
-                    description: "How much you averaged over or under your calorie target.",
-                    isFirst: false
-                )
-                statRow(
-                    label: "▲ / ▼ / ▸ Trend",
-                    description: "Compares your adherence to the previous period of the same length.",
-                    isFirst: false
-                )
-            }
-            .background(DS.Color.backgroundSecondary)
-            .clipShape(RoundedRectangle(cornerRadius: DS.Radius.m, style: .continuous))
-        }
-    }
-
-    private func statRow(label: String, description: String, isFirst: Bool) -> some View {
-        VStack(spacing: 0) {
-            if !isFirst {
-                Divider()
-                    .padding(.leading, 12)
-            }
-            HStack(alignment: .top, spacing: 10) {
-                Text(label)
-                    .font(.subheadline.weight(.semibold))
-                    .frame(width: 110, alignment: .leading)
-                Text(description)
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
-                Spacer()
-            }
-            .padding(12)
+                .frame(width: 12, height: 12)
+            Text(text)
         }
     }
 }
