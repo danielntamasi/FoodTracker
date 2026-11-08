@@ -16,6 +16,8 @@ struct SearchFoodView: View {
     @State private var lookup = NutritionLookup()
     @State private var resultsVisible = false
     @State private var isSearchActive = false
+    /// A food just added from "Your Foods", opened for editing (e.g. to change the amount eaten)
+    @State private var addedEntry: FoodEntry?
 
     private var recentMatches: [FoodEntry] {
         let query = searchText.lowercased().trimmingCharacters(in: .whitespaces)
@@ -64,6 +66,9 @@ struct SearchFoodView: View {
                 AddEntryView(prefill: result, onSave: { dismiss() }, onIngredientAdded: onIngredientAdded.map { callback in
                     { item in callback(item); dismiss() }
                 })
+            }
+            .sheet(item: $addedEntry, onDismiss: { dismiss() }) { entry in
+                EditEntryView(entry: entry, isNewEntry: true)
             }
             .sheet(isPresented: $showingAddManual) {
                 AddEntryView(onSave: { dismiss() }, onIngredientAdded: onIngredientAdded.map { callback in
@@ -210,7 +215,7 @@ struct SearchFoodView: View {
         )
         modelContext.insert(newEntry)
         Task { await HealthKitService.shared.syncEntry(newEntry) }
-        dismiss()
+        addedEntry = newEntry
     }
 
     private func debouncedSearch(query: String) {

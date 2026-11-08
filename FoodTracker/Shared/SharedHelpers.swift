@@ -136,13 +136,15 @@ func iconHeroColor(for iconName: String) -> Color {
 
 // MARK: - Quick Add Helpers
 
-func quickAddEntry(_ entry: FoodEntry, into modelContext: ModelContext) {
+@discardableResult
+func quickAddEntry(_ entry: FoodEntry, into modelContext: ModelContext, date: Date = Date()) -> FoodEntry {
     let newEntry = FoodEntry(
         name: entry.name,
         calories: entry.calories,
         proteinGrams: entry.proteinGrams,
         carbsGrams: entry.carbsGrams,
         fatGrams: entry.fatGrams,
+        date: date,
         photoData: entry.isGeneratedImage ? nil : entry.photoData,
         iconName: entry.iconName ?? foodIconName(for: entry.name),
         servings: entry.servings,
@@ -154,9 +156,10 @@ func quickAddEntry(_ entry: FoodEntry, into modelContext: ModelContext) {
     )
     modelContext.insert(newEntry)
     Task { await HealthKitService.shared.syncEntry(newEntry) }
+    return newEntry
 }
 
-func quickAddMealGroup(_ entries: [FoodEntry], mealName: String?, into modelContext: ModelContext) {
+func quickAddMealGroup(_ entries: [FoodEntry], mealName: String?, into modelContext: ModelContext, date: Date = Date()) {
     let newGroupID = UUID()
     for entry in entries {
         let newEntry = FoodEntry(
@@ -165,6 +168,7 @@ func quickAddMealGroup(_ entries: [FoodEntry], mealName: String?, into modelCont
             proteinGrams: entry.proteinGrams,
             carbsGrams: entry.carbsGrams,
             fatGrams: entry.fatGrams,
+            date: date,
             photoData: entry.isGeneratedImage ? nil : entry.photoData,
             mealGroupID: newGroupID,
             mealName: mealName,

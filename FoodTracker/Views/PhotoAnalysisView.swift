@@ -529,12 +529,24 @@ struct PhotoAnalysisView: View {
         HStack {
             Text("Serving Weight (g)")
             Spacer()
-            TextField("Grams", value: Binding(
+            LiveNumberField(placeholder: "Grams", value: Binding(
                 get: { identifiedFoods[index].servingGrams },
                 set: { setServingGrams($0, at: index) }
-            ), format: .number)
-                .keyboardType(.decimalPad)
-                .multilineTextAlignment(.trailing)
+            ))
+        }
+        if let grams = identifiedFoods[index].servingGrams, grams > 0 {
+            // Typing the grams eaten sets the servings count (grams / serving weight)
+            HStack {
+                Text("Amount Eaten (g)")
+                Spacer()
+                LiveNumberField(placeholder: "\(Int(grams))", value: Binding(
+                    get: { (grams * identifiedFoods[index].servings).roundedTo(1) },
+                    set: { newValue in
+                        guard let eaten = newValue, eaten > 0 else { return }
+                        applyServings((eaten / grams * 1000).rounded() / 1000, at: index)
+                    }
+                ))
+            }
         }
 
         ServingPicker(servings: Binding(

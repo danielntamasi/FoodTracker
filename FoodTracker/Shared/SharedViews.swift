@@ -342,3 +342,81 @@ struct CachedThumbnailImage: View {
         }
     }
 }
+
+// MARK: - Waiting Phrases
+
+/// A playful, food-themed "working on it" line for AI waits: a spinner-free icon and phrase that
+/// change every ~1.6s in random order ("Simmering…", "Checking the fridge…"). Reduce Motion swaps
+/// them without the slide.
+struct WaitingPhrases: View {
+    /// Phrases to rotate through, each with an SF Symbol
+    let phrases: [(text: String, icon: String)]
+
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var index: Int
+
+    init(_ phrases: [(text: String, icon: String)]) {
+        self.phrases = phrases
+        _index = State(initialValue: Int.random(in: 0..<max(phrases.count, 1)))
+    }
+
+    /// For AI Chat: cooking up an answer
+    static let chat: [(text: String, icon: String)] = [
+        ("Simmering…", "flame"),
+        ("Marinating on that…", "drop"),
+        ("Whisking…", "cup.and.saucer"),
+        ("Seasoning to taste…", "sparkles"),
+        ("Preheating…", "oven"),
+        ("Chopping it up…", "carrot"),
+        ("Taste-testing…", "fork.knife"),
+        ("Reducing the sauce…", "frying.pan"),
+        ("Weighing the portions…", "scalemass"),
+        ("Counting calories…", "flame.fill"),
+        ("Kneading the numbers…", "birthday.cake"),
+        ("Plating up…", "takeoutbag.and.cup.and.straw"),
+    ]
+
+    /// For Finish the Day: putting a snack or meal together from what's at home
+    static let finishDay: [(text: String, icon: String)] = [
+        ("Checking the fridge…", "refrigerator"),
+        ("Raiding the pantry…", "cabinet"),
+        ("Balancing the macros…", "scalemass"),
+        ("Assembling something tasty…", "fork.knife"),
+        ("Folding in the protein…", "dumbbell"),
+        ("Skipping the sad snacks…", "hand.thumbsdown"),
+        ("Mixing it up…", "frying.pan"),
+        ("Tasting for balance…", "sparkles"),
+        ("Plating up…", "takeoutbag.and.cup.and.straw"),
+    ]
+
+    var body: some View {
+        let phrase = phrases.isEmpty ? (text: "Thinking…", icon: "sparkles") : phrases[index % phrases.count]
+        HStack(spacing: DS.Spacing.s) {
+            Image(systemName: phrase.icon)
+                .font(.body.weight(.medium))
+                .foregroundStyle(DS.Color.protein)
+                .frame(width: 30)
+                .contentTransition(.symbolEffect(.replace))
+                .symbolEffect(.pulse)
+            // Only the text is clipped (for the push transition); wide symbols like frying.pan
+            // would otherwise be cut off at the edges
+            Text(phrase.text)
+                .font(DS.Typography.subhead)
+                .foregroundStyle(DS.Color.textSecondary)
+                .id(phrase.text)
+                .transition(reduceMotion ? .opacity : .push(from: .bottom))
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .clipped()
+        }
+        .accessibilityElement(children: .combine)
+        .task {
+            guard phrases.count > 1 else { return }
+            while !Task.isCancelled {
+                try? await Task.sleep(for: .seconds(1.6))
+                var next = Int.random(in: 0..<phrases.count)
+                if next == index { next = (next + 1) % phrases.count }
+                withAnimation(.spring(duration: 0.4, bounce: 0.2)) { index = next }
+            }
+        }
+    }
+}

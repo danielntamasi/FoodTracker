@@ -1,6 +1,7 @@
 import Foundation
 import SwiftData
 import UIKit
+import os
 
 // MARK: - Feedback Models
 
@@ -137,6 +138,37 @@ enum FeedbackService {
     static func rememberRequest(_ summary: String) {
         let line = "\(Date().formatted(date: .abbreviated, time: .omitted)): \(summary)"
         UserDefaults.standard.set(Array(([line] + pastRequests).prefix(30)), forKey: pastRequestsKey)
+    }
+
+    // MARK: Local copies
+
+    /// Each report is also kept on the device (Documents/Feedback/<time>/report.txt + screenshot.jpg),
+    /// so `scripts/pull-feedback.sh` can copy it to the Mac with the screenshot at full size.
+    static let archiveFolder = "Feedback"
+    static let archiveLimit = 30
+    private static let logger = Logger(subsystem: "com.DNT.foodtracker", category: "Feedback")
+
+    static func archive(subject: String, text: String, screenshot: UIImage?) {
+        guard let documents = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first else { return }
+        let root = documents.appendingPathComponent(archiveFolder, isDirectory: true)
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.dateFormat = "yyyy-MM-dd_HHmmss"
+        let folder = root.appendingPathComponent(formatter.string(from: Date()), isDirectory: true)
+        do {
+            try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+            try (subject + "\n\n" + text).write(to: folder.appendingPathComponent("report.txt"), atomically: true, encoding: .utf8)
+            if let jpeg = screenshot?.jpegData(compressionQuality: 0.9) {
+                try jpeg.write(to: folder.appendingPathComponent("screenshot.jpg"))
+            }
+            // Keep only the newest reports (folder names sort by time)
+            let existing = try FileManager.default.contentsOfDirectory(atPath: root.path).sorted()
+            for old in existing.dropLast(archiveLimit) {
+                try? FileManager.default.removeItem(at: root.appendingPathComponent(old))
+            }
+        } catch {
+            logger.error("Couldn't save feedback copy: \(error.localizedDescription)")
+        }
     }
 
     // MARK: Assistant

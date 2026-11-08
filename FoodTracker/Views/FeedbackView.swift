@@ -411,6 +411,11 @@ struct FeedbackView: View {
             priority: confirmed ? priority : nil,
             context: effectiveContext
         )
+        FeedbackService.archive(
+            subject: FeedbackService.subject(kind: kind, note: note, summary: confirmedSummary),
+            text: reportText,
+            screenshot: effectiveContext.screenshot
+        )
         withAnimation { stage = .done }
     }
 
