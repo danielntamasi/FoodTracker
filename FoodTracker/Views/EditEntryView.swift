@@ -6,9 +6,15 @@ import AVFoundation
 struct EditEntryView: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.modelContext) private var modelContext
     @Bindable var entry: FoodEntry
+    /// Just added (e.g. from Recent): opens straight into editing, "Add" saves and closes,
+    /// Cancel takes the entry back out.
+    var isNewEntry = false
 
     @State private var isEditing = false
+    @State private var didAutoStartEditing = false
+    @State private var discardOnClose = false
     @State private var lookup = NutritionLookup()
     @State private var extractedColor: Color?
     @State private var showingBarcodeScanner = false
@@ -235,6 +241,10 @@ struct EditEntryView: View {
         .interactiveDismissDisabled(hasUnsavedChanges)
         .onAppear {
             servings = entry.servings
+            if isNewEntry, !didAutoStartEditing {
+                didAutoStartEditing = true
+                startEditing()
+            }
             if let uiImage = entryImage {
                 extractedColor = dominantColor(from: uiImage, colorScheme: colorScheme)
             }
@@ -254,6 +264,19 @@ struct EditEntryView: View {
                 }
             }
             if !Task.isCancelled { isGeneratingImage = false }
+        }
+        .onDisappear {
+            guard discardOnClose else { return }
+            let id = entry.id, date = originalDate
+            modelContext.delete(entry)
+            Task { await HealthKitService.shared.deleteEntry(id: id, date: date) }
+        }
+        .onChange(of: isEditing) { _, editing in
+            // A new entry closes once it's saved, unless the OpenFoodFacts prompt is up
+            if isNewEntry, !editing, !showCorrectionAlert { dismiss() }
+        }
+        .onChange(of: showCorrectionAlert) { _, showing in
+            if isNewEntry, !showing, !isEditing { dismiss() }
         }
         .onChange(of: lookup.aiEstimate?.description) { _, _ in
             if let estimate = lookup.aiEstimate {
@@ -344,7 +367,7 @@ struct EditEntryView: View {
                 Button {
                     finishEditing()
                 } label: {
-                    floatingButtonLabel("Done")
+                    floatingButtonLabel(isNewEntry ? "Add" : "Done")
                 }
                 .disabled(!isValidNutrition(
                     calories: entry.calories,
@@ -391,6 +414,12 @@ struct EditEntryView: View {
     }
 
     private func cancelEditing() {
+        if isNewEntry {
+            // Deleted once the sheet is gone, so nothing reads the entry after it's deleted
+            discardOnClose = true
+            dismiss()
+            return
+        }
         entry.name = originalName
         entry.calories = originalCalories
         entry.proteinGrams = originalProtein

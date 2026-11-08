@@ -229,13 +229,7 @@ struct FoodChatView: View {
     }
 
     private var typingIndicator: some View {
-        HStack(spacing: DS.Spacing.s) {
-            ProgressView()
-            Text("Thinking...")
-                .font(DS.Typography.subhead)
-                .foregroundStyle(DS.Color.textSecondary)
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
+        WaitingPhrases(WaitingPhrases.chat)
     }
 
     private func errorRow(_ message: String) -> some View {

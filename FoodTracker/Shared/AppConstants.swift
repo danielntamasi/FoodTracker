@@ -38,6 +38,9 @@ enum AppConstants {
         static let appearanceMode = "appearanceMode"
         static let handedness = "handedness"
         static let performanceExcludedDays = "performanceExcludedDays"
+        static let kickstartEnabled = "kickstartEnabled"
+        static let kickstartDismissed = "kickstartDismissed"
+        static let finishDayEnabled = "finishDayEnabled"
         static let claudeModel = "claudeModel"
         static let claudeModelList = "claudeModelList"
     }

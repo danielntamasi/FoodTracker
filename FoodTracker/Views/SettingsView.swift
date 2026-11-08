@@ -48,6 +48,10 @@ struct SettingsView: View {
     @State private var fatTarget = DailyTarget.fat
     @State private var healthSyncEnabled = HealthKitService.isEnabled
     @State private var imagePlaygroundEnabled = ImagePlaygroundService.isEnabled
+    @State private var kickstartEnabled = KickstartSuggestions.isEnabled
+    @AppStorage(AppConstants.Defaults.finishDayEnabled, store: sharedDefaults) private var finishDayEnabled = true
+    @State private var kickstartPreview: KickstartPrompt?
+    @State private var kickstartEmpty = false
     @AppStorage(AppConstants.Defaults.appearanceMode, store: sharedDefaults)
     private var appearanceMode: String = "system"
     @AppStorage(AppConstants.Defaults.handedness, store: sharedDefaults)
@@ -268,6 +272,45 @@ struct SettingsView: View {
                     Text("Apple Health")
                 } footer: {
                     Text("When enabled, food entries are written to Apple Health as nutrition data.")
+                        .font(DS.Typography.caption)
+                        .foregroundStyle(DS.Color.textTertiary)
+                }
+
+                Section {
+                    Toggle("Daily Kickstart", isOn: $kickstartEnabled)
+                        .onChange(of: kickstartEnabled) { _, newValue in
+                            KickstartSuggestions.isEnabled = newValue
+                        }
+                    Button("Show It Now") {
+                        let suggestions = KickstartSuggestions.suggestions(entries: allEntries)
+                        if suggestions.isEmpty {
+                            kickstartEmpty = true
+                        } else {
+                            kickstartPreview = KickstartPrompt(suggestions: suggestions)
+                        }
+                    }
+                    .sheet(item: $kickstartPreview) { prompt in
+                        KickstartView(suggestions: prompt.suggestions, remembersDismissals: false)
+                    }
+                    .alert("Nothing to Suggest Yet", isPresented: $kickstartEmpty) {
+                        Button("OK", role: .cancel) {}
+                    } message: {
+                        Text("Nothing you usually have by this time (or within the next hour) is left to log today; things already logged today aren't offered again. This preview also shows ones you turned down today. A food or meal counts as a habit once it's been logged on at least 3 days, on at least half the days since you started having it, and in the last week.")
+                    }
+                } header: {
+                    Text("Start of Day")
+                } footer: {
+                    Text("When you open the app, offers the foods and meals you usually have had by that time, ready to add.")
+                        .font(DS.Typography.caption)
+                        .foregroundStyle(DS.Color.textTertiary)
+                }
+
+                Section {
+                    Toggle("Finish the Day", isOn: $finishDayEnabled)
+                } header: {
+                    Text("End of Day")
+                } footer: {
+                    Text("Adds \"Finish the Day\" to the + menu: the AI looks at what you've eaten today and your usual foods and suggests snacks or small meals that close your rings. Needs daily targets and an AI key.")
                         .font(DS.Typography.caption)
                         .foregroundStyle(DS.Color.textTertiary)
                 }

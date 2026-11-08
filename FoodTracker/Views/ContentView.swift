@@ -1,4 +1,5 @@
 import SwiftUI
+import SwiftData
 
 enum AppTab: CaseIterable {
     case today, history, settings
@@ -20,8 +21,18 @@ enum AppTab: CaseIterable {
     }
 }
 
+struct KickstartPrompt: Identifiable {
+    let id = UUID()
+    let suggestions: [KickstartSuggestion]
+}
+
 enum QuickAddAction {
-    case chat, barcode, search, browse, buildMeal
+    case chat, barcode, search, browse, buildMeal, finishDay
+}
+
+struct FinishDayTotals: Identifiable {
+    let id = UUID()
+    let current: Nutrients
 }
 
 struct ContentView: View {
@@ -36,19 +47,28 @@ struct ContentView: View {
     @State private var showingBrowse = false
     @State private var showingSearch = false
     @State private var showingBuildMeal = false
+    @State private var finishDayTotals: FinishDayTotals?
+    @AppStorage(AppConstants.Defaults.finishDayEnabled, store: sharedDefaults) private var finishDayEnabled = true
+    @State private var kickstart: KickstartPrompt?
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var layoutHeight: CGFloat = 700
     @State private var layoutWidth: CGFloat = 393
 
-    private let radialItems: [(icon: String, label: String, action: QuickAddAction)] = [
-        ("clock.arrow.circlepath", "Recent", .browse),
-        ("magnifyingglass", "Search", .search),
-        ("sparkles", "AI Chat", .chat),
-        ("square.stack.3d.up", "Build", .buildMeal),
-        ("barcode.viewfinder", "Barcode", .barcode),
-    ]
+    private var radialItems: [(icon: String, label: String, action: QuickAddAction)] {
+        var items: [(icon: String, label: String, action: QuickAddAction)] = [
+            ("clock.arrow.circlepath", "Recent", .browse),
+            ("magnifyingglass", "Search", .search),
+            ("sparkles", "AI Chat", .chat),
+            ("square.stack.3d.up", "Build", .buildMeal),
+            ("barcode.viewfinder", "Barcode", .barcode),
+        ]
+        // Settings > End of Day; it plans against the daily targets, so only with targets set
+        if finishDayEnabled && DailyTarget.hasTargets {
+            items.insert(("flag.checkered", "Finish the Day", .finishDay), at: 0)
+        }
+        return items
+    }
 
-    @Namespace private var glassNamespace
     /// When the + last toggled the menu, so a double selection callback can't undo it
     @State private var lastAddToggle = Date.distantPast
     @AppStorage(AppConstants.Defaults.handedness, store: sharedDefaults)
@@ -82,6 +102,16 @@ struct ContentView: View {
         .sheet(isPresented: $showingBuildMeal) {
             BuildMealView()
         }
+        .sheet(item: $finishDayTotals) { totals in
+            FinishDayView(current: totals.current)
+        }
+        .sheet(item: $kickstart) { prompt in
+            KickstartView(suggestions: prompt.suggestions)
+        }
+        .onAppear { showKickstartIfNeeded() }
+        .onChange(of: scenePhase) { _, newPhase in
+            if newPhase == .active { showKickstartIfNeeded() }
+        }
         .onOpenURL { url in
             handleDeepLink(url)
         }
@@ -90,6 +120,22 @@ struct ContentView: View {
             let screenshot = FeedbackPresenter.screenshot()
             FeedbackPresenter.present(context: FeedbackService.makeContext(screenshot: screenshot, modelContext: modelContext))
         }
+    }
+
+    /// Whenever the app opens, offers the foods and meals usually had by this time that aren't
+    /// logged yet and weren't turned down earlier today.
+    private func showKickstartIfNeeded() {
+        guard KickstartSuggestions.isEnabled, kickstart == nil, finishDayTotals == nil,
+              !(showingAddEntry || showingChat || showingBarcodeScanner || showingBrowse || showingSearch || showingBuildMeal)
+        else { return }
+        let calendar = Calendar.current
+        guard let start = calendar.date(byAdding: .day, value: -KickstartSuggestions.lookbackDays, to: calendar.startOfDay(for: Date())) else { return }
+        let descriptor = FetchDescriptor<FoodEntry>(predicate: #Predicate { $0.date >= start })
+        guard let entries = try? modelContext.fetch(descriptor) else { return }
+        let dismissed = KickstartSuggestions.dismissedToday
+        let suggestions = KickstartSuggestions.suggestions(entries: entries).filter { !dismissed.contains($0.id) }
+        guard !suggestions.isEmpty else { return }
+        kickstart = KickstartPrompt(suggestions: suggestions)
     }
 
     private var activeTabContent: some View {
@@ -207,18 +253,30 @@ struct ContentView: View {
     /// Glass pills stacked above the system + button
     @available(iOS 26, *)
     private var glassAddMenu: some View {
-        GlassEffectContainer(spacing: 8) {
-            VStack(alignment: isLeftHanded ? .leading : .trailing, spacing: 12) {
-                if showingRadialMenu {
-                    ForEach(radialItems, id: \.label) { item in
-                        glassMenuItem(item)
-                    }
+        // No GlassEffectContainer: it draws the pills' glass as one layer that doesn't follow each
+        // pill's scale, so the bubble and its label came apart mid-animation
+        VStack(alignment: isLeftHanded ? .leading : .trailing, spacing: 12) {
+            if showingRadialMenu {
+                let items = radialItems
+                ForEach(Array(items.enumerated()), id: \.element.label) { index, item in
+                    glassMenuItem(item)
+                        // Counted from the bottom: the pill nearest the + pops first
+                        .modifier(BubbleUp(order: items.count - 1 - index, reduceMotion: reduceMotion))
+                        .transition(bubbleRemoval)
                 }
             }
         }
         .padding(.horizontal, DS.Spacing.screenEdge + 4)
         // Clears the system tab bar
         .padding(.bottom, 76)
+    }
+
+    /// Pills are only in the hierarchy while the menu is open (glass ignores opacity, so a faded-out
+    /// pill would still draw); `BubbleUp` pops each one in, and closing shrinks them away together.
+    private var bubbleRemoval: AnyTransition {
+        reduceMotion
+            ? .opacity.animation(.easeOut(duration: 0.15))
+            : .asymmetric(insertion: .identity, removal: .scale(scale: 0.3).combined(with: .opacity).animation(.easeIn(duration: 0.15)))
     }
 
     @available(iOS 26, *)
@@ -242,8 +300,7 @@ struct ContentView: View {
                 .padding(.horizontal, 18)
                 .frame(height: 48)
                 .glassEffect(.regular.tint(isPrimary ? DS.Color.protein : nil).interactive(), in: Capsule())
-                .glassEffectID(item.label, in: glassNamespace)
-                .glassEffectTransition(.materialize)
+                .glassEffectTransition(.identity)
                 // Glass isn't hit-testable: without this only the text and icon take taps
                 .contentShape(Capsule())
         }
@@ -365,7 +422,16 @@ struct ContentView: View {
         case .search: showingSearch = true
         case .browse: showingBrowse = true
         case .buildMeal: showingBuildMeal = true
+        case .finishDay: finishDayTotals = FinishDayTotals(current: todayTotals())
         }
+    }
+
+    /// Today's totals, read when Finish the Day opens
+    private func todayTotals() -> Nutrients {
+        let start = Calendar.current.startOfDay(for: Date())
+        let end = Calendar.current.date(byAdding: .day, value: 1, to: start) ?? Date()
+        let descriptor = FetchDescriptor<FoodEntry>(predicate: #Predicate { $0.date >= start && $0.date < end })
+        return Nutrients.totals(of: (try? modelContext.fetch(descriptor)) ?? [])
     }
 
     // MARK: - Tab Bar
@@ -446,5 +512,25 @@ struct ScaleButtonStyle: ButtonStyle {
         configuration.label
             .scaleEffect(configuration.isPressed ? 0.9 : 1.0)
             .animation(.spring(duration: 0.2), value: configuration.isPressed)
+    }
+}
+
+/// Pops a + menu pill up in place when it appears: it grows from nothing with an overshoot, each one
+/// `order` × 0.04s after the pill below it (0 = nearest the +). Run from the pill's own onAppear so the
+/// menu's open animation can't swallow the delay.
+private struct BubbleUp: ViewModifier {
+    let order: Int
+    let reduceMotion: Bool
+    @State private var popped = false
+
+    func body(content: Content) -> some View {
+        content
+            .scaleEffect(popped || reduceMotion ? 1 : 0.01)
+            .onAppear {
+                guard !reduceMotion else { return }
+                withAnimation(.spring(duration: 0.35, bounce: 0.5).delay(Double(order) * 0.04)) {
+                    popped = true
+                }
+            }
     }
 }

@@ -66,6 +66,7 @@ struct HistoryView: View {
                                                 } label: {
                                                     Label("Delete", systemImage: "trash")
                                                 }
+                                                .tint(DS.Color.danger)
                                                 Button { editingEntry = entry } label: {
                                                     Label("Edit", systemImage: "pencil")
                                                 }
@@ -116,6 +117,7 @@ struct HistoryView: View {
                                             } label: {
                                                 Label("Delete", systemImage: "trash")
                                             }
+                                            .tint(DS.Color.danger)
                                             Button {
                                                 editingMealGroup = MealGroup(id: groupID, name: mealName, entries: entries)
                                             } label: {
@@ -146,6 +148,7 @@ struct HistoryView: View {
                                                         } label: {
                                                             Label("Delete", systemImage: "trash")
                                                         }
+                                                        .tint(DS.Color.danger)
                                                         Button { editingEntry = entry } label: {
                                                             Label("Edit", systemImage: "pencil")
                                                         }

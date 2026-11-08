@@ -9,6 +9,9 @@ struct BrowseFoodsView: View {
     /// When set, saves as an IngredientItem instead of a FoodEntry (used by BuildMealView)
     var onIngredientAdded: ((IngredientItem) -> Void)?
 
+    /// A food just added from this list, opened for editing (e.g. to change the amount eaten)
+    @State private var addedEntry: FoodEntry?
+
     private var frequentFoods: [(name: String, calories: Int, protein: Double, carbs: Double, fat: Double, count: Int, iconName: String?, photoData: Data?, servings: Double, servingDescription: String?, servingGrams: Double?)] {
         var groups: [String: (name: String, calories: Int, protein: Double, carbs: Double, fat: Double, count: Int, iconName: String?, photoData: Data?, servings: Double, servingDescription: String?, servingGrams: Double?, latestDate: Date)] = [:]
         for entry in allEntries {
@@ -156,7 +159,8 @@ struct BrowseFoodsView: View {
                             switch item {
                             case .food(let name, let calories, let protein, let carbs, let fat, let iconName, let photoData, _, let servingDescription, let servingGrams):
                                 Button {
-                                    addFood(name: name, calories: calories, protein: protein, carbs: carbs, fat: fat, iconName: iconName, photoData: photoData, servingDescription: servingDescription, servingGrams: servingGrams)
+                                    // Favorites are the one-tap path: added as they are, no edit step
+                                    addFood(name: name, calories: calories, protein: protein, carbs: carbs, fat: fat, iconName: iconName, photoData: photoData, servingDescription: servingDescription, servingGrams: servingGrams, openForEditing: false)
                                 } label: {
                                     HStack {
                                         Image(systemName: "star.fill")
@@ -298,8 +302,7 @@ struct BrowseFoodsView: View {
                                     onIngredientAdded(IngredientItem(copying: entry))
                                     dismiss()
                                 } else {
-                                    quickAddEntry(entry, into: modelContext)
-                                    dismiss()
+                                    addedEntry = quickAddEntry(entry, into: modelContext)
                                 }
                             } label: {
                                 HStack {
@@ -343,10 +346,13 @@ struct BrowseFoodsView: View {
                     CloseButton { dismiss() }
                 }
             }
+            .sheet(item: $addedEntry, onDismiss: { dismiss() }) { entry in
+                EditEntryView(entry: entry, isNewEntry: true)
+            }
         }
     }
 
-    private func addFood(name: String, calories: Int, protein: Double, carbs: Double, fat: Double, iconName: String?, photoData: Data? = nil, servings: Double = 1.0, servingDescription: String? = nil, servingGrams: Double? = nil) {
+    private func addFood(name: String, calories: Int, protein: Double, carbs: Double, fat: Double, iconName: String?, photoData: Data? = nil, servings: Double = 1.0, servingDescription: String? = nil, servingGrams: Double? = nil, openForEditing: Bool = true) {
         // Keep where the food came from (barcode, source, model) so later corrections still work on the copy
         let key = name.lowercased().trimmingCharacters(in: .whitespaces)
         let origin = allEntries.filter { $0.name.lowercased().trimmingCharacters(in: .whitespaces) == key }.max { $0.date < $1.date }
@@ -384,6 +390,6 @@ struct BrowseFoodsView: View {
         )
         modelContext.insert(entry)
         Task { await HealthKitService.shared.syncEntry(entry) }
-        dismiss()
+        if openForEditing { addedEntry = entry } else { dismiss() }
     }
 }

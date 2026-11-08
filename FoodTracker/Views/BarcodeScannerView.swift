@@ -205,7 +205,11 @@ struct AddBarcodeProductView: View {
 
                 Section {
                     TextField("Serving size, e.g. 1 bar", text: $servingDescription)
-                    numberRow("Serving weight (g)", value: $servingGrams)
+                    HStack {
+                        Text("Serving weight (g)")
+                        Spacer()
+                        LiveNumberField(placeholder: "0", value: $servingGrams)
+                    }
                 } header: {
                     Text("Serving (from the label)")
                 }
@@ -226,6 +230,20 @@ struct AddBarcodeProductView: View {
                 }
 
                 Section("Servings eaten") {
+                    if let grams = servingGrams, grams > 0 {
+                        // Typing the grams eaten sets the servings count (grams / serving weight)
+                        HStack {
+                            Text("Amount eaten (g)")
+                            Spacer()
+                            LiveNumberField(placeholder: "\(Int(grams))", value: Binding(
+                                get: { (grams * servings).roundedTo(1) },
+                                set: { newValue in
+                                    guard let eaten = newValue, eaten > 0 else { return }
+                                    servings = (eaten / grams * 1000).rounded() / 1000
+                                }
+                            ))
+                        }
+                    }
                     ServingPicker(servings: $servings)
                 }
 

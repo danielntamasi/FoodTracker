@@ -37,3 +37,6 @@ skills-lock.json
 
 # Personal build settings (see Config.xcconfig)
 Secrets.xcconfig
+
+# Feedback copied off the phones (scripts/pull-feedback.sh)
+feedback-inbox/
