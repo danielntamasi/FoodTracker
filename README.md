@@ -45,12 +45,13 @@ A personal iOS calorie and macro tracker built with SwiftUI and SwiftData. You l
 - **CSV import and export** of the whole food log.
 - **Liquid Glass design** on iOS 26 and later, with a left-handed layout option and light, dark or system appearance.
 
-## AI providers
+## AI: Claude, with your own key
 
-Pick a provider in **Settings** and enter its API key. The same provider is used everywhere: AI Chat, AI estimates, label reading, Finish the Day and feedback questions.
+Every AI feature (AI Chat, AI estimates, label reading, Finish the Day and the feedback questions) runs on Claude from Anthropic.
 
-- **Claude (Anthropic):** the model picker is filled from Anthropic's live model list, so new models show up without an app update, and a retired model is replaced automatically. The default is Sonnet 4.6.
-- **Gemini (Google):** currently pinned to `gemini-2.0-flash`, which Google retired on June 1, 2026. Use Claude until the Gemini model is updated.
+- **You need your own Anthropic API key.** Create one at [console.anthropic.com](https://console.anthropic.com) and enter it in the app under **Settings → Claude AI**. Usage is billed to your own Anthropic account; the app has no backend and no shared key.
+- **Pick the model** in the same section. The list comes live from Anthropic, so new models show up without an app update, and a retired model is replaced automatically. The default is Sonnet 4.6.
+- Without a key, everything else (barcode scanning, search, manual entry, history) still works.
 
 Nutrition data comes from USDA FoodData Central and OpenFoodFacts.
 
@@ -60,7 +61,7 @@ Nutrition data comes from USDA FoodData Central and OpenFoodFacts.
 - **Data:** SwiftData (a single `FoodEntry` model), shared with the widget through an App Group
 - **Minimum target:** iOS 17; Liquid Glass and the native tab bar on iOS 26 and later
 - **Dependencies:** none, Apple frameworks only
-- **No backend:** the app talks to the AI providers, USDA and OpenFoodFacts directly with your own keys
+- **No backend:** the app talks to Anthropic, USDA and OpenFoodFacts directly with your own keys
 
 ## Building
 
@@ -76,7 +77,7 @@ Nutrition data comes from USDA FoodData Central and OpenFoodFacts.
 
 Nothing is hardcoded. Open **Settings** to enter:
 
-- **Claude or Gemini key:** needed for every AI feature.
+- **Anthropic API key (Settings → Claude AI):** your own key, needed for every AI feature. Usage is billed to your Anthropic account.
 - **USDA FoodData Central key:** optional but recommended. Free at [fdc.nal.usda.gov/api-key-signup](https://fdc.nal.usda.gov/api-key-signup) (1,000 requests an hour, compared with 30 for the shared `DEMO_KEY`).
 - **OpenFoodFacts username and password:** optional, only needed to submit products and corrections.
 
