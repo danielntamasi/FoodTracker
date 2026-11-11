@@ -3,10 +3,7 @@
 A personal iOS calorie and macro tracker built with SwiftUI and SwiftData. You log food by telling an AI what you ate (a photo, a sentence, or both), scanning a barcode, or re-adding something you eat often. The app then helps you land the day on your calorie, protein, carb and fat goals, with guidance rather than judgment: landing slightly over a goal earns a green check.
 
 <p align="center">
-  <img src="docs/screenshots/today.jpg" width="200" alt="Today: calorie gauge, macro rings and the day's entries">
-  <img src="docs/screenshots/menu.jpg" width="200" alt="The add menu: Finish the Day, Recent, Search, AI Chat, Build and Barcode">
-  <img src="docs/screenshots/history.jpg" width="200" alt="History: 7-day averages against each goal">
-  <img src="docs/screenshots/today-dark.jpg" width="200" alt="Today in dark mode">
+  <img src="docs/screenshots/hero.jpg" alt="FoodTracker on four iPhone 18 Pros: Today with the calorie gauge, the add menu, History averages, and Today in dark mode">
 </p>
 
 *Screenshots use demo data.*
