@@ -59,6 +59,11 @@ func formatMacro(_ value: Double) -> String {
     value == value.rounded() ? String(format: "%.0f", value) : String(format: "%.1f", value)
 }
 
+/// For narrow chips: whole grams from 10 up ("24", not "24.3"), one decimal below
+func formatMacroCompact(_ value: Double) -> String {
+    value >= 10 ? String(format: "%.0f", value.rounded()) : formatMacro(value)
+}
+
 // MARK: - Dominant Color Extraction
 
 func dominantColor(from image: UIImage, colorScheme: ColorScheme) -> Color? {

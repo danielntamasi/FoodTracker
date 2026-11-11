@@ -644,9 +644,9 @@ struct MealEntryRow: View {
                 }
 
                 HStack(spacing: 4) {
-                    MacroPill(value: formatMacro(totalProtein), unit: "P", color: DS.Color.protein)
-                    MacroPill(value: formatMacro(totalCarbs), unit: "C", color: DS.Color.carbs)
-                    MacroPill(value: formatMacro(totalFat), unit: "F", color: DS.Color.fat)
+                    MacroPill(value: formatMacroCompact(totalProtein), unit: "P", color: DS.Color.protein)
+                    MacroPill(value: formatMacroCompact(totalCarbs), unit: "C", color: DS.Color.carbs)
+                    MacroPill(value: formatMacroCompact(totalFat), unit: "F", color: DS.Color.fat)
                 }
             }
 
@@ -832,9 +832,9 @@ struct FoodEntryRow: View {
                     .lineLimit(1)
 
                 HStack(spacing: 4) {
-                    MacroPill(value: formatMacro(entry.totalProteinGrams), unit: "P", color: DS.Color.protein)
-                    MacroPill(value: formatMacro(entry.totalCarbsGrams), unit: "C", color: DS.Color.carbs)
-                    MacroPill(value: formatMacro(entry.totalFatGrams), unit: "F", color: DS.Color.fat)
+                    MacroPill(value: formatMacroCompact(entry.totalProteinGrams), unit: "P", color: DS.Color.protein)
+                    MacroPill(value: formatMacroCompact(entry.totalCarbsGrams), unit: "C", color: DS.Color.carbs)
+                    MacroPill(value: formatMacroCompact(entry.totalFatGrams), unit: "F", color: DS.Color.fat)
                 }
             }
 

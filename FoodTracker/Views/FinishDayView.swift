@@ -1,10 +1,12 @@
 import SwiftUI
 import SwiftData
+import PhotosUI
 
 /// "Finish the Day Strong": the assistant looks at what's been eaten today, the goals and the user's
 /// usual foods, and suggests a few different snacks or small meals for the rest of the day. The user
 /// picks single items or whole options, sees where each goal would land in the pinned tracker, and can
-/// ask for options for what's left after their picks, or reply for other ideas.
+/// ask for options for what's left after their picks, or reply for other ideas. Photos of food they
+/// have on hand (fridge, pantry, a package) can be sent too, and the assistant plans with them.
 struct FinishDayView: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.modelContext) private var modelContext
@@ -18,6 +20,7 @@ struct FinishDayView: View {
         let id = UUID()
         let isUser: Bool
         let text: String
+        var images: [UIImage] = []
         var options: [FinishDayOption] = []
     }
 
@@ -31,6 +34,14 @@ struct FinishDayView: View {
     /// How many picks the last "Recalculate" covered, so the button only shows when there's something new
     @State private var recalculatedPickIDs: Set<UUID> = []
     @State private var input = ""
+    /// Photos waiting to go with the next message
+    @State private var pendingImages: [UIImage] = []
+    @State private var pickerItems: [PhotosPickerItem] = []
+    @State private var cameraImage: UIImage?
+    @State private var showingCamera = false
+    /// Whether any photo was sent, so new items logged from the options count as AI Chat (photo)
+    @State private var sentPhotos = false
+    private let maxImagesPerMessage = 4
     @State private var isThinking = false
     @State private var errorMessage: String?
     @FocusState private var inputFocused: Bool
@@ -44,6 +55,9 @@ struct FinishDayView: View {
     private var pickedIDs: Set<UUID> { Set(picks.map(\.id)) }
     private var planned: Nutrients { picks.reduce(Nutrients()) { $0 + $1.item.totals } }
     private var canRecalculate: Bool { !picks.isEmpty && pickedIDs != recalculatedPickIDs && !isThinking }
+    private var canSend: Bool {
+        (!input.trimmingCharacters(in: .whitespaces).isEmpty || !pendingImages.isEmpty) && !isThinking && context != nil
+    }
 
     var body: some View {
         NavigationStack {
@@ -53,7 +67,7 @@ struct FinishDayView: View {
                         ForEach(messages) { message in
                             Group {
                                 if message.isUser {
-                                    userBubble(message.text)
+                                    userBubble(message)
                                 } else {
                                     assistantMessage(message)
                                 }
@@ -68,6 +82,7 @@ struct FinishDayView: View {
                     .padding(.vertical, DS.Spacing.m)
                 }
                 .scrollDismissesKeyboard(.interactively)
+                .hardBottomEdge()
                 .onChange(of: messages.count) { _, _ in
                     // A reply is shown from its top (the options are long); scrolling to the bottom
                     // left the scroll view at a stale offset that jumped on the next touch.
@@ -97,6 +112,21 @@ struct FinishDayView: View {
                 ToolbarItem(placement: .topBarLeading) { CloseButton { dismiss() } }
             }
             .bottomBar { bottomControls }
+            .fullScreenCover(isPresented: $showingCamera) {
+                ImagePicker(image: $cameraImage)
+                    .ignoresSafeArea()
+            }
+            .onChange(of: cameraImage) { _, newImage in
+                guard let newImage else { return }
+                attach(newImage)
+                cameraImage = nil
+                showingCamera = false
+            }
+            .onChange(of: pickerItems) { _, items in
+                guard !items.isEmpty else { return }
+                pickerItems = []
+                Task { await loadPickedPhotos(items) }
+            }
         }
         .presentationDetents([.large])
         .presentationDragIndicator(.visible)
@@ -105,15 +135,29 @@ struct FinishDayView: View {
 
     // MARK: Messages
 
-    private func userBubble(_ text: String) -> some View {
-        HStack {
-            Spacer(minLength: 60)
-            Text(text)
-                .padding(.horizontal, 14)
-                .padding(.vertical, 10)
-                .foregroundStyle(.white)
-                .background(DS.Color.protein, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+    private func userBubble(_ message: Message) -> some View {
+        VStack(alignment: .trailing, spacing: DS.Spacing.xs) {
+            if !message.images.isEmpty {
+                HStack(spacing: DS.Spacing.xs) {
+                    ForEach(Array(message.images.enumerated()), id: \.offset) { _, image in
+                        Image(uiImage: image)
+                            .resizable()
+                            .scaledToFill()
+                            .frame(width: 72, height: 72)
+                            .clipShape(RoundedRectangle(cornerRadius: DS.Radius.s, style: .continuous))
+                    }
+                }
+            }
+            if !message.text.isEmpty {
+                Text(message.text)
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 10)
+                    .foregroundStyle(.white)
+                    .background(DS.Color.protein, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+            }
         }
+        .padding(.leading, 60)
+        .frame(maxWidth: .infinity, alignment: .trailing)
     }
 
     private func assistantMessage(_ message: Message) -> some View {
@@ -267,15 +311,70 @@ struct FinishDayView: View {
                     .glassButtonStyle(prominent: true)
                 }
             }
+            if !pendingImages.isEmpty {
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: DS.Spacing.s) {
+                        ForEach(Array(pendingImages.enumerated()), id: \.offset) { index, image in
+                            Image(uiImage: image)
+                                .resizable()
+                                .scaledToFill()
+                                .frame(width: 56, height: 56)
+                                .clipShape(RoundedRectangle(cornerRadius: DS.Radius.s, style: .continuous))
+                                .overlay(alignment: .topTrailing) {
+                                    Button {
+                                        pendingImages.remove(at: index)
+                                    } label: {
+                                        Image(systemName: "xmark.circle.fill")
+                                            .symbolRenderingMode(.palette)
+                                            .foregroundStyle(.white, .black.opacity(0.6))
+                                    }
+                                    .accessibilityLabel("Remove photo")
+                                    .padding(2)
+                                }
+                        }
+                    }
+                }
+            }
             HStack(spacing: DS.Spacing.s) {
-                TextField("Something else? e.g. no bars, warm", text: $input, axis: .vertical)
+                Menu {
+                    Button {
+                        inputFocused = false
+                        showingCamera = true
+                    } label: {
+                        Label("Take Photo", systemImage: "camera")
+                    }
+                    PhotosPicker(
+                        selection: $pickerItems,
+                        maxSelectionCount: max(1, maxImagesPerMessage - pendingImages.count),
+                        matching: .images
+                    ) {
+                        Label("Choose Photos", systemImage: "photo.on.rectangle")
+                    }
+                } label: {
+                    Image(systemName: "camera")
+                        .font(.body.weight(.semibold))
+                        .frame(width: 22, height: 22)
+                }
+                .glassButtonStyle(prominent: false)
+                .buttonBorderShape(.circle)
+                .disabled(pendingImages.count >= maxImagesPerMessage || isThinking)
+                .accessibilityLabel("Add photos of food you have")
+
+                TextField(pendingImages.isEmpty ? "Something else? e.g. no bars, warm" : "Add a note (optional)", text: $input, axis: .vertical)
                     .lineLimit(1...4)
                     .focused($inputFocused)
                     .padding(.horizontal, 14)
                     .padding(.vertical, 10)
                     .glassControl(in: RoundedRectangle(cornerRadius: 20, style: .continuous))
                     .submitLabel(.send)
-                    .onSubmit { sendInput() }
+                    // A vertical field puts Return into the text instead of reliably calling onSubmit
+                    // (clearing it there left the text behind), so a newline sends instead
+                    .onChange(of: input) { _, newValue in
+                        if newValue.contains("\n") {
+                            input = newValue.replacingOccurrences(of: "\n", with: " ")
+                            sendInput()
+                        }
+                    }
                 Button(action: sendInput) {
                     Image(systemName: "arrow.up")
                         .font(.body.weight(.semibold))
@@ -283,13 +382,14 @@ struct FinishDayView: View {
                 }
                 .glassButtonStyle(prominent: true)
                 .buttonBorderShape(.circle)
-                .disabled(input.trimmingCharacters(in: .whitespaces).isEmpty || isThinking || context == nil)
+                .disabled(!canSend)
             }
         }
         .padding(.horizontal, DS.Spacing.screenEdge)
         .padding(.vertical, DS.Spacing.s)
         .animation(.snappy, value: picks.isEmpty)
         .animation(.snappy, value: canRecalculate)
+        .animation(.snappy, value: pendingImages.count)
     }
 
     private func iconName(for item: FinishDayItem) -> String {
@@ -319,11 +419,44 @@ struct FinishDayView: View {
         await send(nil)
     }
 
+    /// Clears the field now and again on the next run loop: the keyboard can write back a pending
+    /// autocorrection or predictive word after the binding is cleared, leaving the sent text in place.
+    private func clearInput() {
+        input = ""
+        DispatchQueue.main.async { input = "" }
+    }
+
     private func sendInput() {
         let text = input.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !text.isEmpty, !isThinking else { return }
-        input = ""
-        Task { await send(text) }
+        guard canSend else { return }
+        var images: [UIImage] = []
+        var jpegs: [Data] = []
+        for image in pendingImages {
+            guard let jpeg = prepareImageForUpload(image) else { continue }
+            images.append(image)
+            jpegs.append(jpeg)
+        }
+        guard !text.isEmpty || !jpegs.isEmpty else { return }
+        clearInput()
+        pendingImages = []
+        if !jpegs.isEmpty { sentPhotos = true }
+        // Photos alone still need words for the assistant; the bubble shows just the photos
+        let detail = jpegs.isEmpty ? nil : (text.isEmpty ? FinishDayService.photosMessage : text + "\n\n" + FinishDayService.photosMessage)
+        Task { await send(text, detail: detail, images: images, jpegs: jpegs) }
+    }
+
+    private func attach(_ image: UIImage) {
+        guard pendingImages.count < maxImagesPerMessage else { return }
+        pendingImages.append(image)
+    }
+
+    private func loadPickedPhotos(_ items: [PhotosPickerItem]) async {
+        for item in items {
+            if let data = try? await item.loadTransferable(type: Data.self),
+               let image = UIImage(data: data) {
+                attach(image)
+            }
+        }
     }
 
     /// Tells the assistant what's been picked and asks for options for the rest
@@ -336,11 +469,11 @@ struct FinishDayView: View {
 
     /// Sends `text` (shown as the user's bubble; `detail` is what the assistant gets instead, if set).
     /// nil re-asks with the conversation as it is, for the first request or a retry.
-    private func send(_ text: String?, detail: String? = nil) async {
+    private func send(_ text: String?, detail: String? = nil, images: [UIImage] = [], jpegs: [Data] = []) async {
         guard let context else { return }
         if let text {
-            messages.append(Message(isUser: true, text: text))
-            turns.append(FoodChatTurn(isUser: true, text: detail ?? text, jpegs: []))
+            messages.append(Message(isUser: true, text: text, images: images))
+            turns.append(FoodChatTurn(isUser: true, text: detail ?? text, jpegs: jpegs))
         }
         errorMessage = nil
         isThinking = true
@@ -402,7 +535,7 @@ struct FinishDayView: View {
                         mealName: mealName,
                         iconName: foodIconName(for: name),
                         servingDescription: portion,
-                        entrySource: .aiChatText,
+                        entrySource: sentPhotos ? .aiChatPhoto : .aiChatText,
                         aiModel: model
                     ))
                 }
