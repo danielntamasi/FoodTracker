@@ -237,10 +237,14 @@ struct FoodChatView: View {
             Label(message, systemImage: "exclamationmark.triangle")
                 .font(DS.Typography.subhead)
                 .foregroundStyle(DS.Color.danger)
-            Button("Try Again") {
-                Task { await requestReply() }
+            // Only a failed reply can be retried. Other errors (an invalid estimate on Log it) leave the
+            // conversation ending on the assistant, and resending that is rejected by newer Claude models.
+            if messages.last?.role == .user {
+                Button("Try Again") {
+                    Task { await requestReply() }
+                }
+                .font(DS.Typography.labelL)
             }
-            .font(DS.Typography.labelL)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(DS.Spacing.m)
@@ -369,12 +373,14 @@ struct FoodChatView: View {
 
         messages.append(FoodChatMessage(role: .user, text: text, rawText: text, images: images, jpegs: jpegs))
         draft = ""
+        // Again on the next run loop: the keyboard can write back a pending autocorrection after clearing
+        DispatchQueue.main.async { draft = "" }
         pendingImages = []
         Task { await requestReply() }
     }
 
     private func requestReply() async {
-        guard !isSending else { return }
+        guard !isSending, messages.last?.role == .user else { return }
         isSending = true
         errorMessage = nil
         defer { isSending = false }

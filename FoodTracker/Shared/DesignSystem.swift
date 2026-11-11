@@ -229,10 +229,13 @@ struct MacroPill: View {
                 .font(.system(size: 11, weight: .bold, design: .rounded))
                 .foregroundStyle(color.opacity(0.7))
         }
+        .lineLimit(1)
         .padding(.horizontal, 8)
         .padding(.vertical, 4)
         .background(color.opacity(0.12))
         .clipShape(Capsule())
+        // Never squeezed into two lines in a tight row ("24." over "3"); the name truncates instead
+        .fixedSize()
     }
 }
 
@@ -295,20 +298,17 @@ struct CalorieRing: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var animatedProgress: Double = 0
 
+    /// Consumed / goal, up to 3 (the gauge stops opening there)
     private var targetProgress: Double {
         guard goal > 0 else { return 0 }
-        return min(Double(consumed) / Double(goal), 1.0)
+        return min(Double(consumed) / Double(goal), 3.0)
     }
 
     private var remaining: Int { goal - consumed }
     private var tone: GoalTone { GoalTone(current: Double(consumed), goal: Double(goal)) }
 
-    /// Blue-to-purple; red only when way over the goal
-    private var ringColors: [SwiftUI.Color] {
-        tone == .wayOver
-            ? [DS.Color.danger.opacity(0.7), DS.Color.danger]
-            : [DS.Color.protein, DS.Color.protein, DS.Color.fat, DS.Color.fat]
-    }
+    /// Blue-to-purple up to the goal; whatever goes past it is drawn red
+    private let ringColors: [SwiftUI.Color] = [DS.Color.protein, DS.Color.fat]
 
     /// "734 left", "✓ On target" or "✗ 350 over" in the tone's color
     @ViewBuilder
@@ -337,23 +337,8 @@ struct CalorieRing: View {
 
     var body: some View {
         ZStack {
-            // Track
-            Circle()
-                .stroke(DS.Color.ringTrack, lineWidth: lineWidth)
-
-            // Ring with glow via shadow
-            Circle()
-                .trim(from: 0, to: animatedProgress)
-                .stroke(
-                    AngularGradient(
-                        colors: ringColors,
-                        center: .center,
-                        startAngle: .degrees(0),
-                        endAngle: .degrees(360 * animatedProgress)
-                    ),
-                    style: StrokeStyle(lineWidth: lineWidth, lineCap: .round)
-                )
-                .rotationEffect(.degrees(-90))
+            // Gauge with glow via shadow
+            CalorieGauge(progress: animatedProgress, colors: ringColors, lineWidth: lineWidth, size: size)
                 .shadow(color: glowColors.0.opacity(0.5), radius: 10)
                 .shadow(color: glowColors.1.opacity(0.3), radius: 16)
                 .animation(.easeInOut(duration: 0.4), value: tone)
@@ -406,6 +391,71 @@ struct CalorieRing: View {
                     animatedProgress = newValue
                 }
             }
+        }
+    }
+}
+
+/// The calorie gauge: an open 270° arc (gap at the bottom) whose length adapts to the day.
+/// Below 90% of the goal the whole arc is the goal, so the fill reads as share of the day. From 90% it
+/// opens until the arc runs to 110% of the goal at the goal, and past the goal it keeps 10% of the goal
+/// ahead of the tip (`scale`). A goal line fades in as it opens. Blue to purple up to the goal, then red
+/// with a flat join and one rounded tip. `Animatable`, so it's redrawn every frame and the arc opens with the fill.
+private struct CalorieGauge: View, Animatable {
+    var progress: Double
+    let colors: [SwiftUI.Color]
+    let lineWidth: CGFloat
+    let size: CGFloat
+
+    var animatableData: Double {
+        get { progress }
+        set { progress = newValue }
+    }
+
+    /// Share of the full circle the gauge covers
+    private let span = 0.75
+    /// Room kept past the goal (and ahead of the tip once over), as a share of the goal
+    private static let room = 0.1
+
+    /// What the full arc stands for, in goals: 1 until 90%, then always `room` ahead of the fill
+    private var scale: Double { max(1, progress + Self.room) }
+
+    var body: some View {
+        let goalAt = span / scale
+        let fill = span * progress / scale
+        ZStack {
+            Group {
+                Circle()
+                    .trim(from: 0, to: span)
+                    .stroke(DS.Color.ringTrack, style: StrokeStyle(lineWidth: lineWidth, lineCap: .round))
+                if fill > 0 {
+                    Circle()
+                        .trim(from: 0, to: min(fill, goalAt))
+                        .stroke(
+                            AngularGradient(colors: colors, center: .center,
+                                            startAngle: .degrees(0), endAngle: .degrees(360 * goalAt)),
+                            style: StrokeStyle(lineWidth: lineWidth, lineCap: .round)
+                        )
+                }
+                if fill > goalAt {
+                    Circle()
+                        .trim(from: goalAt, to: fill)
+                        .stroke(DS.Color.danger, style: StrokeStyle(lineWidth: lineWidth, lineCap: .butt))
+                    // The rounded tip (the join at the goal stays flat)
+                    Circle()
+                        .trim(from: max(goalAt, fill - 0.001), to: fill)
+                        .stroke(DS.Color.danger, style: StrokeStyle(lineWidth: lineWidth, lineCap: .round))
+                }
+            }
+            // Trim starts at 3 o'clock; turned so the gauge starts at the bottom left
+            .rotationEffect(.degrees(135))
+
+            // Goal line, turned from 12 o'clock to where the goal falls; fades in as the arc opens
+            Capsule()
+                .fill(DS.Color.textPrimary.opacity(0.55))
+                .frame(width: 2.5, height: lineWidth + 8)
+                .offset(y: -size / 2)
+                .rotationEffect(.degrees(135 + 360 * goalAt - 270))
+                .opacity(min(1, (scale - 1) / 0.04))
         }
     }
 }
@@ -570,6 +620,17 @@ extension View {
             safeAreaBar(edge: .bottom) { bar() }
         } else {
             safeAreaInset(edge: .bottom, spacing: 0) { bar().background(fallbackBackground) }
+        }
+    }
+
+    /// A hard scroll edge under a `bottomBar` (iOS 26): content scrolling behind several controls is
+    /// covered instead of only softly faded, so text doesn't show through the glass buttons.
+    @ViewBuilder
+    func hardBottomEdge() -> some View {
+        if #available(iOS 26, *) {
+            scrollEdgeEffectStyle(.hard, for: .bottom)
+        } else {
+            self
         }
     }
 }

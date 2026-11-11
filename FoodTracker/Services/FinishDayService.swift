@@ -93,6 +93,11 @@ enum FinishDayService {
     - If a goal is already met or over, avoid adding more of it (e.g. carbs over: lean on protein and fat). \
     Never suggest going well over the calorie goal. If they're basically done, say so and offer light options.
     - It's fine to fall short rather than suggest an odd combination just to hit numbers.
+    - They may send photos of food they have on hand (the fridge, a pantry shelf, a package or its label). \
+    Say briefly what you see, then build the 3 options around those foods, combined with usual foods where \
+    it makes sense. Photographed foods are new items: name them specifically (brand and flavor if visible), \
+    use the label's numbers for the portion when a nutrition label is readable, otherwise estimate. If a \
+    photo is unclear, say what you're assuming rather than asking.
 
     Reply with at most two short, friendly sentences, then the options exactly in this format:
     <options>[{"title": "Turkey Pita Sandwich", "note": "Filling and high protein", "items": [{"usual": 3, "servings": 1}, {"name": "cucumber", "portion": "1/2 cup sliced", "calories": 8, "protein_grams": 0.3, "carbs_grams": 2, "fat_grams": 0}]}]</options>
@@ -104,6 +109,9 @@ enum FinishDayService {
     - title: up to 4 words. note: up to 10 words on why it works.
     The user can pick single items from any option. When they reply (e.g. "no bars", "something warm"),     give 3 new options following their wishes. When they say what they've picked, those are already part     of their day: suggest 3 options for only what's left after them, without repeating their picks.
     """
+
+    /// Sent with photos (alone, or after the user's note) so the assistant knows what they're for
+    static let photosMessage = "This is food I have on hand right now. Plan the rest of my day with it."
 
     /// The first message: the day so far, the goals and what's usual.
     static func contextMessage(_ c: FinishDayContext) -> String {

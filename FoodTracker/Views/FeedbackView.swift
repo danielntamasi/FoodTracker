@@ -86,7 +86,7 @@ struct FeedbackView: View {
         let startKind: FeedbackKind = context.screenshot == nil ? .idea : .broken
         _kind = State(initialValue: startKind)
         _screenshot = State(initialValue: context.screenshot)
-        _includeScreenshot = State(initialValue: context.screenshot != nil && !startKind.isIdea)
+        _includeScreenshot = State(initialValue: context.screenshot != nil)
     }
 
     private var useAI: Bool { FeedbackService.hasAIKey }
@@ -100,16 +100,23 @@ struct FeedbackView: View {
 
     var body: some View {
         NavigationStack {
-            ScrollView {
-                VStack(alignment: .leading, spacing: 20) {
-                    switch stage {
-                    case .compose: composeContent
-                    case .asking: askingContent
-                    case .confirm: confirmContent
-                    case .done: doneContent
+            ScrollViewReader { proxy in
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 20) {
+                        switch stage {
+                        case .compose: composeContent
+                        case .asking: askingContent
+                        case .confirm: confirmContent
+                        case .done: doneContent
+                        }
                     }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(DS.Spacing.screenEdge)
                 }
-                .padding(DS.Spacing.screenEdge)
+                // A growing answer field would otherwise run on under the keyboard and the Send bar
+                .onChange(of: note) { keepFieldVisible(proxy) }
+                .onChange(of: answer) { keepFieldVisible(proxy) }
+                .onChange(of: summary) { keepFieldVisible(proxy) }
             }
             .scrollDismissesKeyboard(.interactively)
             .background(DS.Color.backgroundPrimary)
@@ -158,9 +165,6 @@ struct FeedbackView: View {
             }
         }
         .pickerStyle(.segmented)
-        .onChange(of: kind) { _, newKind in
-            if screenshot != nil { includeScreenshot = !newKind.isIdea }
-        }
 
         if let screenshot {
             HStack(alignment: .top, spacing: 16) {
@@ -272,9 +276,20 @@ struct FeedbackView: View {
         .clipShape(RoundedRectangle(cornerRadius: DS.Radius.s))
     }
 
+    /// Scrolls so the bottom of the field being typed in stays above the keyboard.
+    private func keepFieldVisible(_ proxy: ScrollViewProxy) {
+        guard fieldFocused else { return }
+        proxy.scrollTo(Self.inputFieldID, anchor: .bottom)
+    }
+
+    private static let inputFieldID = "feedbackInput"
+
     private func inputField(_ placeholder: String, text: Binding<String>) -> some View {
+        // Grows to 6 lines, then scrolls inside itself
         TextField(placeholder, text: text, axis: .vertical)
-            .lineLimit(3...10)
+            .lineLimit(3...6)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .id(Self.inputFieldID)
             .textInputAutocapitalization(.sentences)
             .focused($fieldFocused)
             .padding(12)

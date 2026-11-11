@@ -202,6 +202,15 @@ actor OpenFoodFactsService {
         return name.isEmpty ? "\(weight) g" : "\(name) (\(weight) g)"
     }
 
+    /// A nutriment value for OFF: up to 4 decimals with trailing zeros dropped ("12", "12.5", "3.3803"),
+    /// so whole label numbers stay whole and derived values aren't rounded away.
+    static func offNumber(_ value: Double) -> String {
+        var text = String(format: "%.4f", value)
+        while text.hasSuffix("0") { text.removeLast() }
+        if text.hasSuffix(".") { text.removeLast() }
+        return text
+    }
+
     /// Submits corrected nutrition data back to OpenFoodFacts. Fire-and-forget: errors are logged, never thrown.
     /// Returns true when OFF saved the fields; false if skipped (no login) or rejected.
     @discardableResult
@@ -215,10 +224,9 @@ actor OpenFoodFactsService {
 
         guard let url = URL(string: Self.writeURL) else { return false }
 
-        // Compute per-100g values from per-serving + serving weight for OFF
-        // OFF works best with per-100g data since it can derive per-serving from serving_quantity
-        let sendPer100g = correction.per100g != nil || (correction.servingGrams != nil && correction.servingGrams! > 0)
-        let nutritionPer = sendPer100g ? "100g" : "serving"
+        // Per-serving values go in as typed (what the label says); OFF derives per-100g from serving_quantity.
+        // Sending per-100g worked out from them rounded to 0.1 g came back as 12.1 g instead of the label's 12 g.
+        let nutritionPer = correction.per100g != nil ? "100g" : "serving"
 
         var queryItems = [
             URLQueryItem(name: "code", value: correction.barcode),
@@ -241,26 +249,19 @@ actor OpenFoodFactsService {
         if correction.servingOnly {
             // No nutriment fields: OFF leaves the product's nutrition untouched
         } else if let per100g = correction.per100g {
+            // The product's own per-100g values, unrounded, so its nutrition stays exactly as it was
             queryItems.append(contentsOf: [
-                URLQueryItem(name: "nutriment_energy-kcal", value: String(format: "%.1f", per100g.calories)),
-                URLQueryItem(name: "nutriment_proteins", value: String(format: "%.1f", per100g.protein)),
-                URLQueryItem(name: "nutriment_carbohydrates", value: String(format: "%.1f", per100g.carbs)),
-                URLQueryItem(name: "nutriment_fat", value: String(format: "%.1f", per100g.fat)),
-            ])
-        } else if sendPer100g, let grams = correction.servingGrams {
-            let scale = 100.0 / grams
-            queryItems.append(contentsOf: [
-                URLQueryItem(name: "nutriment_energy-kcal", value: String(format: "%.1f", Double(correction.caloriesPerServing) * scale)),
-                URLQueryItem(name: "nutriment_proteins", value: String(format: "%.1f", correction.proteinPerServing * scale)),
-                URLQueryItem(name: "nutriment_carbohydrates", value: String(format: "%.1f", correction.carbsPerServing * scale)),
-                URLQueryItem(name: "nutriment_fat", value: String(format: "%.1f", correction.fatPerServing * scale)),
+                URLQueryItem(name: "nutriment_energy-kcal", value: Self.offNumber(per100g.calories)),
+                URLQueryItem(name: "nutriment_proteins", value: Self.offNumber(per100g.protein)),
+                URLQueryItem(name: "nutriment_carbohydrates", value: Self.offNumber(per100g.carbs)),
+                URLQueryItem(name: "nutriment_fat", value: Self.offNumber(per100g.fat)),
             ])
         } else {
             queryItems.append(contentsOf: [
                 URLQueryItem(name: "nutriment_energy-kcal", value: "\(correction.caloriesPerServing)"),
-                URLQueryItem(name: "nutriment_proteins", value: String(format: "%.1f", correction.proteinPerServing)),
-                URLQueryItem(name: "nutriment_carbohydrates", value: String(format: "%.1f", correction.carbsPerServing)),
-                URLQueryItem(name: "nutriment_fat", value: String(format: "%.1f", correction.fatPerServing)),
+                URLQueryItem(name: "nutriment_proteins", value: Self.offNumber(correction.proteinPerServing)),
+                URLQueryItem(name: "nutriment_carbohydrates", value: Self.offNumber(correction.carbsPerServing)),
+                URLQueryItem(name: "nutriment_fat", value: Self.offNumber(correction.fatPerServing)),
             ])
         }
 

@@ -185,10 +185,11 @@ enum FeedbackService {
         var turns: [FoodChatTurn] = []
 
         var opening = "Report type: \(kind.label)\n\nTheir note: \(note)"
-        if !kind.isIdea, context.screenshot == nil {
-            opening += "\n\n(No screenshot attached.)"
-        }
-        let jpegs = kind.isIdea ? [] : (context.screenshot.flatMap { prepareImageForUpload($0) }.map { [$0] } ?? [])
+        opening += context.screenshot == nil
+            ? "\n\n(No screenshot attached.)"
+            : "\n\n(Attached: a screenshot of the screen they were on when they started this, possibly marked up.)"
+        // Ideas get the screenshot too: it shows which screen the idea is about
+        let jpegs = context.screenshot.flatMap { prepareImageForUpload($0) }.map { [$0] } ?? []
         turns.append(FoodChatTurn(isUser: true, text: opening, jpegs: jpegs))
 
         for exchange in exchanges {
@@ -226,6 +227,8 @@ enum FeedbackService {
 
         Write like a quick text message: short, friendly, plain sentences, no markdown, no greetings, no thanking, no apologizing. Ask exactly one question per reply. Never ask about something the note, earlier answers, or screenshot already make clear. Don't propose fixes or promise anything will change.
 
+        When a screenshot is attached, look at it before every question: it shows the screen they mean (its title, buttons and numbers), and any markup points at the part they mean. Name that screen and its features the way the overview below does. Never ask them where a screen is or what a feature does when the overview or the screenshot already tells you; if they name a feature, find it in the overview.
+
         What the app does today:
         \(appOverview)
 
@@ -238,7 +241,7 @@ enum FeedbackService {
             return shared + """
 
 
-            This is a feature request. Your job is to fill in what the idea needs to be built well, in at most \(kind.maxQuestions) questions, aimed at whichever of these is still missing:
+            This is a feature request. If a screenshot is attached, the idea is most likely about that screen. Your job is to fill in what the idea needs to be built well, in at most \(kind.maxQuestions) questions, aimed at whichever of these is still missing:
             - when it comes up and how often
             - what they do today instead
             - what should happen when it works (what they'd tap, what they'd see)
@@ -262,12 +265,24 @@ enum FeedbackService {
         }
     }
 
+    /// What the app does, for the feedback assistant. Keep it in step with the app: when a user-facing
+    /// feature is added, renamed or removed, update this list too, or the assistant won't know what people mean.
     private static let appOverview = """
-    - Today tab: daily calorie ring and macro totals against targets, entries grouped into morning/afternoon/evening, swipe to delete, edit or add again, drag to reorder, meals expand into their items.
-    - History tab: past days, collapsible, with totals. Performance tile: how many days were on target this week/month/year, streaks, trends.
-    - The + button opens: Recent (favorites, frequent foods, recent meals, recent foods to re-add with one tap), Search (your past foods, USDA database, AI estimate, manual entry), AI Chat (describe or photograph food, go back and forth with the AI, then tap "Log it"), Build (compose a named meal from several ingredients and save it as a group), Barcode (scan a package via OpenFoodFacts, choose servings).
-    - Tapping an entry opens its detail page: photo, macros, share of daily goals; Edit changes name, numbers, serving size, servings, date and time; star to favorite.
-    - Settings: AI provider and model, API keys, daily calorie and macro targets, Apple Health sync, appearance, CSV import and export of the food log, estimation accuracy history, feedback.
+    - Tabs: Today, History, Settings, and a separate + button (on the right, or the left with Handedness set to left in Settings).
+    - Today: a calorie gauge (an open arc; below 90% of the goal the whole arc is the goal, near the goal it opens a little further and shows a goal line, anything past the goal is red) with eaten, goal and "N left", "On target" or "N over"; three small rings for protein, carbs and fat with a check or X. Entries are grouped into Morning, Afternoon and Evening; swipe an entry to delete, edit or add it again; drag to reorder or move it to another part of the day; a meal row expands into its items; an arrow flips the sort order.
+    - Entry detail (tap an entry): photo or an AI-drawn picture, calories and macros, share of the daily goals, serving size, time, where it came from (AI Chat, barcode, search...), a star to favorite, and Edit (name, numbers, serving size, servings or grams eaten, date and time, look up in USDA, scan a barcode, remove photo). Changing a scanned product's numbers or serving offers to send the correction to Open Food Facts.
+    - Meal detail (tap a meal): its items, totals, share of goals, a star, and a Time row that moves every item of the meal at once.
+    - History: past days, collapsed, with totals. At the top a Performance card: average calories, protein, carbs and fat per day over 7 days, 30 days, 90 days or a year against the goals (on target within 10%), a row of dots for logged, missing and partial days, and "N look partial" to leave half-logged days out of the averages. An info button explains it.
+    - The + button opens a menu:
+      - Finish the Day (shown when daily goals are set and it's on in Settings): an AI conversation that suggests three options for the rest of the day built mostly from foods they usually eat, to close the gap to their goals. They pick single items or whole options, a tracker at the top shows the goals with the picks added, Recalculate asks for new options covering what's still left, they can reply ("no bars", "something warm") for different ideas, and Add logs the picks. A camera button sends photos of food they have on hand (fridge, pantry, a package) for it to plan around.
+      - AI Chat: describe or photograph food (camera or library, up to 4 photos a message), go back and forth with the AI, then tap "Log it" on its proposal.
+      - Recent: favorites, most frequent foods, recent meals and recent foods to add again (a food opens in edit mode to adjust before adding).
+      - Search: their past foods, the USDA database, an AI estimate, or manual entry.
+      - Build: put a named meal together from several ingredients (search, recent, photo, barcode or manual) and save it as one meal.
+      - Barcode: scan a package (Open Food Facts), choose servings or grams. If the product isn't found, Add It: type the label or photograph it for the AI to read, and it's added to Open Food Facts too.
+    - Daily Kickstart: when the app opens, a greeting sheet offers the foods and meals they usually have by this time of day that aren't logged yet, to add in one tap ("Not Today" hides them for the day).
+    - Settings: appearance (system, light or dark) and handedness; AI provider (Claude or Gemini) and model; API keys for AI, USDA and Open Food Facts; daily calorie and macro goals; Daily Kickstart and Finish the Day switches; Apple Health sync; AI-drawn pictures; CSV import and export; Estimation Accuracy (how far the AI's estimates were off when corrected); Send Feedback.
+    - Feedback: shaking the phone anywhere opens this feedback form with a screenshot of that screen.
     - Home screen widget with today's calories and macros.
     """
 

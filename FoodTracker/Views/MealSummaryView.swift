@@ -8,6 +8,8 @@ struct MealSummaryView: View {
     @State private var extractedColor: Color?
     @State private var isFavorite = false
     @State private var isGeneratingImage = false
+    /// Set when the meal's time was changed, so Apple Health is updated once when the sheet closes
+    @State private var timeChanged = false
 
     private var totalCalories: Int { mealGroup.entries.reduce(0) { $0 + $1.totalCalories } }
     private var totalProtein: Double { mealGroup.entries.reduce(0) { $0 + $1.totalProteinGrams } }
@@ -29,18 +31,19 @@ struct MealSummaryView: View {
         return iconHeroColor(for: iconName)
     }
 
-    private var formattedTimestamp: String {
-        guard let earliest = mealGroup.entries.map(\.date).min() else { return "" }
-        let calendar = Calendar.current
-        let formatter = DateFormatter()
-        if calendar.isDateInToday(earliest) {
-            formatter.dateFormat = "'Today at' h:mm a"
-        } else if calendar.isDateInYesterday(earliest) {
-            formatter.dateFormat = "'Yesterday at' h:mm a"
-        } else {
-            formatter.dateFormat = "MMM d 'at' h:mm a"
-        }
-        return formatter.string(from: earliest)
+    /// The meal's time (its earliest item). Setting it moves every item by the same amount, so a meal
+    /// put together in the morning can be moved to lunch in one go.
+    private var mealTime: Binding<Date> {
+        Binding(
+            get: { mealGroup.entries.map(\.date).min() ?? Date() },
+            set: { newTime in
+                guard let earliest = mealGroup.entries.map(\.date).min() else { return }
+                let shift = newTime.timeIntervalSince(earliest)
+                guard shift != 0 else { return }
+                for entry in mealGroup.entries { entry.date = entry.date.addingTimeInterval(shift) }
+                timeChanged = true
+            }
+        )
     }
 
     var body: some View {
@@ -105,10 +108,20 @@ struct MealSummaryView: View {
                                     )
                                 }
 
-                                Text(formattedTimestamp)
-                                    .font(.caption)
-                                    .foregroundStyle(DS.Color.textSecondary)
-                                    .padding(.top, 4)
+                                HStack {
+                                    Label("Time", systemImage: "clock")
+                                        .font(DS.Typography.labelL)
+                                        .foregroundStyle(DS.Color.textPrimary)
+                                    Spacer()
+                                    DatePicker("Time", selection: mealTime, displayedComponents: [.date, .hourAndMinute])
+                                        .labelsHidden()
+                                }
+                                .padding(.horizontal, 16)
+                                .padding(.vertical, 8)
+                                .background(DS.Color.backgroundElevated)
+                                .clipShape(RoundedRectangle(cornerRadius: DS.Radius.s))
+                                .padding(.horizontal, 20)
+                                .accessibilityHint("Moves every item in this meal")
                             }
                             .padding(.top, 12)
                         }
@@ -152,6 +165,11 @@ struct MealSummaryView: View {
                 extractedColor = dominantColor(from: uiImage, colorScheme: colorScheme)
             }
             isFavorite = FavoriteFoods.isFavorite(mealGroup.name)
+        }
+        .onDisappear {
+            guard timeChanged else { return }
+            let entries = mealGroup.entries
+            Task { for entry in entries { await HealthKitService.shared.updateEntry(entry) } }
         }
         .task(id: mealGroup.id) {
             guard mealImage == nil,
